@@ -11,6 +11,8 @@ target_sources(Utils PRIVATE
     GaussianBlur/GaussianBlur.cpp
     GaussianBlur/GaussianBlur.h
     GaussianBlur/GaussianBlur.ps.slang
+
+    GuardBand/guardband.h
 )
 
 target_copy_shaders(Utils RenderPasses/Utils)
