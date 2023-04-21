@@ -139,6 +139,12 @@ enum class ResourceFormat : uint32_t
     // Depth-stencil
     D32Float,
     D16Unorm,
+    D32FloatS8X24,
+    D24UnormS8,
+
+    // special depth as color formats
+    R24UnormX8,
+    R32FloatX32,
 
     // Compressed formats
     BC1Unorm, // DXT1
@@ -409,8 +415,12 @@ inline ResourceFormat depthToColorFormat(ResourceFormat format)
     {
     case ResourceFormat::D16Unorm:
         return ResourceFormat::R16Unorm;
+    case ResourceFormat::D24UnormS8:
+        return ResourceFormat::R24UnormX8;
     case ResourceFormat::D32Float:
         return ResourceFormat::R32Float;
+    case ResourceFormat::D32FloatS8X24:
+        return ResourceFormat::R32FloatX32; // this is meant 99% of the time
     default:
         FALCOR_ASSERT(isDepthFormat(format) == false);
         return format;
