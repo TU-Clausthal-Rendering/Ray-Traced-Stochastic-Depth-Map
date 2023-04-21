@@ -64,6 +64,7 @@ private:
     std::vector<RenderGraph::SharedPtr> mpGraphs;
     std::vector<RenderGraphUI> mRenderGraphUIs;
     std::unordered_map<std::string, uint32_t> mGraphNamesToIndex;
+    std::unordered_map<std::string, Texture::SharedPtr> mRenderPassImageCache;
     size_t mCurrentGraphIndex;
     uint2 mWindowSize;
     std::string mCurrentLog;

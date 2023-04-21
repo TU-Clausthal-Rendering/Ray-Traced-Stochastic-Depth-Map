@@ -225,7 +225,24 @@ void RenderGraphEditor::onGuiRender(Gui* pGui)
     {
         const auto& [type, info] = renderPasses[i];
         passWindow.rect({148.0f, 64.0f}, pGui->pickUniqueColor(type), false);
-        passWindow.image(("RenderPass##" + std::to_string(i)).c_str(), mpDefaultIconTex, {148.0f, 44.0f});
+        const std::string customIconPath = "framework/images/passes/" + std::string(type) + ".png";
+        const std::string iconLabel = "RenderPass##" + std::to_string(i);
+
+        auto cachedEntry = mRenderPassImageCache.find(type);
+        if (cachedEntry != mRenderPassImageCache.end())
+        {
+            // display cached image
+            passWindow.image(iconLabel.c_str(), cachedEntry->second, { 148.0f, 44.0f });
+        }
+        else
+        {
+            // create cache entry
+            auto icon = Texture::createFromFile(getDevice().get(), customIconPath, false, true);
+            if (!icon) icon = mpDefaultIconTex; // take default icon if not found
+            mRenderPassImageCache[type] = icon;
+            passWindow.image(iconLabel.c_str(), icon, { 148.0f, 44.0f });
+        }
+
         passWindow.dragDropSource(type.c_str(), "RenderPassType", type);
         passWindow.text(type);
         passWindow.tooltip(info.desc, true);
