@@ -77,4 +77,5 @@ void MaterialDoubleSided::execute(RenderContext* pRenderContext, const RenderDat
 
 void MaterialDoubleSided::renderUI(Gui::Widgets& widget)
 {
+    
 }
