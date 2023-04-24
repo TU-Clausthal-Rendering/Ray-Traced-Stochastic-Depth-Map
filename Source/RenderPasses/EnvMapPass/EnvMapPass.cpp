@@ -59,7 +59,8 @@ Dictionary EnvMapPass::getScriptingDictionary()
 RenderPassReflection EnvMapPass::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
-    reflector.addOutput(kColor, "Envmap background");
+    reflector.addOutput(kColor, "Envmap background")
+        .format(ResourceFormat::RGBA32Float);
     return reflector;
 }
 

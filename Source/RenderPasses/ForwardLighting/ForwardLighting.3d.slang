@@ -15,6 +15,19 @@ VSOut vsMain(VSIn vIn)
     return defaultVS(vIn);
 }
 
+float roughnessToLod(float roughness)
+{
+    float nEnvLods = log2(float(gScene.envMap.getDimensions().x));
+    float maxEnvLod = max(nEnvLods - 4.0, 0.0);
+    return saturate(roughness) * maxEnvLod;
+}
+
+// limit maximal intensity of rough materials (avoids bright sparkles)
+float roughnessToIntensity(float roughness)
+{
+    return saturate(1.0 / (roughness + 0.1));
+}
+
 float4 psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID) : SV_TARGET
 {
     let lod = ImplicitLodTextureSampler();
@@ -25,7 +38,8 @@ float4 psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID) : SV_TARGET
 
     float3 viewDir = normalize(gScene.camera.getPosition() - vsOut.posW);
     ShadingData sd = prepareShadingData(vsOut, triangleIndex, viewDir, lod);
-
+    adjustShadingNormal(sd);
+    
     // Create material instance.
     let mi = gScene.materials.getMaterialInstance(sd, lod);
     let bsdf = mi.getProperties(sd);
@@ -36,8 +50,11 @@ float4 psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID) : SV_TARGET
     color += gAmbientIntensity * bsdf.diffuseReflectionAlbedo;
     // envmap ambient term
     float3 R = reflect(-viewDir, bsdf.guideNormal);
-    color += gEnvMapIntensity * bsdf.diffuseReflectionAlbedo * gScene.envMap.eval(R, 10.0f);
-    color += gEnvMapIntensity * bsdf.specularReflectionAlbedo * gScene.envMap.eval(R, 10.0f * bsdf.roughness);
+    float diffLod = roughnessToLod(bsdf.roughness * 2.0);
+    float specLod = roughnessToLod(bsdf.roughness);
+    float envMaxIntensity = roughnessToIntensity(bsdf.roughness);
+    color += gEnvMapIntensity * bsdf.diffuseReflectionAlbedo * min(gScene.envMap.eval(lerp(sd.N, sd.faceN, 0.8), diffLod), 1.0);
+    color += gEnvMapIntensity * bsdf.specularReflectionAlbedo * min(gScene.envMap.eval(R, specLod), envMaxIntensity);
     
     
     TinyUniformSampleGenerator sg = TinyUniformSampleGenerator(pixel, 0);
