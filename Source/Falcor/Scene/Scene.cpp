@@ -338,10 +338,10 @@ namespace Falcor
 
     void Scene::rasterize(RenderContext* pRenderContext, GraphicsState* pState, GraphicsVars* pVars, RasterizerState::CullMode cullMode)
     {
-        rasterize(pRenderContext, pState, pVars, mFrontClockwiseRS[cullMode], mFrontCounterClockwiseRS[cullMode]);
+        rasterize(pRenderContext, pState, pVars, mFrontClockwiseRS[cullMode], mFrontCounterClockwiseRS[cullMode], mFrontCounterClockwiseRS[RasterizerState::CullMode::None]);
     }
 
-    void Scene::rasterize(RenderContext* pRenderContext, GraphicsState* pState, GraphicsVars* pVars, const RasterizerState::SharedPtr& pRasterizerStateCW, const RasterizerState::SharedPtr& pRasterizerStateCCW)
+    void Scene::rasterize(RenderContext* pRenderContext, GraphicsState* pState, GraphicsVars* pVars, const RasterizerState::SharedPtr& pRasterizerStateCW, const RasterizerState::SharedPtr& pRasterizerStateCCW, const RasterizerState::SharedPtr& pRasterizerStateDoubleSided)
     {
         FALCOR_PROFILE(pRenderContext, "rasterizeScene");
 
@@ -357,7 +357,8 @@ namespace Falcor
             // Set state.
             pState->setVao(draw.ibFormat == ResourceFormat::R16Uint ? mpMeshVao16Bit : mpMeshVao);
 
-            if (draw.ccw) pState->setRasterizerState(pRasterizerStateCCW);
+            if (draw.ignoreWinding) pState->setRasterizerState(pRasterizerStateDoubleSided);
+            else if (draw.ccw) pState->setRasterizerState(pRasterizerStateCCW);
             else pState->setRasterizerState(pRasterizerStateCW);
 
             // Draw the primitives.
@@ -2583,16 +2584,16 @@ namespace Falcor
         // This function creates argument buffers for draw indirect calls to rasterize the scene.
         // The updateGeometryInstances() function must have been called before so that the flags are accurate.
         //
-        // Note that we create four draw buffers to handle all combinations of:
+        // Note that we create six draw buffers to handle all combinations of:
         // 1) mesh is using 16- or 32-bit indices,
-        // 2) mesh triangle winding is CW or CCW after transformation.
+        // 2) mesh triangle winding is CW or CCW after transformation or that needs to be drawn without culling (transparent or double sided).
         //
         // TODO: Update the draw args if a mesh undergoes animation that flips the winding.
 
         mDrawArgs.clear();
 
         // Helper to create the draw-indirect buffer.
-        auto createDrawBuffer = [this](const auto& drawMeshes, bool ccw, ResourceFormat ibFormat = ResourceFormat::Unknown)
+        auto createDrawBuffer = [this](const auto& drawMeshes, bool ccw, bool ignoreWinding, ResourceFormat ibFormat = ResourceFormat::Unknown)
         {
             if (drawMeshes.size() > 0)
             {
@@ -2602,6 +2603,7 @@ namespace Falcor
                 FALCOR_ASSERT(drawMeshes.size() <= std::numeric_limits<uint32_t>::max());
                 draw.count = (uint32_t)drawMeshes.size();
                 draw.ccw = ccw;
+                draw.ignoreWinding = ignoreWinding;
                 draw.ibFormat = ibFormat;
                 mDrawArgs.push_back(draw);
             }
@@ -2609,7 +2611,7 @@ namespace Falcor
 
         if (hasIndexBuffer())
         {
-            std::vector<DrawIndexedArguments> drawClockwiseMeshes[2], drawCounterClockwiseMeshes[2];
+            std::vector<DrawIndexedArguments> drawClockwiseMeshes[2], drawCounterClockwiseMeshes[2], drawDoubleSidedMeshes[2];
 
             uint32_t instanceID = 0;
             for (const auto& instance : mGeometryInstanceData)
@@ -2618,7 +2620,8 @@ namespace Falcor
 
                 const auto& mesh = mMeshDesc[instance.geometryID];
                 bool use16Bit = mesh.use16BitIndices();
-
+                const auto& mat = getMaterial(MaterialID(mesh.materialID));
+                
                 DrawIndexedArguments draw;
                 draw.IndexCountPerInstance = mesh.indexCount;
                 draw.InstanceCount = 1;
@@ -2627,17 +2630,21 @@ namespace Falcor
                 draw.StartInstanceLocation = instanceID++;
 
                 int i = use16Bit ? 0 : 1;
-                (instance.isWorldFrontFaceCW()) ? drawClockwiseMeshes[i].push_back(draw) : drawCounterClockwiseMeshes[i].push_back(draw);
+                if (mat->isDoubleSided() || !mat->isOpaque()) drawDoubleSidedMeshes[i].push_back(draw);
+                else if (instance.isWorldFrontFaceCW()) drawClockwiseMeshes[i].push_back(draw);
+                else drawCounterClockwiseMeshes[i].push_back(draw);
             }
-
-            createDrawBuffer(drawClockwiseMeshes[0], false, ResourceFormat::R16Uint);
-            createDrawBuffer(drawClockwiseMeshes[1], false, ResourceFormat::R32Uint);
-            createDrawBuffer(drawCounterClockwiseMeshes[0], true, ResourceFormat::R16Uint);
-            createDrawBuffer(drawCounterClockwiseMeshes[1], true, ResourceFormat::R32Uint);
+            
+            createDrawBuffer(drawClockwiseMeshes[0], false, false, ResourceFormat::R16Uint);
+            createDrawBuffer(drawClockwiseMeshes[1], false, false, ResourceFormat::R32Uint);
+            createDrawBuffer(drawCounterClockwiseMeshes[0], true, false, ResourceFormat::R16Uint);
+            createDrawBuffer(drawCounterClockwiseMeshes[1], true, false, ResourceFormat::R32Uint);
+            createDrawBuffer(drawDoubleSidedMeshes[0], true, true, ResourceFormat::R16Uint);
+            createDrawBuffer(drawDoubleSidedMeshes[1], true, true, ResourceFormat::R32Uint);
         }
         else
         {
-            std::vector<DrawArguments> drawClockwiseMeshes, drawCounterClockwiseMeshes;
+            std::vector<DrawArguments> drawClockwiseMeshes, drawCounterClockwiseMeshes, drawDoubleSidedMeshes;
 
             uint32_t instanceID = 0;
             for (const auto& instance : mGeometryInstanceData)
@@ -2646,6 +2653,7 @@ namespace Falcor
 
                 const auto& mesh = mMeshDesc[instance.geometryID];
                 FALCOR_ASSERT(mesh.indexCount == 0);
+                const auto& mat = getMaterial(MaterialID(mesh.materialID));
 
                 DrawArguments draw;
                 draw.VertexCountPerInstance = mesh.vertexCount;
@@ -2653,11 +2661,14 @@ namespace Falcor
                 draw.StartVertexLocation = mesh.vbOffset;
                 draw.StartInstanceLocation = instanceID++;
 
-                (instance.isWorldFrontFaceCW()) ? drawClockwiseMeshes.push_back(draw) : drawCounterClockwiseMeshes.push_back(draw);
+                if (mat->isDoubleSided() || !mat->isOpaque()) drawDoubleSidedMeshes.push_back(draw);
+                else if (instance.isWorldFrontFaceCW()) drawClockwiseMeshes.push_back(draw);
+                else drawCounterClockwiseMeshes.push_back(draw);
             }
 
-            createDrawBuffer(drawClockwiseMeshes, false);
-            createDrawBuffer(drawCounterClockwiseMeshes, true);
+            createDrawBuffer(drawClockwiseMeshes, false, false);
+            createDrawBuffer(drawCounterClockwiseMeshes, true, false);
+            createDrawBuffer(drawDoubleSidedMeshes, true, true);
         }
     }
 
@@ -3448,6 +3459,11 @@ namespace Falcor
                 }
 
                 desc.instanceID = instanceID;
+                auto pMaterial = getMaterial(MaterialID(mGeometryInstanceData[desc.instanceID].materialID));
+                if (pMaterial->isDoubleSided())
+                {
+                    desc.flags = desc.flags | RtGeometryInstanceFlags::TriangleFacingCullDisable;
+                }
                 instanceID += (uint32_t)meshList.size();
 
                 rmcv::mat4 transform4x4 = rmcv::identity<rmcv::mat4>();
