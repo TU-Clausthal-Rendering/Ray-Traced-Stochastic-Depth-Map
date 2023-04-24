@@ -82,7 +82,7 @@ RenderPassReflection ForwardLighting::reflect(const CompileData& compileData)
     RenderPassReflection reflector;
     reflector.addInput(kDepth, "Non-linear z-buffer");
     reflector.addInput(kVisBuffer, "Visibility buffer used for shadowing. Range is [0,1] where 0 means the pixel is fully-shadowed and 1 means the pixel is not shadowed at all").flags(RenderPassReflection::Field::Flags::Optional);
-    reflector.addOutput(kColor, "Color texture").format(mColorFormat);
+    reflector.addInputOutput(kColor, "Color texture");
 
     return reflector;
 }

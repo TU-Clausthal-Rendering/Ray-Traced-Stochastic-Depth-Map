@@ -62,8 +62,6 @@ private:
     Scene::SharedPtr mpScene;
     //EnvMapLighting::SharedPtr mpEnvMapLighting;
     GraphicsVars::SharedPtr mpVars;
-
-    ResourceFormat mColorFormat = ResourceFormat::RGBA32Float;
     
     float mEnvMapIntensity = 1.0f;
     float mAmbientIntensity = 1.0f;

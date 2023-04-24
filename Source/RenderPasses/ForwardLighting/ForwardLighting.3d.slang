@@ -28,12 +28,17 @@ float4 psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID) : SV_TARGET
 
     // Create material instance.
     let mi = gScene.materials.getMaterialInstance(sd, lod);
-
+    let bsdf = mi.getProperties(sd);
+    
     // emission
-    float3 color = mi.getProperties(sd).emission;
+    float3 color = bsdf.emission;
     // constant ambient term
-    color += gAmbientIntensity *  mi.getProperties(sd).diffuseReflectionAlbedo;
+    color += gAmbientIntensity * bsdf.diffuseReflectionAlbedo;
     // envmap ambient term
+    float3 R = reflect(-viewDir, bsdf.guideNormal);
+    color += gEnvMapIntensity * bsdf.diffuseReflectionAlbedo * gScene.envMap.eval(R, 10.0f);
+    color += gEnvMapIntensity * bsdf.specularReflectionAlbedo * gScene.envMap.eval(R, 10.0f * bsdf.roughness);
+    
     
     TinyUniformSampleGenerator sg = TinyUniformSampleGenerator(pixel, 0);
 
