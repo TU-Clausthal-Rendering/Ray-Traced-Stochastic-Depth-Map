@@ -3448,6 +3448,11 @@ namespace Falcor
                 }
 
                 desc.instanceID = instanceID;
+                auto pMaterial = getMaterial(MaterialID(mGeometryInstanceData[desc.instanceID].materialID));
+                if (pMaterial->isDoubleSided())
+                {
+                    desc.flags = desc.flags | RtGeometryInstanceFlags::TriangleFacingCullDisable;
+                }
                 instanceID += (uint32_t)meshList.size();
 
                 rmcv::mat4 transform4x4 = rmcv::identity<rmcv::mat4>();
