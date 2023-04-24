@@ -974,8 +974,9 @@ namespace Falcor
             \param[in] pVars Graphics vars.
             \param[in] pRasterizerStateCW Rasterizer state for meshes with clockwise triangle winding.
             \param[in] pRasterizerStateCCW Rasterizer state for meshes with counter-clockwise triangle winding. Can be the same as for clockwise.
+            \param[in] pRasterizerStateCCW Rasterizer state for meshes that are double sided and need to be drawn without culling. Can be the same as above.
         */
-        void rasterize(RenderContext* pRenderContext, GraphicsState* pState, GraphicsVars* pVars, const RasterizerState::SharedPtr& pRasterizerStateCW, const RasterizerState::SharedPtr& pRasterizerStateCCW);
+        void rasterize(RenderContext* pRenderContext, GraphicsState* pState, GraphicsVars* pVars, const RasterizerState::SharedPtr& pRasterizerStateCW, const RasterizerState::SharedPtr& pRasterizerStateCCW, const RasterizerState::SharedPtr& pRasterizerStateDoubleSided);
 
         /** Get the required raytracing maximum attribute size for this scene.
             Note: This depends on what types of geometry are used in the scene.
@@ -1232,6 +1233,7 @@ namespace Falcor
             Buffer::SharedPtr pBuffer;      ///< Buffer holding the draw-indirect arguments.
             uint32_t count = 0;             ///< Number of draws.
             bool ccw = true;                ///< True if counterclockwise triangle winding.
+            bool ignoreWinding = false;     ///< Ignores winding and forces draw without culling (for transparent or double sided materials)
             ResourceFormat ibFormat = ResourceFormat::Unknown;  ///< Index buffer format.
         };
 
