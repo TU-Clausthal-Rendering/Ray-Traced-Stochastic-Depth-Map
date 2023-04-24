@@ -27,37 +27,119 @@
  **************************************************************************/
 #include "ForwardLighting.h"
 
+namespace
+{
+    const char kShaderFile[] = "RenderPasses/ForwardLighting/ForwardLighting.3d.slang";
+
+    const std::string kDepth = "depth";
+    const std::string kColor = "color";
+    const std::string kVisBuffer = "visibilityBuffer";
+
+    const std::string kAmbientIntensity = "ambientIntensity";
+    const std::string kEnvMapIntensity = "envMapIntensity";
+}
+
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
     registry.registerClass<RenderPass, ForwardLighting>();
 }
 
+ForwardLighting::ForwardLighting(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+{
+    mpState = GraphicsState::create(mpDevice);
+
+    mpFbo = Fbo::create(mpDevice.get());
+
+    DepthStencilState::Desc dsDesc;
+    dsDesc.setDepthWriteMask(false).setDepthFunc(DepthStencilState::Func::LessEqual);
+    mpDsNoDepthWrite = DepthStencilState::create(dsDesc);
+    mpState->setDepthStencilState(mpDsNoDepthWrite);
+}
+
 ForwardLighting::SharedPtr ForwardLighting::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
 {
     SharedPtr pPass = SharedPtr(new ForwardLighting(std::move(pDevice)));
+    for (const auto& [key, value] : dict)
+    {
+        if (key == kEnvMapIntensity) pPass->mEnvMapIntensity = value;
+        else if (key == kAmbientIntensity) pPass->mAmbientIntensity = value;
+        else logWarning("Unknown field '{}' in a ForwardLightingPass dictionary.", key);
+    }
     return pPass;
 }
 
 Dictionary ForwardLighting::getScriptingDictionary()
 {
-    return Dictionary();
+    Dictionary d;
+    d[kEnvMapIntensity] = mEnvMapIntensity;
+    d[kAmbientIntensity] = mAmbientIntensity;
+    return d;
 }
 
 RenderPassReflection ForwardLighting::reflect(const CompileData& compileData)
 {
-    // Define the required resources here
+    
     RenderPassReflection reflector;
-    //reflector.addOutput("dst");
-    //reflector.addInput("src");
+    reflector.addInput(kDepth, "Non-linear z-buffer");
+    reflector.addInput(kVisBuffer, "Visibility buffer used for shadowing. Range is [0,1] where 0 means the pixel is fully-shadowed and 1 means the pixel is not shadowed at all").flags(RenderPassReflection::Field::Flags::Optional);
+    reflector.addOutput(kColor, "Color texture").format(mColorFormat);
+
     return reflector;
 }
 
 void ForwardLighting::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    // renderData holds the requested resources
-    // auto& pTexture = renderData.getTexture("src");
+    if (!mpScene) return;
+
+    auto pColor = renderData[kColor]->asTexture();
+    auto pDepth = renderData[kDepth]->asTexture();
+    auto pVisBuffer = renderData[kVisBuffer]->asTexture();
+
+    // Update env map lighting
+    const auto& pEnvMap = mpScene->getEnvMap();
+    // TODO use envmap
+
+    
+    mpFbo->attachColorTarget(pColor, 0);
+    mpFbo->attachDepthStencilTarget(pDepth);
+    mpState->setFbo(mpFbo);
+
+    mpVars["visibilityBuffer"] = pVisBuffer;
+    if(mDirty)
+    {
+        mpVars["ConstantCB"]["gAmbientIntensity"] = mAmbientIntensity;
+        mpVars["ConstantCB"]["gEnvMapIntensity"] = mEnvMapIntensity;
+        mDirty = false;
+    }
+
+    mpScene->rasterize(pRenderContext, mpState.get(), mpVars.get());
 }
 
 void ForwardLighting::renderUI(Gui::Widgets& widget)
 {
+    if (widget.var("Ambient Intensity", mAmbientIntensity, 0.f, 100.f, 0.1f)) mDirty = true;
+    if (widget.var("Env Map Intensity", mEnvMapIntensity, 0.f, 100.f, 0.1f)) mDirty = true;
 }
+
+void ForwardLighting::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+{
+    mpScene = pScene;
+    mpVars = nullptr;
+
+    if (mpScene)
+    {
+        // create program
+        Program::Desc desc;
+        desc.addShaderModules(mpScene->getShaderModules());
+        desc.addShaderLibrary(kShaderFile).vsEntry("vsMain").psEntry("psMain");
+        desc.addTypeConformances(mpScene->getTypeConformances());
+        desc.setShaderModel("6_2");
+        auto pProgram = GraphicsProgram::create(mpDevice, desc, mpScene->getSceneDefines());
+
+        mpVars = GraphicsVars::create(mpDevice, pProgram->getReflector());
+        mDirty = true;
+        mpState->setProgram(pProgram);
+    }
+}
+
+
