@@ -27,6 +27,8 @@
  **************************************************************************/
 #include "RayShadow.h"
 
+#include "RenderGraph/RenderPassHelpers.h"
+
 namespace
 {
     const std::string kPos = "posW";
@@ -59,11 +61,15 @@ Dictionary RayShadow::getScriptingDictionary()
 RenderPassReflection RayShadow::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
-    reflector.addInput(kPos, "Pre-initialized scene depth buffer").bindFlags(ResourceBindFlags::ShaderResource);
+
+    
+    reflector.addInput(kPos, "Pre-initialized scene depth buffer")
+        .bindFlags(ResourceBindFlags::ShaderResource);
+
     reflector.addOutput(kVisibility, "Visibility map. Values are [0,1] where 0 means the pixel is completely shadowed and 1 means it's not shadowed at all")
         .format(ResourceFormat::R8Unorm)
-        .texture2D(0, 0).
-        bindFlags(ResourceBindFlags::RenderTarget);
+        .texture2D(mInputSize.x, mInputSize.y)
+        .bindFlags(ResourceBindFlags::RenderTarget);
     return reflector;
 }
 
@@ -71,6 +77,13 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
 {
     auto pPos = renderData[kPos]->asTexture();
     auto pVisibility = renderData[kVisibility]->asTexture();
+
+    //assert(RenderPassHelpers::isSameSize(pPos, pVisibility));
+    if (!RenderPassHelpers::isSameSize(pPos, pVisibility))
+    {
+        mInputSize = uint2(pPos->getWidth(), pPos->getHeight());
+        requestRecompile();
+    }
 
     // clear visibility texture
     pRenderContext->clearTexture(pVisibility.get(), glm::vec4(1, 1, 1, 1));
