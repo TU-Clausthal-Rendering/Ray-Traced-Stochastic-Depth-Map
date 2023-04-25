@@ -609,7 +609,7 @@ namespace Falcor
     {
         if (mRecompile)
         {
-            reportError("RenderGraph::getOutput() - can't fetch an output resource because the graph wasn't successfuly compiled yet");
+            Logger::log(Logger::Level::Info, "RenderGraph::getOutput() - can't fetch an output resource because the graph wasn't successfuly compiled yet");
             return nullptr;
         }
 

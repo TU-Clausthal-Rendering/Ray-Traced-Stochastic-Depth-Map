@@ -67,6 +67,27 @@ namespace Falcor
         /** Helper for calculating desired I/O size in pixels based on selected mode.
         */
         static uint2 calculateIOSize(const IOSize selection, const uint2 fixedSize, const uint2 windowSize);
+
+        /** Returns true if both textures have the same width and height
+            \param[in] a First texture (not null).
+            \param[in] b Second texture (not null).
+        */
+        static bool isSameSize(const Texture::SharedPtr& a, const Texture::SharedPtr& b)
+        {
+            assert(a);
+            assert(b);
+            return a->getWidth() == b->getWidth() && a->getHeight() == b->getHeight();
+        }
+
+        /** Returns true if both fields have the same width and height. Also returns false if at least one field is null
+            \param[in] a First texture.
+            \param[in] b Second texture.
+        */
+        static bool isSameSize(const RenderPassReflection::Field* a, const RenderPassReflection::Field* b)
+        {
+            if (!a || !b) return false;
+            return a->getWidth() == b->getWidth() && a->getHeight() == b->getHeight();
+        }
     };
 
     // TODO: Move below out of the global scope, e.g. into RenderPassHelpers struct.
@@ -176,4 +197,6 @@ namespace Falcor
             }
         }
     }
+
+
 }

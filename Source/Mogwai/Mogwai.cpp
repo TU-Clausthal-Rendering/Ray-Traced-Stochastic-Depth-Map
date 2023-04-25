@@ -694,8 +694,8 @@ namespace Mogwai
             if (mGraphs[mActiveGraph].mainOutput.size())
             {
                 Texture::SharedPtr pOutTex = std::dynamic_pointer_cast<Texture>(pGraph->getOutput(mGraphs[mActiveGraph].mainOutput));
-                FALCOR_ASSERT(pOutTex);
-                pRenderContext->blit(pOutTex->getSRV(), pTargetFbo->getRenderTargetView(0));
+                if(pOutTex)
+                    pRenderContext->blit(pOutTex->getSRV(), pTargetFbo->getRenderTargetView(0));
             }
 
             if (getSettings().getOption("PipedOutput:enable", false))
