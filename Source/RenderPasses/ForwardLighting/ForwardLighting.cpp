@@ -95,11 +95,6 @@ void ForwardLighting::execute(RenderContext* pRenderContext, const RenderData& r
     auto pDepth = renderData[kDepth]->asTexture();
     auto pVisBuffer = renderData[kVisBuffer]->asTexture();
 
-    // Update env map lighting
-    const auto& pEnvMap = mpScene->getEnvMap();
-    // TODO use envmap
-
-    
     mpFbo->attachColorTarget(pColor, 0);
     mpFbo->attachDepthStencilTarget(pDepth);
     mpState->setFbo(mpFbo);

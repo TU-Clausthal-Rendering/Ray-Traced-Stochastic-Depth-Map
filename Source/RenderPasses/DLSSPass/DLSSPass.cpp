@@ -268,7 +268,10 @@ void DLSSPass::executeInternal(RenderContext* pRenderContext, const RenderData& 
             if (!tex)
                 throw RuntimeError("DLSSPass: Missing input '{}'", name);
             if (tex->getWidth() != mInputSize.x || tex->getHeight() != mInputSize.y)
-                throw RuntimeError("DLSSPass: Input '{}' has mismatching size. All inputs must be of the same size.", name);
+            {
+                Logger::log(Logger::Level::Warning, "DLSSPass: Input '{" + name + "}' has mismatching size. All inputs must be of the same size.");
+                requestRecompile();
+            }
             return tex;
         };
 

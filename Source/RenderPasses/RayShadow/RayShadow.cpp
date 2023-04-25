@@ -77,8 +77,7 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
 {
     auto pPos = renderData[kPos]->asTexture();
     auto pVisibility = renderData[kVisibility]->asTexture();
-
-    //assert(RenderPassHelpers::isSameSize(pPos, pVisibility));
+    
     if (!RenderPassHelpers::isSameSize(pPos, pVisibility))
     {
         mInputSize = uint2(pPos->getWidth(), pPos->getHeight());

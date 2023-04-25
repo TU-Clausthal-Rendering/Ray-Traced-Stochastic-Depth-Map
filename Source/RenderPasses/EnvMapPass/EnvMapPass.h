@@ -60,4 +60,6 @@ private:
     FullScreenPass::SharedPtr mpPass;
     Fbo::SharedPtr mpFbo;
     Scene::SharedPtr mpScene;
+
+    uint2 mInputSize;
 };

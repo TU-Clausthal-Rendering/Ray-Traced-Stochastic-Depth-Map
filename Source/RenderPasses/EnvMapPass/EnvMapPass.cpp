@@ -27,8 +27,11 @@
  **************************************************************************/
 #include "EnvMapPass.h"
 
+#include "RenderGraph/RenderPassHelpers.h"
+
 namespace
 {
+    const std::string kDepth = "depth";
     const std::string kColor = "color";
 
     const std::string kShaderFilename = "RenderPasses/EnvMapPass/EnvMapPass.ps.slang";
@@ -59,17 +62,27 @@ Dictionary EnvMapPass::getScriptingDictionary()
 RenderPassReflection EnvMapPass::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
+    reflector.addInput(kDepth, "Non-linear depth buffer (currently unused)").bindFlags(Resource::BindFlags::DepthStencil);
     reflector.addOutput(kColor, "Envmap background")
-        .format(ResourceFormat::RGBA32Float);
+        .format(ResourceFormat::RGBA32Float)
+        .texture2D(mInputSize.x, mInputSize.y);
     return reflector;
 }
 
 void EnvMapPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
+    auto pDepth = renderData[kDepth]->asTexture();
+    auto pColor = renderData[kColor]->asTexture();
+
+    if (!RenderPassHelpers::isSameSize(pDepth, pColor))
+    {
+        mInputSize = uint2(pDepth->getWidth(), pDepth->getHeight());
+        requestRecompile();
+    }
+
     if (!mpScene) return;
     assert(mpPass);
 
-    auto pColor = renderData[kColor]->asTexture();
     mpFbo->attachColorTarget(pColor, 0);
 
     mpPass["gScene"] = mpScene->getParameterBlock();
