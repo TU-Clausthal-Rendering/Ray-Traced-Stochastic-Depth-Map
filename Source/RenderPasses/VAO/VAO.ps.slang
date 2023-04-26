@@ -242,7 +242,7 @@ float calcObjectSpaceZ(float3 posV, float3 normal, float2 uv, Texture2D<float> d
 
 float3 RayToViewSpace(RayDesc ray, float t)
 {
-    return mul(float4(ray.Origin + ray.Direction * t, 1.0f), gCamera.data.viewMat).xyz;
+    return mul(gCamera.data.viewMat, float4(ray.Origin + ray.Direction * t, 1.0f)).xyz;
 }
 
 float calcObjectSpaceZ(float3 posV, float3 normal, RayDesc ray, float t)
@@ -252,12 +252,7 @@ float calcObjectSpaceZ(float3 posV, float3 normal, RayDesc ray, float t)
     return objectSpaceZ;
 }
 
-#ifdef COLOR_MAP
-float4
-#else
-float
-#endif
-main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET0
+float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET0
 {
     float linearDepth = gDepthTex.SampleLevel(gTextureSampler, texC, 0);
     if (linearDepth >= gCamera.data.farZ * 0.99)
@@ -268,10 +263,12 @@ main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET0
 
     // view space normal of current pixel
     float3 normalW = gNormalTex.SampleLevel(gTextureSampler, texC, 0).xyz;
-    float3 normalV = mul(normalW, float3x3(gCamera.data.viewMat));
+    float3 normalV = mul(float3x3(gCamera.data.viewMat), normalW);
     if (dot(posV, normalV) > 0.0)
         normalV = -normalV;
 
+    //normalV = -normalize(posV);
+    
     // obtain current pixels XY coordinate          
     float width, height;
     gDepthTex.GetDimensions(width, height);
@@ -426,7 +423,7 @@ main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET0
 
             RayDesc ray;
             ray.Origin = gCamera.data.posW; 
-            ray.Direction = mul(sampleDirV, float3x3(invViewMat));
+            ray.Direction = mul(float3x3(invViewMat), sampleDirV);
 
 
             if (PREVENT_DARK_HALOS)
