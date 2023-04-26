@@ -2,6 +2,7 @@ add_plugin(Utils)
 
 target_sources(Utils PRIVATE
     Utils.cpp
+    npy.h
 
     Composite/Composite.cpp
     Composite/Composite.cs.slang
