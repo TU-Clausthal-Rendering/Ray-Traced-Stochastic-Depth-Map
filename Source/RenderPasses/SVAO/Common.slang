@@ -146,7 +146,7 @@ float calcObjectSpaceZ(float3 posV, float3 normal, float2 uv, Texture2D<float> d
 
 float3 RayToViewSpace(RayDesc ray, float t)
 {
-    return mul(float4(ray.Origin + ray.Direction * t, 1.0f), gCamera.data.viewMat).xyz;
+    return mul(gCamera.data.viewMat, float4(ray.Origin + ray.Direction * t, 1.0f)).xyz;
 }
 
 float calcObjectSpaceZ(float3 posV, float3 normal, RayDesc ray, float t)

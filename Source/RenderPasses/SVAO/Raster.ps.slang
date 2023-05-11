@@ -39,7 +39,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 
     // view space normal of current pixel
     float3 normalW = gNormalTex.SampleLevel(gTextureSampler, texC, 0).xyz;
-    float3 normalV = mul(normalW, float3x3(gCamera.data.viewMat));
+    float3 normalV = mul(float3x3(gCamera.data.viewMat), normalW);
     if (dot(posV, normalV) > 0.0)
         normalV = -normalV;
 
@@ -177,7 +177,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 
             RayDesc ray;
             ray.Origin = gCamera.data.posW;
-            ray.Direction = mul(sampleDirV, float3x3(invViewMat));
+            ray.Direction = mul(float3x3(invViewMat), sampleDirV);
 
 
             if (PREVENT_DARK_HALOS)

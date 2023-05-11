@@ -47,6 +47,9 @@ struct NeuralNet
 
             ++l;
         }
+
+        if (kernels.size() == 0)
+            throw std::exception("Failed to load neural nets");
     }
     
     std::vector<Matrix> kernels;

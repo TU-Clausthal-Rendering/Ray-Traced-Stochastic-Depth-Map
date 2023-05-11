@@ -101,8 +101,11 @@ SVAO::SVAO(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
     mpStencilPass->getState()->setDepthStencilState(DepthStencilState::create(stencil));
     mpStencilFbo = Fbo::create(mpDevice.get());
 
-    mNeuralNet.load("../../NeuralNetVAO/net_relu");
-    mNeuralNet2.load("../../NeuralNetVAO/net_relu_reg");
+    std::filesystem::path resPath;
+    auto found = findFileInDataDirectories("NeuralNet/net_relu_reg_weights0_bias0.npy", resPath);
+    assert(found);
+    mNeuralNet.load(resPath.parent_path().string() + "/net_relu");
+    mNeuralNet2.load(resPath.parent_path().string() + "/net_relu_reg");
 }
 
 SVAO::SharedPtr SVAO::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
@@ -212,23 +215,23 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("TRACE_DOUBLE_ON_DOUBLE", mTraceDoubleOnDouble ? "1" : "0");
         defines.add("RAY_FILTER", mEnableRayFilter ? "1" : "0");
         defines.add(mpScene->getSceneDefines());
+
         // raster pass 1
-        // TODO fix shaders for type conformance
-        mpRasterPass = FullScreenPass::create(mpDevice, kRasterShader, defines);
-        mpRasterPass->getProgram()->setTypeConformances(mpScene->getTypeConformances());
+        mpRasterPass = FullScreenPass::create(mpDevice, getFullscreenShaderDesc(kRasterShader), defines);
 
         // raster pass 2
-        mpRasterPass2 = FullScreenPass::create(mpDevice, kRasterShader2, defines);
-        mpRasterPass2->getProgram()->setTypeConformances(mpScene->getTypeConformances());
+        mpRasterPass2 = FullScreenPass::create(mpDevice, getFullscreenShaderDesc(kRasterShader2), defines);
         mpRasterPass2->getState()->setDepthStencilState(mpDepthStencilState);
 
         // ray pass
         RtProgram::Desc desc;
+        desc.addShaderModules(mpScene->getShaderModules());
         desc.addShaderLibrary(kRayShader);
         desc.setMaxPayloadSize(mPreventDarkHalos ? kMaxPayloadSizePreventDarkHalos : kMaxPayloadSizeDarkHalos);
         desc.setMaxAttributeSize(mpScene->getRaytracingMaxAttributeSize());
         desc.setMaxTraceRecursionDepth(1);
         desc.addTypeConformances(mpScene->getTypeConformances());
+        desc.setShaderModel("6_5");
 
         RtBindingTable::SharedPtr sbt = RtBindingTable::create(1, 1, mpScene->getGeometryCount());
         sbt->setRayGen(desc.addRayGen("rayGen"));
@@ -493,4 +496,14 @@ Texture::SharedPtr SVAO::genNoiseTexture()
     }
 
     return Texture::create2D(mpDevice.get(), NOISE_SIZE, NOISE_SIZE, ResourceFormat::R8Unorm, 1, 1, data.data());
+}
+
+Program::Desc SVAO::getFullscreenShaderDesc(const std::string& filename)
+{
+    Program::Desc desc;
+    desc.addShaderModules(mpScene->getShaderModules());
+    desc.addShaderLibrary(filename).psEntry("main");
+    desc.addTypeConformances(mpScene->getTypeConformances());
+    desc.setShaderModel("6_5");
+    return desc;
 }

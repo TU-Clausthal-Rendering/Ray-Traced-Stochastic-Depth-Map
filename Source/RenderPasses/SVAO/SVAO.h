@@ -61,6 +61,8 @@ private:
     SVAO(std::shared_ptr<Device> pDevice);
     Texture::SharedPtr genNoiseTexture();
 
+    Program::Desc getFullscreenShaderDesc(const std::string& filename);
+
     Fbo::SharedPtr mpFbo;
 
     Sampler::SharedPtr mpNoiseSampler;

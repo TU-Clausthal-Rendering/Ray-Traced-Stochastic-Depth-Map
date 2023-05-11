@@ -162,7 +162,7 @@ void rayGen()
 
     // view space normal of current pixel
     float3 normalW = gNormalTex.SampleLevel(gTextureSampler, texC, 0).xyz;
-    float3 normalV = mul(normalW, float3x3(gCamera.data.viewMat));
+    float3 normalV = mul(float3x3(gCamera.data.viewMat), normalW);
     if (dot(posV, normalV) > 0.0)
         normalV = -normalV;
 
@@ -286,7 +286,7 @@ void rayGen()
             
             RayDesc ray;
             ray.Origin = gCamera.data.posW; // offset a little bit in normal direction
-            ray.Direction = mul(sampleDirV, float3x3(invViewMat));
+            ray.Direction = mul(float3x3(invViewMat), sampleDirV);
 
             if (PREVENT_DARK_HALOS)
             {
