@@ -96,6 +96,7 @@ private:
 
     VAOData mData;
     bool mDirty = true;
+    uint2 lastSize;
     int mGuardBand = 64;
     DepthMode mPrimaryDepthMode = DepthMode::SingleDepth;
     DepthMode mSecondaryDepthMode = DepthMode::Raytraced;

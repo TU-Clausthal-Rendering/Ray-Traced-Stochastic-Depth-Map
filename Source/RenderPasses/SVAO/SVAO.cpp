@@ -177,6 +177,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     mpStochasticDepthGraph->addPass(pStochasticDepthPass, "StochasticDepthMap");
     mpStochasticDepthGraph->markOutput("StochasticDepthMap.stochasticDepth");
     mpStochasticDepthGraph->setScene(mpScene);
+    lastSize = uint2(0);
 }
 
 void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -307,9 +308,14 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     //  execute stochastic depth map
     if (mSecondaryDepthMode == DepthMode::StochasticDepth)
     {
-        FALCOR_PROFILE(pRenderContext, "Stochastic Depth");
         mpStochasticDepthGraph->setInput("StochasticDepthMap.depthMap", pNonLinearDepth);
         mpStochasticDepthGraph->setInput("StochasticDepthMap.stencilMask", pAccessStencil);
+        if(lastSize != uint2(pAoDst->getWidth(), pAoDst->getHeight()))
+        {
+            mpStochasticDepthGraph->onResize(mpFbo.get());
+            lastSize = uint2(pAoDst->getWidth(), pAoDst->getHeight());
+        }
+        
         mpStochasticDepthGraph->execute(pRenderContext);
         pStochasticDepthMap = mpStochasticDepthGraph->getOutput("StochasticDepthMap.stochasticDepth")->asTexture();
     }
