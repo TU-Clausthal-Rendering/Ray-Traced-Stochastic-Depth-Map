@@ -84,7 +84,7 @@ public:
         mLayers = (int)mNets[0].kernels.size();
     }
 
-    void writeDefinesToFile(const char* filename) const
+    void writeDefinesToFile(const std::string& filename) const
     {
         std::ofstream file(filename);
         file << getShaderDefine();

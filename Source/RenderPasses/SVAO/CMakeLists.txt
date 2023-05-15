@@ -6,8 +6,8 @@ target_sources(SVAO PRIVATE
     Common.slang
     NeuralNet.h
     CopyStencil.ps.slang
-    Raster.ps.slang
-    Raster2.ps.slang
+    SVAORaster.ps.slang
+    SVAORaster2.ps.slang
     Ray.rt.slang
     VAOData.slang
 )

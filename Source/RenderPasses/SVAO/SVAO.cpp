@@ -42,8 +42,8 @@ namespace
     const std::string kMatDoubleSided = "doubleSided";
     const std::string kInternalStencil = "internalStencil";
 
-    const std::string kRasterShader = "RenderPasses/SVAO/Raster.ps.slang";
-    const std::string kRasterShader2 = "RenderPasses/SVAO/Raster2.ps.slang";
+    const std::string kRasterShader = "RenderPasses/SVAO/SVAORaster.ps.slang";
+    const std::string kRasterShader2 = "RenderPasses/SVAO/SVAORaster2.ps.slang";
     const std::string kRayShader = "RenderPasses/SVAO/Ray.rt.slang";
     const std::string kStencilShader = "RenderPasses/SVAO/CopyStencil.ps.slang";
 
@@ -151,7 +151,8 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kAoStencil2, "ping pong for stencil mask").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     reflector.addOutput(kAccessStencil, "Stencil Bitmask for secondary depth map accesses").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
-    reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D24UnormS8);
+    //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D24UnormS8);
+    reflector.addOutput(kInternalStencil, "internal stencil mask").format(ResourceFormat::D24UnormS8).bindFlags(ResourceBindFlags::DepthStencil);
     return reflector;
 }
 
@@ -204,8 +205,11 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
     if (!mpRasterPass || !mpRasterPass2 || !mpRayProgram) // this needs to be deferred because it needs the scene defines to compile
     {
-        mNeuralNet.writeDefinesToFile("../RenderPasses/VAONonInterleaved/NeuralNetDefines.slangh");
-        mNeuralNet2.writeDefinesToFile("../RenderPasses/VAONonInterleaved/NeuralNetDefines2.slangh");
+        // generate neural net shader files
+        std::filesystem::path resPath;
+        auto foundShader = findFileInShaderDirectories("RenderPasses/SVAO/SVAORaster.ps.slang", resPath);
+        mNeuralNet.writeDefinesToFile(resPath.parent_path().string() + "/NeuralNetDefines.slangh");
+        mNeuralNet2.writeDefinesToFile(resPath.parent_path().string() + "/NeuralNetDefines2.slangh");
 
         Program::DefineList defines;
         defines.add("PRIMARY_DEPTH_MODE", std::to_string(uint32_t(mPrimaryDepthMode)));
@@ -357,6 +361,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             mpStencilPass["aoMask"] = pAoMask;
             mpStencilPass->execute(pRenderContext, mpStencilFbo);
             //pRenderContext->copySubresource(pInternalStencil.get(), 1, pAoMask.get(), 0); // <= don't do this, this results in a slow stencil
+            
         }
 
         mpFbo2->attachDepthStencilTarget(pInternalStencil);
