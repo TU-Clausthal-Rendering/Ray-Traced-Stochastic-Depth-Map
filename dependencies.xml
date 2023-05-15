@@ -24,8 +24,8 @@
     <remote name="github-slang-windows" type="https" packageLocation="github.com/shader-slang/slang/releases/download/v${version}/slang-${version}-win64.zip"/>
     <remote name="github-slang-linux" type="https" packageLocation="github.com/shader-slang/slang/releases/download/v${version}/slang-${version}-linux-x86_64.zip"/>
     <dependency name="slang" linkPath="external/packman/slang">
-        <package name="slang" version="0.24.52" remotes="github-slang-windows" platforms="windows-x86_64"/>
-        <package name="slang" version="0.24.52" remotes="github-slang-linux" platforms="linux-x86_64" />
+        <package name="slang" version="0.27.21" remotes="github-slang-windows" platforms="windows-x86_64"/>
+        <package name="slang" version="0.27.21" remotes="github-slang-linux" platforms="linux-x86_64" />
     </dependency>
     <dependency name="pix" linkPath="external/packman/pix">
         <package name="WinPixEventRuntime" version="1.0.190604001" platforms="windows-x86_64" />
