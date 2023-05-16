@@ -171,7 +171,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     sdDict["SampleCount"] = msaa_sample;
     sdDict["Alpha"] = 0.2f;
     sdDict["linearize"] = true;
-    sdDict["depthFormat"] = ResourceFormat::D24UnormS8;
+    sdDict["depthFormat"] = ResourceFormat::D32FloatS8X24;
     sdDict["CullMode"] = RasterizerState::CullMode::Back;
     mpStochasticDepthGraph = RenderGraph::create(mpDevice, "Stochastic Depth");
     auto pStochasticDepthPass = RenderPass::create("StochasticDepthMap", mpDevice, sdDict);

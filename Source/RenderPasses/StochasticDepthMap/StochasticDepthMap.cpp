@@ -131,9 +131,9 @@ StochasticDepthMap::StochasticDepthMap(std::shared_ptr<Device> pDevice) : Render
     mpStencilPass = FullScreenPass::create(mpDevice, kStencilFile);
     // modify stencil to write always a 1 if the depth test passes (pixel was not discarded)
     //dsdesc.setStencilWriteMask(0xff);
-    dsdesc.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Replace);
+    dsdesc.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Increase);
     dsdesc.setStencilFunc(DepthStencilState::Face::FrontAndBack, DepthStencilState::Func::Always);
-    dsdesc.setStencilRef(1);
+    dsdesc.setStencilRef(1); // does not work currently, so op is set to increase
     // disable depth write
     dsdesc.setDepthEnabled(false);
     dsdesc.setDepthWriteMask(false);
