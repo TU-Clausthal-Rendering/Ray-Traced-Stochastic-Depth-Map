@@ -150,7 +150,7 @@ StochasticDepthMap::SharedPtr StochasticDepthMap::create(std::shared_ptr<Device>
         else if (key == kCullMode) pPass->mCullMode = value;
         else if (key == kLinearize) pPass->mLinearizeDepth = value;
         else if (key == kDepthFormat) pPass->mDepthFormat = value;
-        else logWarning("Unknown field '" + key + "' in a DepthPass dictionary");
+        else logWarning("Unknown field '" + key + "' in a StochasticDepthMap dictionary");
     }
     return pPass;
 }
