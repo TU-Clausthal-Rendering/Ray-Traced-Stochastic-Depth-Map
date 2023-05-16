@@ -93,10 +93,10 @@ SVAO::SVAO(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
 
     // VAO settings will be loaded by first pass
     mpStencilPass = FullScreenPass::create(mpDevice, kStencilShader);
-    stencil.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Replace);
+    stencil.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Increase);
     stencil.setStencilFunc(DepthStencilState::Face::FrontAndBack, DepthStencilState::Func::Always);
-    stencil.setStencilRef(1);
-    stencil.setStencilReadMask(0);
+    stencil.setStencilRef(1); // does not work => using increase instead
+    stencil.setStencilReadMask(1);
     stencil.setStencilWriteMask(1);
     mpStencilPass->getState()->setDepthStencilState(DepthStencilState::create(stencil));
     mpStencilFbo = Fbo::create(mpDevice.get());
@@ -151,8 +151,8 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kAoStencil2, "ping pong for stencil mask").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     reflector.addOutput(kAccessStencil, "Stencil Bitmask for secondary depth map accesses").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
-    //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D24UnormS8);
-    reflector.addOutput(kInternalStencil, "internal stencil mask").format(ResourceFormat::D24UnormS8).bindFlags(ResourceBindFlags::DepthStencil);
+    //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24);
+    reflector.addOutput(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24).bindFlags(ResourceBindFlags::DepthStencil);
     return reflector;
 }
 

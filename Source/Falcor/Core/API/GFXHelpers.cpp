@@ -77,9 +77,10 @@ gfx::Format getGFXFormat(ResourceFormat format)
     case ResourceFormat::D32Float:
         return gfx::Format::D32_FLOAT;
     case ResourceFormat::D32FloatS8X24:
-        return gfx::Format::D32_FLOAT;
+        return gfx::Format::D32_FLOAT_S8_UINT;
     case ResourceFormat::D24UnormS8:
-        return gfx::Format::D32_FLOAT;
+        assert(false);
+        return gfx::Format::Unknown;
     case ResourceFormat::R24UnormX8:
         return gfx::Format::R32_FLOAT;
     case ResourceFormat::R32FloatX32:
