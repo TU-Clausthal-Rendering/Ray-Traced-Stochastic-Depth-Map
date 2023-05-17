@@ -68,4 +68,6 @@ private:
 
     Buffer::SharedPtr mpStratifiedLookUpBuffer;
     Buffer::SharedPtr mpStratifiedIndices;
+
+    bool mClear = false;
 };

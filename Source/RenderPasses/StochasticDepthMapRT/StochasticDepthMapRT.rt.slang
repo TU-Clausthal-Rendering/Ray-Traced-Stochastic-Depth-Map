@@ -43,10 +43,8 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
     const uint materialID = gScene.getMaterialID(hit.instanceID);
     const MaterialHeader header = gScene.materials.materialData[materialID].header;
 
-    bool isAlphaTested = header.getAlphaMode() == AlphaMode::Mask;
-
     // needs alpha testing?
-    if (isAlphaTested)
+    if (header.getAlphaMode() == AlphaMode::Mask)
     {
         const VertexData v = gScene.getVertexData(hit);
         if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
@@ -69,26 +67,23 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
         int index = int(lerp(stratifiedIndices[R], stratifiedIndices[R + 1], rng2));
         coverageMask = stratifiedLookUpTable[index];
     }
-    else
-    {
-        IgnoreHit();
-        return;
-    }
 
     if(NORMALIZE)
     {
-        t = saturate(t - gScene.camera.data.nearZ / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
+        t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
     }
 
+    float maxT = 0.0;
     [unroll]
     for (uint i = 0; i < NUM_SAMPLES; ++i)
     {
         if (coverageMask & (1 << i))
             rayData.depths[i] = min(rayData.depths[i], t); // z-test enabled
+        maxT = max(maxT, rayData.depths[i]);
     }
 
-    // TODO start accepting rays
-    IgnoreHit();
+    if (t >= maxT)
+        IgnoreHit(); // keep looking for hits, otherwise start to terminate
 }
 
 [shader("miss")]
@@ -107,9 +102,9 @@ void rayGen()
 {
     uint2 svPos = DispatchRaysIndex().xy;
 
-    //uint mask = maskTex[svPos] & 0xFF;
-    //if (mask == 0u)
-    //    return;
+    uint mask = maskTex[svPos] & 0xFF;
+    if (mask == 0u)
+        return;
 
     RayDesc ray = gScene.camera.computeRayPinhole(DispatchRaysIndex().xy, DispatchRaysDimensions().xy).toRayDesc();
     // TODO offset ray start to depth in
@@ -117,14 +112,14 @@ void rayGen()
     for (uint i = 0; i < NUM_SAMPLES; ++i)
         rayData.depths[i] = NORMALIZE ? 1.0 : 3.40282347E+38F;
     
-    // TODO backface culling?
-    //TraceRay(
-    //    gScene.rtAccel,
-    //    RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
-    //    0xff /* instanceInclusionMask */, 0 /* hitIdx */, 1 /*ray type count*/, 0 /* missIdx */,
-    //    ray, rayData
-    //);
+    // TODO custom culling?
+    TraceRay(
+        gScene.rtAccel,
+        RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
+        0xff /* instanceInclusionMask */, 0 /* hitIdx */, 1 /*ray type count*/, 0 /* missIdx */,
+        ray, rayData
+    );
 
     for (uint i = 0; i < NUM_SAMPLES; ++i)
-        depthOutTex[uint3(svPos, i)] = 0.5; //rayData.depths[i];
+        depthOutTex[uint3(svPos, i)] = rayData.depths[i];
 }

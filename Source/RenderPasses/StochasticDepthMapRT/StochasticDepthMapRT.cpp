@@ -41,8 +41,6 @@ namespace
     const std::string kDepthFormat = "depthFormat";
     const std::string kNormalize = "normalize";
 
-    static const uint maxPayloadSize = 4;
-
     const Gui::DropdownList kCullModeList =
     {
         { (uint32_t)RasterizerState::CullMode::None, "None" },
@@ -179,6 +177,12 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     Texture::SharedPtr pStencilMask;
     if (renderData[kStencil]) pStencilMask = renderData[kStencil]->asTexture();
 
+    if(mClear)
+    {
+        pRenderContext->clearTexture(psDepths.get());
+        mClear = false;
+    }
+    
 #ifdef _DEBUG
     pRenderContext->clearTexture(psDepths.get()); // for debug, clear the texture first to better see what is written
 #endif
@@ -194,7 +198,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         RtProgram::Desc desc;
         desc.addShaderModules(mpScene->getShaderModules());
         desc.addShaderLibrary(kRayShader);
-        desc.setMaxPayloadSize(maxPayloadSize);
+        desc.setMaxPayloadSize(mSampleCount * sizeof(float));
         desc.setMaxAttributeSize(mpScene->getRaytracingMaxAttributeSize());
         desc.setMaxTraceRecursionDepth(1);
         desc.addTypeConformances(mpScene->getTypeConformances());
@@ -221,6 +225,16 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
 
 void StochasticDepthMapRT::renderUI(Gui::Widgets& widget)
 {
+    widget.button("Clear", mClear);
+
+    if (widget.dropdown("Sample Count", kSampleCountList, mSampleCount))
+        requestRecompile(); // reload pass (recreate texture)
+
+    if (widget.var("Alpha", mAlpha, 0.0f, 1.0f, 0.01f))
+        requestRecompile();
+
+    if (widget.checkbox("Normalize Depths", mNormalize))
+        requestRecompile();
 }
 
 void StochasticDepthMapRT::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
