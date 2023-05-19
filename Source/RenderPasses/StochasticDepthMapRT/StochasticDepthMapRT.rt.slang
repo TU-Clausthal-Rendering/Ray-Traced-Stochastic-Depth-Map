@@ -30,12 +30,21 @@ struct RayData // cannot be compressed to half floats => no diff in rendering ti
     float depths[NUM_SAMPLES];
 };
 
+float RayToViewDepth(float3 rayDir, float rayT)
+{
+    float cosTheta = dot(normalize(gScene.camera.data.cameraW), rayDir);
+    return rayT * cosTheta;
+}
+
+float ViewDepthToRay(float3 rayDir, float viewDepth)
+{
+    float cosTheta = dot(normalize(gScene.camera.data.cameraW), rayDir);
+    return viewDepth / cosTheta;    
+}
+
 [shader("anyhit")]
 void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs)
 {
-    // extract hit properties
-    float t = RayTCurrent();
-
     TriangleHit hit;
     hit.instanceID = getGeometryInstanceID();
     hit.primitiveIndex = PrimitiveIndex();
@@ -51,6 +60,9 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
             IgnoreHit(); // alpha test failed => ignore this triangle
     }
 
+    float t = RayTCurrent();
+    t = RayToViewDepth(WorldRayDirection(), t); // convert to view depth
+    
     //float rng = hash4D(float4(DispatchRaysIndex().x, DispatchRaysIndex().y, t, 1.438943289));
     float rng = hash4D(float4(attribs.barycentrics, t, 1.438943289));
 
@@ -107,10 +119,13 @@ void rayGen()
         return;
 
     RayDesc ray = gScene.camera.computeRayPinhole(DispatchRaysIndex().xy, DispatchRaysDimensions().xy).toRayDesc();
+    float epsilon = 0.01 * gScene.camera.data.nearZ; // small ray offset
+    ray.TMin = ViewDepthToRay(ray.Direction, depthInTex[svPos]) + epsilon; // start after first known hit
+    
     // TODO offset ray start to depth in
     RayData rayData;
     for (uint i = 0; i < NUM_SAMPLES; ++i)
-        rayData.depths[i] = NORMALIZE ? 1.0 : 3.40282347E+38F;
+        rayData.depths[i] = NORMALIZE ? 1.0 : 3.40282347E+37F;
     
     // TODO custom culling?
     TraceRay(

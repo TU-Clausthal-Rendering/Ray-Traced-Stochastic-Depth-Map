@@ -29,7 +29,7 @@
 
 namespace 
 {
-    const std::string kDepthIn = "depthMap";
+    const std::string kDepthIn = "linearZ";
     const std::string ksDepth = "stochasticDepth";
     const std::string kStencil = "stencilMask";
 
