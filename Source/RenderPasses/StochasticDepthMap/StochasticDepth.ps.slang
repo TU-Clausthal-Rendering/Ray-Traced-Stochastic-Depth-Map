@@ -43,6 +43,7 @@ struct PsOut
 #endif
 };
 
+[earlydepthstencil]
 PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
 {
     if (alphaTest(vsOut, triangleIndex, ImplicitLodTextureSampler()))

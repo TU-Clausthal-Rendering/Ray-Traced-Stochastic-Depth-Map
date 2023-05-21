@@ -2,7 +2,6 @@ import Scene.RaytracingInline;
 import Scene.Raster;
 
 Texture2D<float> depthInTex;
-Texture2D<uint> maskTex;
 
 StructuredBuffer<uint> stratifiedIndices;
 StructuredBuffer<uint> stratifiedLookUpTable;
@@ -73,13 +72,9 @@ struct PsOut
 #endif
 };
 
+[earlydepthstencil]
 PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 {    
-    // TODO move to stencil test
-    uint mask = maskTex[int2(svPos.xy)] & 0xFF;
-    if (mask == 0u)
-        discard;
-
     float depths[NUM_SAMPLES];
     for (uint i = 0; i < NUM_SAMPLES; ++i)
         depths[i] = NORMALIZE ? 1.0 : 3.40282347E+37F;

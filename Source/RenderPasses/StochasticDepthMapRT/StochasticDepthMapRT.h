@@ -63,6 +63,9 @@ private:
     FullScreenPass::SharedPtr mpRasterProgram;
     Fbo::SharedPtr mpFbo;
 
+    FullScreenPass::SharedPtr mpStencilPass;
+    DepthStencilState::SharedPtr mpStencilState;
+
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back;
     uint32_t mSampleCount = 8;
     float mAlpha = 0.2f;

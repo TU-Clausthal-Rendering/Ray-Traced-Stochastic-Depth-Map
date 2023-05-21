@@ -33,9 +33,12 @@ namespace
     const std::string ksDepth = "stochasticDepth";
     const std::string kStencil = "stencilMask";
 
+    const std::string kInternalStencil = "internalStencil";
+
     const std::string kRayShader = "RenderPasses/StochasticDepthMapRT/StochasticDepthMapRT.rt.slang";
     const std::string kRasterShader = "RenderPasses/StochasticDepthMapRT/StochasticDepthMapRT.ps.slang";
-
+    const std::string kStencilFile = "RenderPasses/StochasticDepthMapRT/Stencil.ps.slang";
+    
     const std::string kSampleCount = "SampleCount";
     const std::string kAlpha = "Alpha";
     const std::string kCullMode = "CullMode";
@@ -119,7 +122,27 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
 
 StochasticDepthMapRT::StochasticDepthMapRT(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
 {
-    mpFbo = Fbo::create(mpDevice.get());
+    DepthStencilState::Desc dsdesc;
+    // set stencil test to pass when values > 0 are present (not equal to 0)
+    dsdesc.setStencilEnabled(true);
+    //dsdesc.setStencilWriteMask(0);
+    //dsdesc.setStencilReadMask(1);
+    dsdesc.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep);
+    dsdesc.setStencilFunc(DepthStencilState::Face::FrontAndBack, DepthStencilState::Func::NotEqual);
+    dsdesc.setStencilRef(0);
+    // disable depth read/write
+    dsdesc.setDepthEnabled(false);
+    dsdesc.setDepthWriteMask(false);
+    mpStencilState = DepthStencilState::create(dsdesc);
+
+
+    mpStencilPass = FullScreenPass::create(mpDevice, kStencilFile);
+    // modify stencil to write always a 1 if the depth test passes (pixel was not discarded)
+    //dsdesc.setStencilWriteMask(0xff);
+    dsdesc.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Increase);
+    dsdesc.setStencilFunc(DepthStencilState::Face::FrontAndBack, DepthStencilState::Func::Always);
+    dsdesc.setStencilRef(1); // does not work currently, so op is set to increase
+    mpStencilPass->getState()->setDepthStencilState(DepthStencilState::create(dsdesc));
 }
 
 StochasticDepthMapRT::SharedPtr StochasticDepthMapRT::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
@@ -156,6 +179,7 @@ RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileDat
     reflector.addInput(kDepthIn, "non-linear (primary) depth map").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kStencil, "(optional) stencil-mask").format(ResourceFormat::R8Uint).flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(mDepthFormat).texture2D(0, 0, 1, 1, mSampleCount);
+    reflector.addInternal(kInternalStencil, "stencil-mask").bindFlags(ResourceBindFlags::DepthStencil).format(ResourceFormat::D32FloatS8X24);
     return reflector;
 }
 
@@ -163,6 +187,7 @@ void StochasticDepthMapRT::compile(RenderContext* pRenderContext, const CompileD
 {
     mpRayProgram.reset();
     mpRasterProgram.reset();
+    mpFbo = Fbo::create(mpDevice.get());
 
     // generate data for stratified sampling
     std::vector<int> indices;
@@ -247,8 +272,28 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     }
     else // raster pipeline
     {
+        if(pStencilMask)
+        {
+            FALCOR_PROFILE(pRenderContext, "Stencil Clear&Copy");
+
+            // clear stencil buffer and attach to fbo
+            auto stencil = renderData[kInternalStencil]->asTexture();
+            pRenderContext->clearDsv(stencil->getDSV().get(), 1.0f, 0, false, true);
+            mpFbo->attachDepthStencilTarget(stencil, 0, 0, 1);
+
+            // copy mask to stencil buffer
+            mpStencilPass["mask"] = pStencilMask;
+            mpStencilPass->execute(pRenderContext, mpFbo);
+
+            // set state for raster pass
+            mpRasterProgram->getState()->setDepthStencilState(mpStencilState);
+        }
+        else
+        {
+            mpRasterProgram->getState()->setDepthStencilState(nullptr);
+        }
+
         mpRasterProgram["depthInTex"] = pDepthIn;
-        mpRasterProgram["maskTex"] = pStencilMask;
 
         // set gScene and raytracing data
         mpScene->setRaytracingShaderData(pRenderContext, mpRasterProgram->getRootVar());
@@ -259,6 +304,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             //auto rtv = psDepths->getRTV(0, i, 1);
             
         }
+        FALCOR_PROFILE(pRenderContext, "Raster");
         mpRasterProgram->execute(pRenderContext, mpFbo);
     }
 }
