@@ -94,7 +94,7 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
         maxT = max(maxT, rayData.depths[i]);
     }
 
-    if (t >= maxT)
+    if (t < maxT)
         IgnoreHit(); // keep looking for hits, otherwise start to terminate
 }
 

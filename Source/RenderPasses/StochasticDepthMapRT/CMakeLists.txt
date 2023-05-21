@@ -4,6 +4,7 @@ target_sources(StochasticDepthMapRT PRIVATE
     StochasticDepthMapRT.cpp
     StochasticDepthMapRT.h
     StochasticDepthMapRT.rt.slang
+    StochasticDepthMapRT.ps.slang
 )
 
 target_copy_shaders(StochasticDepthMapRT RenderPasses/StochasticDepthMapRT)

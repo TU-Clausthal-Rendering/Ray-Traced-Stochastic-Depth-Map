@@ -170,11 +170,23 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     Dictionary sdDict;
     sdDict["SampleCount"] = msaa_sample;
     sdDict["Alpha"] = 0.2f;
-    sdDict["linearize"] = true;
-    sdDict["depthFormat"] = ResourceFormat::D32FloatS8X24;
     sdDict["CullMode"] = RasterizerState::CullMode::Back;
     mpStochasticDepthGraph = RenderGraph::create(mpDevice, "Stochastic Depth");
-    auto pStochasticDepthPass = RenderPass::create("StochasticDepthMap", mpDevice, sdDict);
+    RenderPass::SharedPtr pStochasticDepthPass;
+    switch(mStochasticDepthImpl)
+    {
+    case StochasticDepthImpl::Raster:
+        sdDict["linearize"] = true;
+        sdDict["depthFormat"] = ResourceFormat::D32FloatS8X24;
+        pStochasticDepthPass = RenderPass::create("StochasticDepthMap", mpDevice, sdDict);
+        break;
+    case StochasticDepthImpl::Ray:
+        sdDict["normalize"] = true;
+        sdDict["depthFormat"] = ResourceFormat::R32Float;
+        sdDict["useRayPipeline"] = mUseRayPipeline;
+        pStochasticDepthPass = RenderPass::create("StochasticDepthMapRT", mpDevice, sdDict);    
+        break;
+    }
     mpStochasticDepthGraph->addPass(pStochasticDepthPass, "StochasticDepthMap");
     mpStochasticDepthGraph->markOutput("StochasticDepthMap.stochasticDepth");
     mpStochasticDepthGraph->setScene(mpScene);
@@ -312,7 +324,15 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     //  execute stochastic depth map
     if (mSecondaryDepthMode == DepthMode::StochasticDepth)
     {
-        mpStochasticDepthGraph->setInput("StochasticDepthMap.depthMap", pNonLinearDepth);
+        switch (mStochasticDepthImpl)
+        {
+        case StochasticDepthImpl::Raster:
+            mpStochasticDepthGraph->setInput("StochasticDepthMap.depthMap", pNonLinearDepth);
+            break;
+        case StochasticDepthImpl::Ray:
+            mpStochasticDepthGraph->setInput("StochasticDepthMap.linearZ", pDepth);
+            break;
+        }
         mpStochasticDepthGraph->setInput("StochasticDepthMap.stencilMask", pAccessStencil);
         if(lastSize != uint2(pAoDst->getWidth(), pAoDst->getHeight()))
         {
@@ -411,6 +431,12 @@ void SVAO::renderUI(Gui::Widgets& widget)
         { (uint32_t)DepthMode::Raytraced, "Raytraced" },
     };
 
+    const Gui::DropdownList kStochasticDepthDopdown = {
+        {(uint32_t)StochasticDepthImpl::Raster, "Raster"},
+        {(uint32_t)StochasticDepthImpl::Ray, "Ray"},
+    };
+
+
     auto reset = false;
 
     widget.checkbox("Enabled", mEnabled);
@@ -442,6 +468,16 @@ void SVAO::renderUI(Gui::Widgets& widget)
     if (widget.dropdown("Secondary Depth Mode", kSecondaryDepthModeDropdown, secondaryDepthMode)) {
         mSecondaryDepthMode = (DepthMode)secondaryDepthMode;
         reset = true;
+    }
+
+    if (mSecondaryDepthMode == DepthMode::StochasticDepth)
+    {
+        uint32_t stochasticImpl = (uint32_t)mStochasticDepthImpl;
+        if (widget.dropdown("Stochastic Impl.", kStochasticDepthDopdown, stochasticImpl))
+        {
+            mStochasticDepthImpl = (StochasticDepthImpl)stochasticImpl;
+            reset = true;
+        }
     }
 
     if (widget.checkbox("Ray Pipeline", mUseRayPipeline)) reset = true;

@@ -37,6 +37,12 @@ using namespace Falcor;
 class SVAO : public RenderPass
 {
 public:
+    enum StochasticDepthImpl
+    {
+        Raster,
+        Ray
+    };
+
     FALCOR_PLUGIN_CLASS(SVAO, "SVAO", "Stenciled Volumetric Ambient Occlusion");
 
     using SharedPtr = std::shared_ptr<SVAO>;
@@ -111,4 +117,6 @@ private:
 
     NeuralNetCollection mNeuralNet;
     NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
+
+    StochasticDepthImpl mStochasticDepthImpl = StochasticDepthImpl::Ray;
 };

@@ -34,12 +34,14 @@ namespace
     const std::string kStencil = "stencilMask";
 
     const std::string kRayShader = "RenderPasses/StochasticDepthMapRT/StochasticDepthMapRT.rt.slang";
+    const std::string kRasterShader = "RenderPasses/StochasticDepthMapRT/StochasticDepthMapRT.ps.slang";
 
     const std::string kSampleCount = "SampleCount";
     const std::string kAlpha = "Alpha";
     const std::string kCullMode = "CullMode";
     const std::string kDepthFormat = "depthFormat";
     const std::string kNormalize = "normalize";
+    const std::string kUseRayPipeline = "useRayPipeline";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -54,7 +56,7 @@ namespace
         { (uint32_t)2, "2" },
         { (uint32_t)4, "4" },
         { (uint32_t)8, "8" },
-        { (uint32_t)16, "16" },
+        //{ (uint32_t)16, "16" }, // falcor (and directx) only support 8 render targets, which are required for the raster variant
     };
 }
 
@@ -117,7 +119,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
 
 StochasticDepthMapRT::StochasticDepthMapRT(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
 {
-
+    mpFbo = Fbo::create(mpDevice.get());
 }
 
 StochasticDepthMapRT::SharedPtr StochasticDepthMapRT::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
@@ -130,6 +132,7 @@ StochasticDepthMapRT::SharedPtr StochasticDepthMapRT::create(std::shared_ptr<Dev
         else if (key == kCullMode) pPass->mCullMode = value;
         else if (key == kDepthFormat) pPass->mDepthFormat = value;
         else if (key == kNormalize) pPass->mNormalize = value;
+        else if (key == kUseRayPipeline) pPass->mUseRayPipeline = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMapRT dictionary");
     }
     return pPass;
@@ -143,6 +146,7 @@ Dictionary StochasticDepthMapRT::getScriptingDictionary()
     d[kCullMode] = mCullMode;
     d[kDepthFormat] = mDepthFormat;
     d[kNormalize] = mNormalize;
+    d[kUseRayPipeline] = mUseRayPipeline;
     return d;
 }
 
@@ -151,13 +155,14 @@ RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileDat
     RenderPassReflection reflector;
     reflector.addInput(kDepthIn, "non-linear (primary) depth map").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kStencil, "(optional) stencil-mask").format(ResourceFormat::R8Uint).flags(RenderPassReflection::Field::Flags::Optional);
-    reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::UnorderedAccess).format(mDepthFormat).texture2D(0, 0, 1, 1, mSampleCount);
+    reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(mDepthFormat).texture2D(0, 0, 1, 1, mSampleCount);
     return reflector;
 }
 
 void StochasticDepthMapRT::compile(RenderContext* pRenderContext, const CompileData& compileData)
 {
     mpRayProgram.reset();
+    mpRasterProgram.reset();
 
     // generate data for stratified sampling
     std::vector<int> indices;
@@ -186,41 +191,76 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
 #ifdef _DEBUG
     pRenderContext->clearTexture(psDepths.get()); // for debug, clear the texture first to better see what is written
 #endif
-
-    if(!mpRayProgram)
+    
+    if(!mpRayProgram || !mpRasterProgram)
     {
         auto defines = mpScene->getSceneDefines();
         defines.add("NUM_SAMPLES", std::to_string(mSampleCount));
         defines.add("ALPHA", std::to_string(mAlpha));
         defines.add("NORMALIZE", mNormalize ? "1" : "0");
 
-        // ray pass
-        RtProgram::Desc desc;
-        desc.addShaderModules(mpScene->getShaderModules());
-        desc.addShaderLibrary(kRayShader);
-        desc.setMaxPayloadSize(mSampleCount * sizeof(float));
-        desc.setMaxAttributeSize(mpScene->getRaytracingMaxAttributeSize());
-        desc.setMaxTraceRecursionDepth(1);
-        desc.addTypeConformances(mpScene->getTypeConformances());
-        desc.setShaderModel("6_5");
+        // raster pass
+        {
+            Program::Desc desc;
+            desc.addShaderModules(mpScene->getShaderModules());
+            desc.addShaderLibrary(kRasterShader).psEntry("main");
+            desc.addTypeConformances(mpScene->getTypeConformances());
+            desc.setShaderModel("6_5");
 
-        RtBindingTable::SharedPtr sbt = RtBindingTable::create(1, 1, mpScene->getGeometryCount());
-        sbt->setRayGen(desc.addRayGen("rayGen"));
-        sbt->setMiss(0, desc.addMiss("miss"));
-        sbt->setHitGroup(0, mpScene->getGeometryIDs(GeometryType::TriangleMesh), desc.addHitGroup("closestHit", "anyHit"));
-        // TODO add remaining primitives
-        mpRayProgram = RtProgram::create(mpDevice, desc, defines);
-        mRayVars = RtProgramVars::create(mpDevice, mpRayProgram, sbt);
+            mpRasterProgram = FullScreenPass::create(mpDevice, desc, defines);
+        }
+
+        // ray pass
+        {
+            RtProgram::Desc desc;
+            desc.addShaderModules(mpScene->getShaderModules());
+            desc.addShaderLibrary(kRayShader);
+            desc.setMaxPayloadSize(mSampleCount * sizeof(float));
+            desc.setMaxAttributeSize(mpScene->getRaytracingMaxAttributeSize());
+            desc.setMaxTraceRecursionDepth(1);
+            desc.addTypeConformances(mpScene->getTypeConformances());
+            desc.setShaderModel("6_5");
+
+            RtBindingTable::SharedPtr sbt = RtBindingTable::create(1, 1, mpScene->getGeometryCount());
+            sbt->setRayGen(desc.addRayGen("rayGen"));
+            sbt->setMiss(0, desc.addMiss("miss"));
+            sbt->setHitGroup(0, mpScene->getGeometryIDs(GeometryType::TriangleMesh), desc.addHitGroup("closestHit", "anyHit"));
+            // TODO add remaining primitives
+            mpRayProgram = RtProgram::create(mpDevice, desc, defines);
+            mRayVars = RtProgramVars::create(mpDevice, mpRayProgram, sbt);    
+        }
 
         mRayVars["stratifiedIndices"] = mpStratifiedIndices;
         mRayVars["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
+        mpRasterProgram["stratifiedIndices"] = mpStratifiedIndices;
+        mpRasterProgram["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
     }
 
-    mRayVars["depthInTex"] = pDepthIn;
-    mRayVars["depthOutTex"] = psDepths;
-    mRayVars["maskTex"] = pStencilMask;
+    if (mUseRayPipeline)
+    {
+        mRayVars["depthInTex"] = pDepthIn;
+        mRayVars["depthOutTex"] = psDepths;
+        mRayVars["maskTex"] = pStencilMask;
 
-    mpScene->raytrace(pRenderContext, mpRayProgram.get(), mRayVars, uint3(psDepths->getWidth(), psDepths->getHeight(), 1));
+        mpScene->raytrace(pRenderContext, mpRayProgram.get(), mRayVars, uint3(psDepths->getWidth(), psDepths->getHeight(), 1));
+    
+    }
+    else // raster pipeline
+    {
+        mpRasterProgram["depthInTex"] = pDepthIn;
+        mpRasterProgram["maskTex"] = pStencilMask;
+
+        // set gScene and raytracing data
+        mpScene->setRaytracingShaderData(pRenderContext, mpRasterProgram->getRootVar());
+
+        for (uint i = 0; i < mSampleCount; ++i)
+        {
+            mpFbo->attachColorTarget(psDepths, i, 0, i, 1);
+            //auto rtv = psDepths->getRTV(0, i, 1);
+            
+        }
+        mpRasterProgram->execute(pRenderContext, mpFbo);
+    }
 }
 
 void StochasticDepthMapRT::renderUI(Gui::Widgets& widget)
@@ -235,6 +275,9 @@ void StochasticDepthMapRT::renderUI(Gui::Widgets& widget)
 
     if (widget.checkbox("Normalize Depths", mNormalize))
         requestRecompile();
+
+    if (widget.checkbox("Use Ray Pipeline", mUseRayPipeline))
+        requestRecompile();
 }
 
 void StochasticDepthMapRT::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
@@ -242,5 +285,6 @@ void StochasticDepthMapRT::setScene(RenderContext* pRenderContext, const Scene::
     mpScene = pScene;
     // recompile shaders
     mpRayProgram.reset();
+    mpRasterProgram.reset();
 }
 

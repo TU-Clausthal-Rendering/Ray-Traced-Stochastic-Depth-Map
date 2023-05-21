@@ -27,6 +27,7 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
+#include "RenderGraph/BasePasses/FullScreenPass.h"
 
 using namespace Falcor;
 
@@ -58,6 +59,10 @@ private:
 
     RtProgram::SharedPtr mpRayProgram;
     RtProgramVars::SharedPtr mRayVars;
+
+    FullScreenPass::SharedPtr mpRasterProgram;
+    Fbo::SharedPtr mpFbo;
+
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back;
     uint32_t mSampleCount = 8;
     float mAlpha = 0.2f;
@@ -70,4 +75,5 @@ private:
     Buffer::SharedPtr mpStratifiedIndices;
 
     bool mClear = false;
+    bool mUseRayPipeline = true;
 };
