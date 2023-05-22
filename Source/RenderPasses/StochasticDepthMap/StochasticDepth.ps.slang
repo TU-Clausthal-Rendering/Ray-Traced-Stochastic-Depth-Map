@@ -43,7 +43,7 @@ struct PsOut
 #endif
 };
 
-[earlydepthstencil]
+// [earlydepthstencil] <- do not force this, it makes it slower
 PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
 {
     if (alphaTest(vsOut, triangleIndex, ImplicitLodTextureSampler()))
