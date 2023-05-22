@@ -7,6 +7,8 @@ Texture2D<uint> maskTex;
 StructuredBuffer<uint> stratifiedIndices;
 StructuredBuffer<uint> stratifiedLookUpTable;
 
+#define DEFAULT_DEPTH (NORMALIZE ? 1.0 : 3.40282347E+37F)
+
 // Hash function from "Improved Alpha Testing Using Hashed Sampling"
 float hash(float2 v)
 {
@@ -62,10 +64,35 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
 
     float t = RayTCurrent();
     t = RayToViewDepth(WorldRayDirection(), t); // convert to view depth
+
+    if (NORMALIZE)
+    {
+        t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
+    }
     
     //float rng = hash4D(float4(DispatchRaysIndex().x, DispatchRaysIndex().y, t, 1.438943289));
     float rng = hash4D(float4(attribs.barycentrics, t, 1.438943289));
 
+    #define SD_VERSION 1
+
+    #if SD_VERSION == 2
+    float maxT = 0.0;
+    // overwrite old samples
+     [unroll]
+    for (uint i = 0; i < NUM_SAMPLES; ++i)
+    {
+        if (rayData.depths[i] == DEFAULT_DEPTH)
+        {
+            rayData.depths[i] = t;
+        }
+        maxT = max(maxT, rayData.depths[i]);
+    }
+
+    
+    if (t < maxT)
+        IgnoreHit(); // keep looking for hits, otherwise start to terminate
+    #endif
+#if SD_VERSION == 1
     int R = int(floor(ALPHA * NUM_SAMPLES + rng));
     uint coverageMask = 0;
     
@@ -80,11 +107,6 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
         coverageMask = stratifiedLookUpTable[index];
     }
 
-    if(NORMALIZE)
-    {
-        t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
-    }
-
     float maxT = 0.0;
     [unroll]
     for (uint i = 0; i < NUM_SAMPLES; ++i)
@@ -96,6 +118,7 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
 
     if (t < maxT)
         IgnoreHit(); // keep looking for hits, otherwise start to terminate
+#endif
 }
 
 [shader("miss")]
@@ -125,12 +148,12 @@ void rayGen()
     // TODO offset ray start to depth in
     RayData rayData;
     for (uint i = 0; i < NUM_SAMPLES; ++i)
-        rayData.depths[i] = NORMALIZE ? 1.0 : 3.40282347E+37F;
+        rayData.depths[i] = DEFAULT_DEPTH;
     
     // TODO custom culling?
     TraceRay(
         gScene.rtAccel,
-        RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
+        /*RAY_FLAG_CULL_BACK_FACING_TRIANGLES |*/ RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
         0xff /* instanceInclusionMask */, 0 /* hitIdx */, 1 /*ray type count*/, 0 /* missIdx */,
         ray, rayData
     );

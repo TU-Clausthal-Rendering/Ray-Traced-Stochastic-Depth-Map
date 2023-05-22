@@ -114,6 +114,7 @@ private:
     bool mTraceOutOfScreen = true;
     bool mTraceDoubleOnDouble = false;
     float mClassifyProbability = 0.5;
+    bool mSaveStochasticDepth = false;
 
     NeuralNetCollection mNeuralNet;
     NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);

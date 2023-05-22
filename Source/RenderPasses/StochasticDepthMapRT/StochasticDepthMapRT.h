@@ -67,7 +67,7 @@ private:
     DepthStencilState::SharedPtr mpStencilState;
 
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back;
-    uint32_t mSampleCount = 8;
+    uint32_t mSampleCount = 4;
     float mAlpha = 0.2f;
     bool mNormalize = true; // normalize to range [0, 1] (based on [near, far])
     ResourceFormat mDepthFormat = ResourceFormat::R32Float;
