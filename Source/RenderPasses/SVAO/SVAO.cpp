@@ -231,6 +231,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("TRACE_OUT_OF_SCREEN", mTraceOutOfScreen ? "1" : "0");
         defines.add("TRACE_DOUBLE_ON_DOUBLE", mTraceDoubleOnDouble ? "1" : "0");
         defines.add("RAY_FILTER", mEnableRayFilter ? "1" : "0");
+        defines.add("STOCHASTIC_DEPTH_IMPL", std::to_string(uint32_t(mStochasticDepthImpl)));
         defines.add(mpScene->getSceneDefines());
 
         // raster pass 1

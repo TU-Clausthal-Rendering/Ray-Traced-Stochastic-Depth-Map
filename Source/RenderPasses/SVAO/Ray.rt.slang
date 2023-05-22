@@ -2,7 +2,7 @@ import Scene.Raytracing;
 #include "Common.slang"
 
 // additional depth textures
-Texture2DMS<float> gsDepthTex;
+STOCHASTIC_DEPTH_MAP gsDepthTex;
 
 // inputs from previous stage
 Texture2D<uint> aoMask;
@@ -263,8 +263,8 @@ void rayGen()
             [unroll]
             for (uint i = 0; i < MSAA_SAMPLES; ++i)
             {
-                float linearSampleDepth = gsDepthTex.Load(pixelCoord, i);
-            // linearSampleDepth is in [0, 1] => scale accordingly
+                float linearSampleDepth = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
+                // linearSampleDepth is in [0, 1] => scale accordingly
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(rasterSamplePosUV, linearSampleDepth);
                 float objectSpaceZ = dot(samplePosV - posV, normal);

@@ -39,8 +39,8 @@ class SVAO : public RenderPass
 public:
     enum StochasticDepthImpl
     {
-        Raster,
-        Ray
+        Raster = 0,
+        Ray = 1
     };
 
     FALCOR_PLUGIN_CLASS(SVAO, "SVAO", "Stenciled Volumetric Ambient Occlusion");

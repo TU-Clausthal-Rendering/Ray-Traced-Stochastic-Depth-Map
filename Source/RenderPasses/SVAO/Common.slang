@@ -17,6 +17,16 @@ import Scene.Shading;
 #define DEPTH_MODE_MACHINE_PREDICT 5
 #define DEPTH_MODE_PERFECT_CLASSIFY 6
 
+#define STOCHASTIC_DEPTH_RASTER 0
+#define STOCHASTIC_DEPTH_RAY 1
+#if STOCHASTIC_DEPTH_IMPL == STOCHASTIC_DEPTH_RASTER
+#define STOCHASTIC_DEPTH_MAP Texture2DMS<float>
+#define LOAD_STOCHASTIC_SAMPLE(tex, xy, i) tex.Load(xy, i)
+#else
+#define STOCHASTIC_DEPTH_MAP Texture2DArray<float>
+#define LOAD_STOCHASTIC_SAMPLE(tex, xy, i) tex.Load(int4(xy, i, /*mipmap*/0))
+#endif
+
 // area where the halo effect remains constant at 0.0
 #if PREVENT_DARK_HALOS
 #define CONST_RADIUS ((1.0 + gData.thickness) * gData.radius - sphereStart)
