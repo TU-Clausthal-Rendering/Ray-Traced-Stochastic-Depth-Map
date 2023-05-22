@@ -240,7 +240,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             RtProgram::Desc desc;
             desc.addShaderModules(mpScene->getShaderModules());
             desc.addShaderLibrary(kRayShader);
-            desc.setMaxPayloadSize(mSampleCount * sizeof(float));
+            desc.setMaxPayloadSize((mSampleCount + 1) * sizeof(float));
             desc.setMaxAttributeSize(mpScene->getRaytracingMaxAttributeSize());
             desc.setMaxTraceRecursionDepth(1);
             desc.addTypeConformances(mpScene->getTypeConformances());

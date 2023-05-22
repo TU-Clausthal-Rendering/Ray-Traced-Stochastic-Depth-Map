@@ -30,6 +30,7 @@ float hash4D(float4 v)
 struct RayData // cannot be compressed to half floats => no diff in rendering time + insufficient visual quality
 {
     float depths[NUM_SAMPLES];
+    uint count; // number of processed samples
 };
 
 float RayToViewDepth(float3 rayDir, float rayT)
@@ -47,20 +48,39 @@ float ViewDepthToRay(float3 rayDir, float viewDepth)
 [shader("anyhit")]
 void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs)
 {
-    TriangleHit hit;
-    hit.instanceID = getGeometryInstanceID();
-    hit.primitiveIndex = PrimitiveIndex();
-    hit.barycentrics = attribs.barycentrics;
-    const uint materialID = gScene.getMaterialID(hit.instanceID);
-    const MaterialHeader header = gScene.materials.materialData[materialID].header;
+    #define SD_VERSION 2
+    #define MAX_COUNT 5
 
-    // needs alpha testing?
-    if (header.getAlphaMode() == AlphaMode::Mask)
+    float rng = hash4D(float4(attribs.barycentrics, RayTCurrent(), 1.438943289));
+    
+    #if SD_VERSION == 2
+    float threshold = 1.0 / float(1u + rayData.count);
+    rayData.count += 1;
+    if (rng > threshold)
     {
-        const VertexData v = gScene.getVertexData(hit);
-        if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
-            IgnoreHit(); // alpha test failed => ignore this triangle
+        if (rayData.count > MAX_COUNT)
+            return;
+        IgnoreHit();
     }
+    #endif
+
+    { // ALPHA test
+        TriangleHit hit;
+        hit.instanceID = getGeometryInstanceID();
+        hit.primitiveIndex = PrimitiveIndex();
+        hit.barycentrics = attribs.barycentrics;
+        const uint materialID = gScene.getMaterialID(hit.instanceID);
+        const MaterialHeader header = gScene.materials.materialData[materialID].header;
+
+        // needs alpha testing?
+        if (header.getAlphaMode() == AlphaMode::Mask)
+        {
+            const VertexData v = gScene.getVertexData(hit);
+            if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
+                IgnoreHit(); // alpha test failed => ignore this triangle
+        }
+    }
+    
 
     float t = RayTCurrent();
     t = RayToViewDepth(WorldRayDirection(), t); // convert to view depth
@@ -70,27 +90,16 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
         t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
     }
     
-    //float rng = hash4D(float4(DispatchRaysIndex().x, DispatchRaysIndex().y, t, 1.438943289));
-    float rng = hash4D(float4(attribs.barycentrics, t, 1.438943289));
-
-    #define SD_VERSION 1
-
     #if SD_VERSION == 2
-    float maxT = 0.0;
-    // overwrite old samples
-     [unroll]
-    for (uint i = 0; i < NUM_SAMPLES; ++i)
-    {
-        if (rayData.depths[i] == DEFAULT_DEPTH)
-        {
-            rayData.depths[i] = t;
-        }
-        maxT = max(maxT, rayData.depths[i]);
-    }
+    rayData.depths[0] = t;
+    if (rayData.count > MAX_COUNT)
+        return;
+    IgnoreHit();
 
-    
-    if (t < maxT)
-        IgnoreHit(); // keep looking for hits, otherwise start to terminate
+    //float rng2 = hash3D(float3(attribs.barycentrics, t));
+    //if (rng2 < 0.2) // small chance to keep traversal going
+    //if(rayData.count < 5)
+    //    IgnoreHit(); 
     #endif
 #if SD_VERSION == 1
     int R = int(floor(ALPHA * NUM_SAMPLES + rng));
@@ -142,18 +151,19 @@ void rayGen()
         return;
 
     RayDesc ray = gScene.camera.computeRayPinhole(DispatchRaysIndex().xy, DispatchRaysDimensions().xy).toRayDesc();
-    float epsilon = 0.01 * gScene.camera.data.nearZ; // small ray offset
+    float epsilon = 0.1 * gScene.camera.data.nearZ; // small ray offset
     ray.TMin = ViewDepthToRay(ray.Direction, depthInTex[svPos]) + epsilon; // start after first known hit
     
     // TODO offset ray start to depth in
     RayData rayData;
+    rayData.count = 0;
     for (uint i = 0; i < NUM_SAMPLES; ++i)
         rayData.depths[i] = DEFAULT_DEPTH;
     
     // TODO custom culling?
     TraceRay(
         gScene.rtAccel,
-        /*RAY_FLAG_CULL_BACK_FACING_TRIANGLES |*/ RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
+        RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
         0xff /* instanceInclusionMask */, 0 /* hitIdx */, 1 /*ray type count*/, 0 /* missIdx */,
         ray, rayData
     );
