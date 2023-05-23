@@ -60,6 +60,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 
     #if PRIMARY_DEPTH_MODE >= DEPTH_MODE_MACHINE_CLASSIFY
     float rasterHeights[8] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    
     #endif
 
     uint forceRayMask = 0; // forces rays due to double sided materials
@@ -162,12 +163,14 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         {
         // remember that this was a hybrid ray
             if (PRIMARY_DEPTH_MODE != DEPTH_MODE_PERFECT_CLASSIFY)
+            {
                 output.stencil |= 1u << i;
+            }
             
-#if SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC
-            // remember that an access was requested
+#if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC) && (PRIMARY_DEPTH_MODE != DEPTH_MODE_MACHINE_CLASSIFY)
             gDepthAccess[uint2(rasterSamplePosUV * gData.resolution)] = 1u;
 #endif
+
 #if PRIMARY_DEPTH_MODE == DEPTH_MODE_PERFECT_CLASSIFY
             // determine ray t to decide if a ray is necessary
             samplePosUV = getSnappedUV(samplePosUV); // snap to pixel center
@@ -280,7 +283,28 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         output.stencil = output.stencil & machineMask;
     }
     output.stencil |= forceRayMask; // always trace the forced rays
+    #if SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC
+    // set bits in the depth access
+    [unroll]
+    for (uint i = 0; i < NUM_DIRECTIONS; ++i)
+    {
+        if ((output.stencil & (1u << i)))
+        {
+            float alpha = (float(i) / NUM_DIRECTIONS) * 2.0 * 3.141;
+            float radius = sampleRadius[i] * gData.radius; // radius on sampling unit sphere * world space radius
+            float2 dir = radius * float2(sin(alpha), cos(alpha)); // world space direction
+            float3 initialSamplePosV = posV + tangent * dir.x + bitangent * dir.y;
+            float2 samplePosUV = ViewSpaceToUV(initialSamplePosV);
+            float2 screenUv = getScreenClampedUV(texC, samplePosUV); // clip to screen border
+            float2 rasterSamplePosUV = screenUv;
+            rasterSamplePosUV = getSnappedUV(rasterSamplePosUV); // snap to pixel center
+            gDepthAccess[uint2(rasterSamplePosUV * gData.resolution)] = 1u;
+        }
+    }
     #endif
+    #endif
+
+
     
     #if PRIMARY_DEPTH_MODE == DEPTH_MODE_PERFECT_CLASSIFY
     output.stencil |= forceRayMask; // always trace the forced rays
