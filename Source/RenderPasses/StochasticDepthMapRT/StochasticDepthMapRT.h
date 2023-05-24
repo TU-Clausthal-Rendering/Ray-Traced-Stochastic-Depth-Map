@@ -27,7 +27,8 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
-#include "RenderGraph/BasePasses/FullScreenPass.h"
+#include "Core/Pass/FullScreenPass.h"
+#include "RenderGraph/RenderPass.h"
 
 using namespace Falcor;
 
@@ -50,21 +51,21 @@ public:
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene) override;
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
     StochasticDepthMapRT(std::shared_ptr<Device> pDevice);
 
-    RtProgram::SharedPtr mpRayProgram;
-    RtProgramVars::SharedPtr mRayVars;
+    ref<RtProgram> mpRayProgram;
+    ref<RtProgramVars> mRayVars;
 
-    FullScreenPass::SharedPtr mpRasterProgram;
-    Fbo::SharedPtr mpFbo;
+    ref<FullScreenPass> mpRasterProgram;
+    ref<SharedPtr> mpFbo;
 
-    FullScreenPass::SharedPtr mpStencilPass;
-    DepthStencilState::SharedPtr mpStencilState;
+    ref<FullScreenPass> mpStencilPass;
+    ref<DepthStencilState> mpStencilState;
 
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back;
     uint32_t mSampleCount = 4;
@@ -72,10 +73,10 @@ private:
     bool mNormalize = true; // normalize to range [0, 1] (based on [near, far])
     ResourceFormat mDepthFormat = ResourceFormat::R32Float;
 
-    Scene::SharedPtr mpScene;
+    ref<Scene> mpScene;
 
-    Buffer::SharedPtr mpStratifiedLookUpBuffer;
-    Buffer::SharedPtr mpStratifiedIndices;
+    ref<Buffer> mpStratifiedLookUpBuffer;
+    ref<Buffer> mpStratifiedIndices;
 
     bool mClear = false;
     bool mUseRayPipeline = true;

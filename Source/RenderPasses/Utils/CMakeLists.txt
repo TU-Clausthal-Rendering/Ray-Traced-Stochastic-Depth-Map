@@ -9,6 +9,10 @@ target_sources(Utils PRIVATE
     Composite/Composite.h
     Composite/CompositeMode.slangh
 
+    CrossFade/CrossFade.cpp
+    CrossFade/CrossFade.cs.slang
+    CrossFade/CrossFade.h
+
     GaussianBlur/GaussianBlur.cpp
     GaussianBlur/GaussianBlur.h
     GaussianBlur/GaussianBlur.ps.slang

@@ -27,10 +27,10 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
+#include "RenderGraph/RenderPass.h"
 #include "../VAO/DepthMode.h"
 #include "VAOData.slang"
 #include "NeuralNet.h"
-#include "RenderGraph/BasePasses/FullScreenPass.h"
 
 using namespace Falcor;
 

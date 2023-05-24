@@ -50,7 +50,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, DepthPeeling>();
 }
 
-DepthPeeling::SharedPtr DepthPeeling::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+DepthPeeling::SharedPtr DepthPeeling::create(ref<Device> pDevice, const Dictionary& dict)
 {
     SharedPtr pPass = SharedPtr(new DepthPeeling(std::move(pDevice)));
     for (const auto& [key, value] : dict)
@@ -62,9 +62,9 @@ DepthPeeling::SharedPtr DepthPeeling::create(std::shared_ptr<Device> pDevice, co
     return pPass;
 }
 
-DepthPeeling::DepthPeeling(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+DepthPeeling::DepthPeeling(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
     mpDepthPeelState = GraphicsState::create(mpDevice);
 }
 

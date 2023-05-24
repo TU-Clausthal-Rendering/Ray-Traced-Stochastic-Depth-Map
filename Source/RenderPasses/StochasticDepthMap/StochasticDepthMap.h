@@ -27,7 +27,8 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
-#include "RenderGraph/BasePasses/FullScreenPass.h"
+#include "Core/Pass/FullScreenPass.h"
+#include "RenderGraph/RenderPass.h"
 
 using namespace Falcor;
 
@@ -50,23 +51,23 @@ public:
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene) override;
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
     StochasticDepthMap(std::shared_ptr<Device> pDevice);
 
-    Fbo::SharedPtr mpFbo;
-    GraphicsState::SharedPtr mpState;
-    GraphicsVars::SharedPtr mpVars;
+    ref<Fbo> mpFbo;
+    ref<GraphicsState> mpState;
+    ref<GraphicsVars> mpVars;
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back;
-    Scene::SharedPtr mpScene;
-    Buffer::SharedPtr mpStratifiedLookUpBuffer;
-    Buffer::SharedPtr mpStratifiedIndices;
+    ref<Scene> mpScene;
+    ref<Buffer> mpStratifiedLookUpBuffer;
+    ref<Buffer> mpStratifiedIndices;
 
-    FullScreenPass::SharedPtr mpStencilPass;
-    DepthStencilState::SharedPtr mpStencilState;
+    ref<FullScreenPass> mpStencilPass;
+    ref<DepthStencilState> mpStencilState;
 
     uint32_t mSampleCount = 8;
     float mLastZNear = 0.0f;

@@ -326,7 +326,7 @@ void StochasticDepthMapRT::renderUI(Gui::Widgets& widget)
         requestRecompile();
 }
 
-void StochasticDepthMapRT::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+void StochasticDepthMapRT::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     // recompile shaders

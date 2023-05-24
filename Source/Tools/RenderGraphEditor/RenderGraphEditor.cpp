@@ -28,6 +28,7 @@
 #include "RenderGraphEditor.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RenderGraphImportExport.h"
+#include "GlobalState.h"
 
 #include <args.hxx>
 #include <imgui.h>
@@ -35,6 +36,13 @@
 
 #include <fstream>
 #include <filesystem>
+
+#if FALCOR_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 FALCOR_EXPORT_D3D12_AGILITY_SDK
 
@@ -48,6 +56,8 @@ const std::string kDefaultPassIcon = "framework/images/pass-icon.png";
 RenderGraphEditor::RenderGraphEditor(const SampleAppConfig& config, const Options& options)
     : SampleApp(config), mOptions(options), mCurrentGraphIndex(0)
 {
+    setActivePythonRenderGraphDevice(getDevice());
+
     mNextGraphString.resize(255, 0);
     mCurrentGraphOutput = "";
     mGraphOutputEditString = mCurrentGraphOutput;
@@ -61,11 +71,13 @@ RenderGraphEditor::~RenderGraphEditor()
         terminateProcess(mViewerProcess);
         mViewerProcess = 0;
     }
+
+    setActivePythonRenderGraphDevice(nullptr);
 }
 
 void RenderGraphEditor::onLoad(RenderContext* pRenderContext)
 {
-    mpDefaultIconTex = Texture::createFromFile(getDevice().get(), kDefaultPassIcon, false, false);
+    mpDefaultIconTex = Texture::createFromFile(getDevice(), kDefaultPassIcon, false, false);
     if (!mpDefaultIconTex)
         throw RuntimeError("Failed to load icon");
 
@@ -441,7 +453,7 @@ void RenderGraphEditor::loadGraphsFromFile(const std::filesystem::path& path, co
     FALCOR_ASSERT(!path.empty());
 
     // behavior is load each graph defined within the file as a separate editor ui
-    std::vector<RenderGraph::SharedPtr> newGraphs;
+    std::vector<ref<RenderGraph>> newGraphs;
     if (graphName.size())
     {
         auto pGraph = RenderGraphImporter::import(graphName, path);
@@ -487,7 +499,7 @@ void RenderGraphEditor::createNewGraph(const std::string& renderGraphName)
 {
     std::string graphName = renderGraphName;
     auto nameToIndexIt = mGraphNamesToIndex.find(graphName);
-    RenderGraph::SharedPtr newGraph = RenderGraph::create(getDevice());
+    ref<RenderGraph> newGraph = RenderGraph::create(getDevice());
 
     std::string tempGraphName = graphName;
     while (mGraphNamesToIndex.find(tempGraphName) != mGraphNamesToIndex.end())
@@ -508,7 +520,7 @@ void RenderGraphEditor::createNewGraph(const std::string& renderGraphName)
     mOpenGraphNames.push_back(nextGraphID);
 }
 
-void RenderGraphEditor::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
+void RenderGraphEditor::onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo)
 {
     const float4 clearColor(0.25, 0.25, 0.25, 1);
     pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);

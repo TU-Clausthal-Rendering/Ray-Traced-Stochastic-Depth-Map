@@ -27,6 +27,7 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
+#include "RenderGraph/RenderPass.h"
 
 using namespace Falcor;
 
@@ -42,27 +43,27 @@ public:
         \param[in] dict Dictionary of serialized parameters.
         \return A new object, or an exception is thrown if creation failed.
     */
-    static SharedPtr create(std::shared_ptr<Device> pDevice, const Dictionary& dict);
+    static SharedPtr create(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {}
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene) override;
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
-    DepthPeeling(std::shared_ptr<Device> pDevice);
+    DepthPeeling(ref<Device> pDevice);
 
-    Fbo::SharedPtr mpFbo;
-    GraphicsState::SharedPtr mpDepthPeelState;
-    GraphicsVars::SharedPtr mpDepthPeelVars;
+    ref<Fbo> mpFbo;
+    ref<GraphicsState> mpDepthPeelState;
+    ref<GraphicsVars> mpDepthPeelVars;
 
     // TODO determine cull mode from previous node?
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back;
-    Scene::SharedPtr mpScene;
+    ref<Scene> mpScene;
 
     ResourceFormat mDepthFormat = ResourceFormat::D32Float;
 };

@@ -27,7 +27,8 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
-#include "RenderGraph/BasePasses/FullScreenPass.h"
+#include "Core/Pass/FullScreenPass.h"
+#include "RenderGraph/RenderPass.h"
 
 using namespace Falcor;
 
@@ -50,21 +51,21 @@ public:
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene) override {}
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override {}
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
     CrossBilateralBlur(std::shared_ptr<Device> pDevice);
 
-    Fbo::SharedPtr mpFbo;
-    Sampler::SharedPtr mpSampler;
+    ref<Fbo> mpFbo;
+    ref<Sampler> mpSampler;
     bool mEnabled = true;
     uint32_t mKernelRadius = 4;
     uint32_t mRepetitions = 1;
     bool mReady = false;
 
-    FullScreenPass::SharedPtr mpBlur;
+    ref<FullScreenPass> mpBlur;
     ResourceFormat mLastFormat = ResourceFormat::RGBA32Float;
 
     int mGuardBand = 64;

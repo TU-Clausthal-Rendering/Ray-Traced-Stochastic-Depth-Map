@@ -33,15 +33,21 @@
 #include "GFXAPI.h"
 #include "Core/Assert.h"
 #include "Core/Errors.h"
+#include "Core/ObjectPython.h"
 #include "Utils/Logger.h"
 #include "Utils/Threading.h"
 #include "Utils/Math/Common.h"
 #include "Utils/Image/ImageIO.h"
 #include "Utils/Scripting/ScriptBindings.h"
-#include "RenderGraph/BasePasses/FullScreenPass.h"
+#include "Core/Pass/FullScreenPass.h"
 #include "NativeFormats.h"
 
+// supress some warnings for gli
+#pragma warning( push )
+#pragma warning(disable: 4458) // declaration of 'xxx' hides class member
 #include <gli/gli.hpp>
+#pragma warning( pop )
+
 #include <pybind11/numpy.h>
 
 #include <mutex>
@@ -50,10 +56,10 @@ namespace Falcor
 {
 namespace
 {
-static const bool kTopDown = true; // Memory layout when loading from file
+static constexpr bool kTopDown = true; // Memory layout when loading from file
 
 Texture::BindFlags updateBindFlags(
-    Device* pDevice,
+    ref<Device> pDevice,
     Texture::BindFlags flags,
     bool hasInitData,
     uint32_t mipLevels,
@@ -81,8 +87,8 @@ Texture::BindFlags updateBindFlags(
 }
 } // namespace
 
-Texture::SharedPtr Texture::createFromResource(
-    Device* pDevice,
+ref<Texture> Texture::createFromResource(
+    ref<Device> pDevice,
     gfx::ITextureResource* pResource,
     Type type,
     uint32_t width,
@@ -118,17 +124,16 @@ Texture::SharedPtr Texture::createFromResource(
         FALCOR_UNREACHABLE();
         break;
     }
-    Texture::SharedPtr pTexture =
-        SharedPtr(new Texture(pDevice->shared_from_this(), width, height, depth, arraySize, mipLevels, sampleCount, format, type, bindFlags)
-        );
+    ref<Texture> pTexture =
+        ref<Texture>(new Texture(pDevice, width, height, depth, arraySize, mipLevels, sampleCount, format, type, bindFlags));
     pTexture->mGfxTextureResource = pResource;
     pTexture->mState.global = initState;
     pTexture->mState.isGlobal = true;
     return pTexture;
 }
 
-Texture::SharedPtr Texture::create1D(
-    Device* pDevice,
+ref<Texture> Texture::create1D(
+    ref<Device> pDevice,
     uint32_t width,
     ResourceFormat format,
     uint32_t arraySize,
@@ -138,14 +143,13 @@ Texture::SharedPtr Texture::create1D(
 )
 {
     bindFlags = updateBindFlags(pDevice, bindFlags, pData != nullptr, mipLevels, format, "Texture1D");
-    Texture::SharedPtr pTexture =
-        SharedPtr(new Texture(pDevice->shared_from_this(), width, 1, 1, arraySize, mipLevels, 1, format, Type::Texture1D, bindFlags));
+    ref<Texture> pTexture = ref<Texture>(new Texture(pDevice, width, 1, 1, arraySize, mipLevels, 1, format, Type::Texture1D, bindFlags));
     pTexture->apiInit(pData, (mipLevels == kMaxPossible));
     return pTexture;
 }
 
-Texture::SharedPtr Texture::create2D(
-    Device* pDevice,
+ref<Texture> Texture::create2D(
+    ref<Device> pDevice,
     uint32_t width,
     uint32_t height,
     ResourceFormat format,
@@ -156,14 +160,14 @@ Texture::SharedPtr Texture::create2D(
 )
 {
     bindFlags = updateBindFlags(pDevice, bindFlags, pData != nullptr, mipLevels, format, "Texture2D");
-    Texture::SharedPtr pTexture =
-        SharedPtr(new Texture(pDevice->shared_from_this(), width, height, 1, arraySize, mipLevels, 1, format, Type::Texture2D, bindFlags));
+    ref<Texture> pTexture =
+        ref<Texture>(new Texture(pDevice, width, height, 1, arraySize, mipLevels, 1, format, Type::Texture2D, bindFlags));
     pTexture->apiInit(pData, (mipLevels == kMaxPossible));
     return pTexture;
 }
 
-Texture::SharedPtr Texture::create3D(
-    Device* pDevice,
+ref<Texture> Texture::create3D(
+    ref<Device> pDevice,
     uint32_t width,
     uint32_t height,
     uint32_t depth,
@@ -175,14 +179,13 @@ Texture::SharedPtr Texture::create3D(
 )
 {
     bindFlags = updateBindFlags(pDevice, bindFlags, pData != nullptr, mipLevels, format, "Texture3D");
-    Texture::SharedPtr pTexture =
-        SharedPtr(new Texture(pDevice->shared_from_this(), width, height, depth, 1, mipLevels, 1, format, Type::Texture3D, bindFlags));
+    ref<Texture> pTexture = ref<Texture>(new Texture(pDevice, width, height, depth, 1, mipLevels, 1, format, Type::Texture3D, bindFlags));
     pTexture->apiInit(pData, (mipLevels == kMaxPossible));
     return pTexture;
 }
 
-Texture::SharedPtr Texture::createCube(
-    Device* pDevice,
+ref<Texture> Texture::createCube(
+    ref<Device> pDevice,
     uint32_t width,
     uint32_t height,
     ResourceFormat format,
@@ -193,15 +196,14 @@ Texture::SharedPtr Texture::createCube(
 )
 {
     bindFlags = updateBindFlags(pDevice, bindFlags, pData != nullptr, mipLevels, format, "TextureCube");
-    Texture::SharedPtr pTexture =
-        SharedPtr(new Texture(pDevice->shared_from_this(), width, height, 1, arraySize, mipLevels, 1, format, Type::TextureCube, bindFlags)
-        );
+    ref<Texture> pTexture =
+        ref<Texture>(new Texture(pDevice, width, height, 1, arraySize, mipLevels, 1, format, Type::TextureCube, bindFlags));
     pTexture->apiInit(pData, (mipLevels == kMaxPossible));
     return pTexture;
 }
 
-Texture::SharedPtr Texture::create2DMS(
-    Device* pDevice,
+ref<Texture> Texture::create2DMS(
+    ref<Device> pDevice,
     uint32_t width,
     uint32_t height,
     ResourceFormat format,
@@ -211,15 +213,104 @@ Texture::SharedPtr Texture::create2DMS(
 )
 {
     bindFlags = updateBindFlags(pDevice, bindFlags, false, 1, format, "Texture2DMultisample");
-    Texture::SharedPtr pTexture = SharedPtr(
-        new Texture(pDevice->shared_from_this(), width, height, 1, arraySize, 1, sampleCount, format, Type::Texture2DMultisample, bindFlags)
-    );
+    ref<Texture> pTexture =
+        ref<Texture>(new Texture(pDevice, width, height, 1, arraySize, 1, sampleCount, format, Type::Texture2DMultisample, bindFlags));
     pTexture->apiInit(nullptr, false);
     return pTexture;
 }
 
-Texture::SharedPtr Texture::createFromFile(
-    Device* pDevice,
+ref<Texture> Texture::createMippedFromFiles(
+    ref<Device> pDevice,
+    fstd::span<const std::filesystem::path> paths,
+    bool loadAsSrgb,
+    Texture::BindFlags bindFlags
+)
+{
+    std::vector<Bitmap::UniqueConstPtr> mips;
+    mips.reserve(paths.size());
+    size_t combinedSize = 0;
+    std::filesystem::path fullPathMip0;
+
+    for (const auto& path : paths)
+    {
+        Bitmap::UniqueConstPtr pBitmap;
+        if (hasExtension(path, "dds"))
+        {
+            pBitmap = ImageIO::loadBitmapFromDDS(path);
+        }
+        else
+        {
+            pBitmap = Bitmap::createFromFile(path, kTopDown);
+        }
+        if (!pBitmap)
+        {
+            logWarning("Error loading mip {}. Loading failed for image file '{}'.", mips.size(), path);
+            break;
+        }
+
+        if (!mips.empty())
+        {
+            if (mips.back()->getFormat() != pBitmap->getFormat())
+            {
+                logWarning("Error loading mip {} from file {}. Texture format of all mip levels must match.", mips.size(), path);
+                break;
+            }
+            if (std::max(mips.back()->getWidth() / 2, 1u) != pBitmap->getWidth() ||
+                std::max(mips.back()->getHeight() / 2, 1u) != pBitmap->getHeight())
+            {
+                logWarning(
+                    "Error loading mip {} from file {}. Image resolution must decrease by half. ({}, {}) != ({}, {})/2", mips.size(), path,
+                    pBitmap->getWidth(), pBitmap->getHeight(), mips.back()->getWidth(), mips.back()->getHeight()
+                );
+                break;
+            }
+        }
+        else
+        {
+            fullPathMip0 = path;
+        }
+        combinedSize += pBitmap->getSize();
+        mips.emplace_back(std::move(pBitmap));
+    }
+
+    ref<Texture> pTex;
+    if (!mips.empty())
+    {
+        // Combine all the mip data into a single buffer
+        size_t copyDst = 0;
+        std::unique_ptr<uint8_t[]> combinedData(new uint8_t[combinedSize]);
+        for (auto& mip : mips)
+        {
+            std::memcpy(&combinedData[copyDst], mip->getData(), mip->getSize());
+            copyDst += mip->getSize();
+        }
+
+        ResourceFormat texFormat = mips[0]->getFormat();
+        if (loadAsSrgb)
+            texFormat = linearToSrgbFormat(texFormat);
+
+        // Create mip mapped latent texture
+        pTex =
+            Texture::create2D(pDevice, mips[0]->getWidth(), mips[0]->getHeight(), texFormat, 1, mips.size(), combinedData.get(), bindFlags);
+    }
+
+    if (pTex != nullptr)
+    {
+        pTex->setSourcePath(fullPathMip0);
+
+        // Log debug info.
+        std::string str = fmt::format(
+            "Loaded texture: size={}x{} mips={} format={} path={}", pTex->getWidth(), pTex->getHeight(), pTex->getMipCount(),
+            to_string(pTex->getFormat()), fullPathMip0
+        );
+        logDebug(str);
+    }
+
+    return pTex;
+}
+
+ref<Texture> Texture::createFromFile(
+    ref<Device> pDevice,
     const std::filesystem::path& path,
     bool generateMipLevels,
     bool loadAsSrgb,
@@ -233,7 +324,7 @@ Texture::SharedPtr Texture::createFromFile(
         return nullptr;
     }
 
-    Texture::SharedPtr pTex;
+    ref<Texture> pTex;
     if (hasExtension(fullPath, "dds"))
     {
         try
@@ -266,13 +357,20 @@ Texture::SharedPtr Texture::createFromFile(
     if (pTex != nullptr)
     {
         pTex->setSourcePath(fullPath);
+
+        // Log debug info.
+        std::string str = fmt::format(
+            "Loaded texture: size={}x{} mips={} format={} path={}", pTex->getWidth(), pTex->getHeight(), pTex->getMipCount(),
+            to_string(pTex->getFormat()), fullPath
+        );
+        logDebug(str);
     }
 
     return pTex;
 }
 
 Texture::Texture(
-    std::shared_ptr<Device> pDevice,
+    ref<Device> pDevice,
     uint32_t width,
     uint32_t height,
     uint32_t depth,
@@ -283,7 +381,7 @@ Texture::Texture(
     Type type,
     BindFlags bindFlags
 )
-    : Resource(std::move(pDevice), type, bindFlags, 0)
+    : Resource(pDevice, type, bindFlags, 0)
     , mWidth(width)
     , mHeight(height)
     , mDepth(depth)
@@ -311,11 +409,10 @@ gfx::IResource* Texture::getGfxResource() const
 
 template<typename ViewClass>
 using CreateFuncType = std::function<
-    typename ViewClass::
-        SharedPtr(Texture* pTexture, uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize)>;
+    ref<ViewClass>(Texture* pTexture, uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize)>;
 
 template<typename ViewClass, typename ViewMapType>
-typename ViewClass::SharedPtr findViewCommon(
+ref<ViewClass> findViewCommon(
     Texture* pTexture,
     uint32_t mostDetailedMip,
     uint32_t mipCount,
@@ -373,64 +470,44 @@ typename ViewClass::SharedPtr findViewCommon(
     return viewMap[view];
 }
 
-DepthStencilView::SharedPtr Texture::getDSV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize)
+ref<DepthStencilView> Texture::getDSV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize)
 {
     auto createFunc = [](Texture* pTexture, uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize)
-    {
-        return DepthStencilView::create(
-            pTexture->getDevice().get(), std::static_pointer_cast<Texture>(pTexture->shared_from_this()), mostDetailedMip, firstArraySlice,
-            arraySize
-        );
-    };
+    { return DepthStencilView::create(pTexture->getDevice().get(), pTexture, mostDetailedMip, firstArraySlice, arraySize); };
 
     return findViewCommon<DepthStencilView>(this, mipLevel, 1, firstArraySlice, arraySize, mDsvs, createFunc);
 }
 
-UnorderedAccessView::SharedPtr Texture::getUAV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize)
+ref<UnorderedAccessView> Texture::getUAV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize)
 {
     auto createFunc = [](Texture* pTexture, uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize)
-    {
-        return UnorderedAccessView::create(
-            pTexture->getDevice().get(), std::static_pointer_cast<Texture>(pTexture->shared_from_this()), mostDetailedMip, firstArraySlice,
-            arraySize
-        );
-    };
+    { return UnorderedAccessView::create(pTexture->getDevice().get(), pTexture, mostDetailedMip, firstArraySlice, arraySize); };
 
     return findViewCommon<UnorderedAccessView>(this, mipLevel, 1, firstArraySlice, arraySize, mUavs, createFunc);
 }
 
-ShaderResourceView::SharedPtr Texture::getSRV()
+ref<ShaderResourceView> Texture::getSRV()
 {
     return getSRV(0);
 }
 
-UnorderedAccessView::SharedPtr Texture::getUAV()
+ref<UnorderedAccessView> Texture::getUAV()
 {
     return getUAV(0);
 }
 
-RenderTargetView::SharedPtr Texture::getRTV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize)
+ref<RenderTargetView> Texture::getRTV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize)
 {
     auto createFunc = [](Texture* pTexture, uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize)
-    {
-        return RenderTargetView::create(
-            pTexture->getDevice().get(), std::static_pointer_cast<Texture>(pTexture->shared_from_this()), mostDetailedMip, firstArraySlice,
-            arraySize
-        );
-    };
+    { return RenderTargetView::create(pTexture->getDevice().get(), pTexture, mostDetailedMip, firstArraySlice, arraySize); };
 
     return findViewCommon<RenderTargetView>(this, mipLevel, 1, firstArraySlice, arraySize, mRtvs, createFunc);
 }
 
-ShaderResourceView::SharedPtr Texture::getSRV(uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize)
+ref<ShaderResourceView> Texture::getSRV(uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize)
 {
     auto createFunc = [](Texture* pTexture, uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize)
-    {
-        return ShaderResourceView::create(
-            pTexture->getDevice().get(), std::static_pointer_cast<Texture>(pTexture->shared_from_this()), mostDetailedMip, mipCount,
-            firstArraySlice, arraySize
-        );
-    };
+    { return ShaderResourceView::create(pTexture->getDevice().get(), pTexture, mostDetailedMip, mipCount, firstArraySlice, arraySize); };
 
     return findViewCommon<ShaderResourceView>(this, mostDetailedMip, mipCount, firstArraySlice, arraySize, mSrvs, createFunc);
 }
@@ -440,7 +517,8 @@ void Texture::captureToFile(
     uint32_t arraySlice,
     const std::filesystem::path& path,
     Bitmap::FileFormat format,
-    Bitmap::ExportFlags exportFlags
+    Bitmap::ExportFlags exportFlags,
+    bool async
 )
 {
     RenderContext* pContext = mpDevice->getRenderContext();
@@ -486,8 +564,8 @@ void Texture::captureToFile(
 
     if (type == FormatType::Float && channels < 3)
     {
-        Texture::SharedPtr pOther = Texture::create2D(
-            mpDevice.get(), getWidth(mipLevel), getHeight(mipLevel), ResourceFormat::RGBA32Float, 1, 1, nullptr,
+        ref<Texture> pOther = Texture::create2D(
+            mpDevice, getWidth(mipLevel), getHeight(mipLevel), ResourceFormat::RGBA32Float, 1, 1, nullptr,
             ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource
         );
         pContext->blit(getSRV(mipLevel, 1, arraySlice, 1), pOther->getRTV(0, 0, 1));
@@ -502,9 +580,13 @@ void Texture::captureToFile(
 
     uint32_t width = getWidth(mipLevel);
     uint32_t height = getHeight(mipLevel);
+
     auto func = [=]() { Bitmap::saveImage(path, width, height, format, exportFlags, resourceFormat, true, (void*)textureData.data()); };
 
-    Threading::dispatchTask(func);
+    if (async)
+        Threading::dispatchTask(func);
+    else
+        func();
 }
 
 void Texture::uploadInitData(RenderContext* pRenderContext, const void* pData, bool autoGenMips)
@@ -595,7 +677,7 @@ bool Texture::compareDesc(const Texture* pOther) const
 {
     return mWidth == pOther->mWidth && mHeight == pOther->mHeight && mDepth == pOther->mDepth && mMipLevels == pOther->mMipLevels &&
            mSampleCount == pOther->mSampleCount && mArraySize == pOther->mArraySize && mFormat == pOther->mFormat &&
-           mIsSparse == pOther->mIsSparse && mSparsePageRes == pOther->mSparsePageRes;
+           mIsSparse == pOther->mIsSparse && all(mSparsePageRes == pOther->mSparsePageRes);
 }
 
 gfx::IResource::Type getResourceType(Texture::Type type)
@@ -811,16 +893,23 @@ FALCOR_SCRIPT_BINDING(Texture)
 {
     using namespace pybind11::literals;
 
-    pybind11::class_<Texture, Texture::SharedPtr> texture(m, "Texture");
+    FALCOR_SCRIPT_BINDING_DEPENDENCY(Resource)
+
+    pybind11::class_<Texture, Resource, ref<Texture>> texture(m, "Texture");
     texture.def_property_readonly("width", [](const Texture& texture) { return texture.getWidth(); });
     texture.def_property_readonly("height", [](const Texture& texture) { return texture.getHeight(); });
     texture.def_property_readonly("depth", [](const Texture& texture) { return texture.getDepth(); });
-    texture.def_property_readonly("mipCount", &Texture::getMipCount);
-    texture.def_property_readonly("arraySize", &Texture::getArraySize);
+    texture.def_property_readonly("mip_count", &Texture::getMipCount);
+    texture.def_property_readonly("array_size", &Texture::getArraySize);
     texture.def_property_readonly("samples", &Texture::getSampleCount);
     texture.def_property_readonly("format", &Texture::getFormat);
 
+    texture.def("get_image", pyTextureGetImage, "mip_level"_a = 0, "array_slice"_a = 0);
+    texture.def("get_data", pyTextureGetData, "mip_level"_a = 0, "array_slice"_a = 0);
+
+    // PYTHONDEPRECATED BEGIN
     texture.def("getImage", pyTextureGetImage, "mipLevel"_a = 0, "arraySlice"_a = 0);
     texture.def("getData", pyTextureGetData, "mipLevel"_a = 0, "arraySlice"_a = 0);
+    // PYTHONDEPRECATED END
 }
 } // namespace Falcor

@@ -379,7 +379,7 @@ void VAO::renderUI(Gui::Widgets& widget)
     if (widget.button("Save Depths")) mSaveDepths = true;
 }
 
-void VAO::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+void VAO::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     mDirty = true;
