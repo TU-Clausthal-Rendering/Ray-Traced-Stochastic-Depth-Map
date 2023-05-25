@@ -38,10 +38,9 @@ float4 psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID) : SV_TARGET
 
     float3 viewDir = normalize(gScene.camera.getPosition() - vsOut.posW);
     ShadingData sd = prepareShadingData(vsOut, triangleIndex, viewDir, lod);
-    adjustShadingNormal(sd);
     
     // Create material instance.
-    let mi = gScene.materials.getMaterialInstance(sd, lod);
+    let mi = gScene.materials.getMaterialInstance(sd, lod, (uint)MaterialInstanceHints::AdjustShadingNormal);
     let bsdf = mi.getProperties(sd);
     
     // emission
@@ -53,7 +52,7 @@ float4 psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID) : SV_TARGET
     float diffLod = roughnessToLod(bsdf.roughness * 2.0);
     float specLod = roughnessToLod(bsdf.roughness);
     float envMaxIntensity = roughnessToIntensity(bsdf.roughness);
-    color += gEnvMapIntensity * bsdf.diffuseReflectionAlbedo * min(gScene.envMap.eval(lerp(sd.N, sd.faceN, 0.8), diffLod), 1.0);
+    color += gEnvMapIntensity * bsdf.diffuseReflectionAlbedo * min(gScene.envMap.eval(lerp(sd.frame.N, sd.faceN, 0.8), diffLod), 1.0);
     color += gEnvMapIntensity * bsdf.specularReflectionAlbedo * min(gScene.envMap.eval(R, specLod), envMaxIntensity);
     
     

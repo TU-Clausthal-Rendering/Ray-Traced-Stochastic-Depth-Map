@@ -59,5 +59,5 @@ private:
     ref<Fbo> mpFbo;
     ref<Scene> mpScene;
 
-    uint2 mInputSize;
+    uint2 mInputSize = uint2(0);
 };
