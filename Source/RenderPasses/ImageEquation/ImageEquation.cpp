@@ -40,16 +40,16 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, ImageEquation>();
 }
 
-ImageEquation::ImageEquation(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice)),
+ImageEquation::ImageEquation(ref<Device> pDevice) : RenderPass(std::move(pDevice)),
 mFormula("I0[xy]"), // "I0.Sample(s, uv)"
 mFormat(ResourceFormat::RGBA32Float)
 {
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 }
 
-ImageEquation::SharedPtr ImageEquation::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<ImageEquation> ImageEquation::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new ImageEquation(std::move(pDevice)));
+    auto pPass = make_ref<ImageEquation>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
         if (key == kFormula) pPass->mFormula = (const std::string&)value;
@@ -91,7 +91,7 @@ void ImageEquation::execute(RenderContext* pRenderContext, const RenderData& ren
             mpPass = FullScreenPass::create(mpDevice, kShaderFilename, defines);
             Sampler::Desc samplerDesc;
             samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point);
-            mpPass["s"] = Sampler::create(mpDevice.get(), samplerDesc);
+            mpPass->getRootVar()["s"] = Sampler::create(mpDevice, samplerDesc);
             mValid = true;
         }
         catch (const std::exception& e)
@@ -102,10 +102,10 @@ void ImageEquation::execute(RenderContext* pRenderContext, const RenderData& ren
 
     if (!mValid) return;
 
-    Texture::SharedPtr I0;
-    Texture::SharedPtr I1;
-    Texture::SharedPtr I2;
-    Texture::SharedPtr I3;
+    ref<Texture> I0;
+    ref<Texture> I1;
+    ref<Texture> I2;
+    ref<Texture> I3;
 
     if (renderData["I0"]) I0 = renderData["I0"]->asTexture();
     if (renderData["I1"]) I1 = renderData["I1"]->asTexture();
@@ -116,10 +116,10 @@ void ImageEquation::execute(RenderContext* pRenderContext, const RenderData& ren
 
     mpFbo->attachColorTarget(out, 0);
 
-    mpPass["I0"] = I0;
-    mpPass["I1"] = I1;
-    mpPass["I2"] = I2;
-    mpPass["I3"] = I3;
+    mpPass->getRootVar()["I0"] = I0;
+    mpPass->getRootVar()["I1"] = I1;
+    mpPass->getRootVar()["I2"] = I2;
+    mpPass->getRootVar()["I3"] = I3;
 
     mpPass->execute(pRenderContext, mpFbo);
 }

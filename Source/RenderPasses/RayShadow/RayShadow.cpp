@@ -42,14 +42,14 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, RayShadow>();
 }
 
-RayShadow::RayShadow(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+RayShadow::RayShadow(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 }
 
-RayShadow::SharedPtr RayShadow::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<RayShadow> RayShadow::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new RayShadow(std::move(pDevice)));
+    auto pPass = make_ref<RayShadow>(std::move(pDevice));
     return pPass;
 }
 
@@ -85,7 +85,7 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
     }
 
     // clear visibility texture
-    pRenderContext->clearTexture(pVisibility.get(), glm::vec4(1, 1, 1, 1));
+    pRenderContext->clearTexture(pVisibility.get(), float4(1, 1, 1, 1));
     if (!mpScene) return;
 
     if (!mpPass)
@@ -100,7 +100,7 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
         mpPass = FullScreenPass::create(mpDevice, desc, defines);
     }
 
-    mpPass["gPos"] = pPos;
+    mpPass->getRootVar()["gPos"] = pPos;
 
     // raytracing data
     auto var = mpPass->getRootVar();
@@ -114,7 +114,7 @@ void RayShadow::renderUI(Gui::Widgets& widget)
 {
 }
 
-void RayShadow::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+void RayShadow::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     mpPass.reset();

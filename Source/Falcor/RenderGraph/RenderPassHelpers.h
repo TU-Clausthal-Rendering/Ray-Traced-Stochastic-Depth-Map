@@ -67,6 +67,11 @@ struct FALCOR_API RenderPassHelpers
      * Helper for calculating desired I/O size in pixels based on selected mode.
      */
     static uint2 calculateIOSize(const IOSize selection, const uint2 fixedSize, const uint2 windowSize);
+    static bool isSameSize(const ref<Texture>& a, const ref<Texture>& b)
+    {
+        if (!a || !b) return false;
+        return a->getWidth() == b->getWidth() && a->getHeight() == b->getHeight();
+    }
 };
 
 // TODO: Move below out of the global scope, e.g. into RenderPassHelpers struct.

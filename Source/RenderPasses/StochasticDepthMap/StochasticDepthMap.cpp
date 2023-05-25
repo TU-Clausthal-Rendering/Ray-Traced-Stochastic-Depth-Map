@@ -113,9 +113,9 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, StochasticDepthMap>();
 }
 
-StochasticDepthMap::StochasticDepthMap(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+StochasticDepthMap::StochasticDepthMap(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 
     DepthStencilState::Desc dsdesc;
     // set stencil test to pass when values > 0 are present (not equal to 0)
@@ -140,9 +140,9 @@ StochasticDepthMap::StochasticDepthMap(std::shared_ptr<Device> pDevice) : Render
     mpStencilPass->getState()->setDepthStencilState(DepthStencilState::create(dsdesc));
 }
 
-StochasticDepthMap::SharedPtr StochasticDepthMap::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<StochasticDepthMap> StochasticDepthMap::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new StochasticDepthMap(std::move(pDevice)));
+    auto pPass = make_ref<StochasticDepthMap>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
         if (key == kSampleCount) pPass->mSampleCount = value;
@@ -191,8 +191,8 @@ void StochasticDepthMap::compile(RenderContext* pRenderContext, const CompileDat
     std::vector<uint32_t> lookUpTable;
     generateStratifiedLookupTable(mSampleCount, indices, lookUpTable);
 
-    mpStratifiedIndices = Buffer::createStructured(mpDevice.get(), sizeof(indices[0]), uint32_t(indices.size()), ResourceBindFlags::ShaderResource, Buffer::CpuAccess::None, indices.data(), false);
-    mpStratifiedLookUpBuffer = Buffer::createStructured(mpDevice.get(), sizeof(lookUpTable[0]), uint32_t(lookUpTable.size()), ResourceBindFlags::ShaderResource, Buffer::CpuAccess::None, lookUpTable.data(), false);
+    mpStratifiedIndices = Buffer::createStructured(mpDevice, sizeof(indices[0]), uint32_t(indices.size()), ResourceBindFlags::ShaderResource, Buffer::CpuAccess::None, indices.data(), false);
+    mpStratifiedLookUpBuffer = Buffer::createStructured(mpDevice, sizeof(lookUpTable[0]), uint32_t(lookUpTable.size()), ResourceBindFlags::ShaderResource, Buffer::CpuAccess::None, lookUpTable.data(), false);
 }
 
 void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -201,7 +201,7 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
 
     auto pDepthIn = renderData[kDepthIn]->asTexture();
     auto psDepths = renderData[ksDepth]->asTexture();
-    Texture::SharedPtr pStencilMask;
+    ref<Texture> pStencilMask;
     if (renderData[kStencil])
     {
         pStencilMask = renderData[kStencil]->asTexture();
@@ -239,7 +239,7 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
     if (pStencilMask)
     {
         FALCOR_PROFILE(pRenderContext, "Stencil Copy");
-        mpStencilPass["mask"] = pStencilMask;
+        mpStencilPass->getRootVar()["mask"] = pStencilMask;
         mpStencilPass->execute(pRenderContext, mpFbo);
 
         mpState->setDepthStencilState(mpStencilState);
@@ -301,7 +301,7 @@ void StochasticDepthMap::renderUI(Gui::Widgets& widget)
         requestRecompile();
 }
 
-void StochasticDepthMap::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+void StochasticDepthMap::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     mpState.reset();

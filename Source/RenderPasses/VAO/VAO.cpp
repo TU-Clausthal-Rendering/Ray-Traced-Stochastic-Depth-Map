@@ -26,8 +26,10 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #include "VAO.h"
+
+#include <random>
+
 #include "../Utils/GuardBand/guardband.h"
-#include "glm/gtc/random.hpp"
 #include "Utils/Math/FalcorMath.h"
 
 namespace
@@ -81,7 +83,7 @@ namespace
 
 static void regVAO(pybind11::module& m)
 {
-    pybind11::class_<VAO, RenderPass, VAO::SharedPtr> pass(m, "VAO");
+    pybind11::class_<VAO, RenderPass, ref<VAO>> pass(m, "VAO");
     pass.def("saveDepths", &VAO::saveDepths);
 
     pybind11::enum_<VAO::SampleDistribution> sampleDistribution(m, "SampleDistribution");
@@ -105,21 +107,21 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     ScriptBindings::registerBinding(regVAO);
 }
 
-VAO::VAO(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+VAO::VAO(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
     Sampler::Desc samplerDesc;
     samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap);
-    mpNoiseSampler = Sampler::create(mpDevice.get(), samplerDesc);
+    mpNoiseSampler = Sampler::create(mpDevice, samplerDesc);
 
     samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
-    mpTextureSampler = Sampler::create(mpDevice.get(), samplerDesc);
+    mpTextureSampler = Sampler::create(mpDevice, samplerDesc);
 
-    mpAOFbo = Fbo::create(mpDevice.get());
+    mpAOFbo = Fbo::create(mpDevice);
 }
 
-VAO::SharedPtr VAO::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<VAO> VAO::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new VAO(std::move(pDevice)));
+    auto pPass = make_ref<VAO>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
         if (key == kEnabled) pPass->mEnabled = value;
@@ -197,10 +199,10 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     auto pNormals = renderData[kNormals]->asTexture();
     auto pAoDst = renderData[kAmbientMap]->asTexture();
     //auto pInstanceID = renderData[kInstanceID]->asTexture();
-    Texture::SharedPtr pDepth2;
+    ref<Texture> pDepth2;
     if (renderData[kDepth2]) pDepth2 = renderData[kDepth2]->asTexture();
     else if (mDepthMode == DepthMode::DualDepth) mDepthMode = DepthMode::SingleDepth;
-    Texture::SharedPtr psDepth;
+    ref<Texture> psDepth;
     if (renderData[ksDepth]) psDepth = renderData[ksDepth]->asTexture();
     else if (mDepthMode == DepthMode::StochasticDepth) mDepthMode = DepthMode::SingleDepth;
     auto pMaterial = renderData[kMaterial]->asTexture();
@@ -243,14 +245,15 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             mpSSAOPass = FullScreenPass::create(mpDevice, desc, defines);
             mDirty = true;
 
-            mpSSAOPass["gRasterDepth"] = pInternalRasterDepth;
-            mpSSAOPass["gRayDepth"] = pInternalRayDepth;
-            mpSSAOPass["gRasterAO"] = pInternalRasterAO;
-            mpSSAOPass["gRayAO"] = pInternalRayAO;
-            mpSSAOPass["gSphereEnd"] = pInternalSphereEnd;
-            mpSSAOPass["gAskRay"] = pInternalAskRay;
-            mpSSAOPass["gRequireRay"] = pInternalRequireRay;
-            mpSSAOPass["gForceRay"] = pInternalForceRay;
+            auto vars = mpSSAOPass->getRootVar();
+            vars["gRasterDepth"] = pInternalRasterDepth;
+            vars["gRayDepth"] = pInternalRayDepth;
+            vars["gRasterAO"] = pInternalRasterAO;
+            vars["gRayAO"] = pInternalRayAO;
+            vars["gSphereEnd"] = pInternalSphereEnd;
+            vars["gAskRay"] = pInternalAskRay;
+            vars["gRequireRay"] = pInternalRequireRay;
+            vars["gForceRay"] = pInternalForceRay;
             //mpSSAOPass["gInstanceIDOut"] = pInternalInstanceID;
         }
 
@@ -258,7 +261,7 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         {
             // bind static resources
             mData.noiseScale = float2(pDepth->getWidth(), pDepth->getHeight()) / float2(NOISE_SIZE, NOISE_SIZE);
-            mpSSAOPass["StaticCB"].setBlob(mData);
+            mpSSAOPass->getRootVar()["StaticCB"].setBlob(mData);
             mDirty = false;
         }
 
@@ -266,22 +269,22 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         auto var = mpSSAOPass->getRootVar();
         mpScene->setRaytracingShaderData(pRenderContext, var);
 
-        pCamera->setShaderData(mpSSAOPass["PerFrameCB"]["gCamera"]);
-        mpSSAOPass["PerFrameCB"]["saveDepths"] = mSaveDepths;
-        mpSSAOPass["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
+        pCamera->setShaderData(var["PerFrameCB"]["gCamera"]);
+        var["PerFrameCB"]["saveDepths"] = mSaveDepths;
+        var["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
 
         // Update state/vars
-        mpSSAOPass["gNoiseSampler"] = mpNoiseSampler;
-        mpSSAOPass["gTextureSampler"] = mpTextureSampler;
-        mpSSAOPass["gDepthTex"] = pDepth;
-        mpSSAOPass["gDepthTex2"] = pDepth2;
-        mpSSAOPass["gsDepthTex"] = psDepth;
-        mpSSAOPass["gNoiseTex"] = mpNoiseTexture;
-        mpSSAOPass["gNormalTex"] = pNormals;
+        var["gNoiseSampler"] = mpNoiseSampler;
+        var["gTextureSampler"] = mpTextureSampler;
+        var["gDepthTex"] = pDepth;
+        var["gDepthTex2"] = pDepth2;
+        var["gsDepthTex"] = psDepth;
+        var["gNoiseTex"] = mpNoiseTexture;
+        var["gNormalTex"] = pNormals;
         //mpSSAOPass["gInstanceID"] = pInstanceID;
         if (mSaveDepths)
         {
-            mpSSAOPass["gMaterialData"] = pMaterial;
+            var["gMaterialData"] = pMaterial;
 
             // clear uav targets
             pRenderContext->clearTexture(pInternalRasterDepth.get());
@@ -357,7 +360,7 @@ void VAO::renderUI(Gui::Widgets& widget)
     uint32_t kernelSize = mKernelSize;
     if (widget.var("Kernel Size", kernelSize, 1u, VAOData::kMaxSamples))
     {
-        kernelSize = glm::clamp(kernelSize, 1u, VAOData::kMaxSamples);
+        kernelSize = math::clamp(kernelSize, 1u, VAOData::kMaxSamples);
         mKernelSize = kernelSize;
         setKernel();
         requestRecompile();
@@ -395,6 +398,13 @@ void VAO::setKernel()
     if (mHemisphereDistribution == SampleDistribution::VanDerCorput && !isPowerOfTwo)
         logWarning("VanDerCorput sequence only works properly if the sample count is a power of two!");
 
+    auto linearRand = [](float min, float max)
+    {
+        static std::mt19937 generator(0);
+        std::uniform_real_distribution<float> distribution(min, max);
+        return distribution(generator);
+    };
+
     if (mHemisphereDistribution == SampleDistribution::Poisson)
     {
         // brute force algorithm to generate poisson samples
@@ -415,7 +425,7 @@ void VAO::setKernel()
             while (i < mKernelSize && cur_retries < max_retries)
             {
                 cur_retries += 1;
-                float2 point = float2(glm::linearRand(-1.0f, 1.0f), glm::linearRand(-1.0f, 1.0f));
+                float2 point = float2(linearRand(-1.0f, 1.0f), linearRand(-1.0f, 1.0f));
                 if (point.x * point.x + point.y * point.y > pow2(1.0f - r))
                     continue;
 
@@ -430,7 +440,7 @@ void VAO::setKernel()
 
                 if (too_close) continue;
 
-                mData.sampleKernel[i++] = float4(point.x, point.y, glm::linearRand(0.0f, 1.0f), glm::linearRand(0.0f, 1.0f));
+                mData.sampleKernel[i++] = float4(point.x, point.y, linearRand(0.0f, 1.0f), linearRand(0.0f, 1.0f));
             }
 
             std::cerr << "\rpoisson attempt " << ++cur_attempt;
@@ -454,20 +464,20 @@ void VAO::setKernel()
             // select two points
             if ((float)i / (float)mKernelSize * 8.0f < 3.0f)
             {
-                rand = glm::mix(p0, p1, (float)i / (float)mKernelSize * 8.0f / 3.0f);
+                rand = lerp(p0, p1, (float)i / (float)mKernelSize * 8.0f / 3.0f);
             }
             else if ((float)i / (float)mKernelSize * 8.0f < 5.0f)
             {
-                rand = glm::mix(p1, p2, ((float)i / (float)mKernelSize * 8.0f - 3.0f) / 2.0f);
+                rand = lerp(p1, p2, ((float)i / (float)mKernelSize * 8.0f - 3.0f) / 2.0f);
             }
             else
             {
-                rand = glm::mix(p2, p0, ((float)i / (float)mKernelSize * 8.0f - 5.0f) / 3.0f);
+                rand = lerp(p2, p0, ((float)i / (float)mKernelSize * 8.0f - 5.0f) / 3.0f);
             }
             mData.sampleKernel[i].x = rand.x;
             mData.sampleKernel[i].y = rand.y;
-            mData.sampleKernel[i].z = glm::linearRand(0.0f, 1.0f);
-            mData.sampleKernel[i].w = glm::linearRand(0.0f, 1.0f);
+            mData.sampleKernel[i].z = linearRand(0.0f, 1.0f);
+            mData.sampleKernel[i].w = linearRand(0.0f, 1.0f);
         }
     }
     else // random or hammersly
@@ -480,7 +490,7 @@ void VAO::setKernel()
             switch (mHemisphereDistribution)
             {
             case SampleDistribution::Random:
-                rand = float2(glm::linearRand(0.0f, 1.0f), glm::linearRand(0.0f, 1.0f));
+                rand = float2(linearRand(0.0f, 1.0f), linearRand(0.0f, 1.0f));
                 break;
 
             case SampleDistribution::VanDerCorput:
@@ -494,13 +504,13 @@ void VAO::setKernel()
 
             const float max_radius = 1.0f;
 
-            float theta = rand.x * 2.0f * glm::pi<float>();
-            float r = glm::sqrt(1.0f - glm::pow(rand.y, 2.0f / 3.0f)) * max_radius;
+            float theta = rand.x * 2.0f * 3.134f;
+            float r = sqrt(1.0f - pow(rand.y, 2.0f / 3.0f)) * max_radius;
             nums += std::to_string(r) + ", ";
             s.x = r * sin(theta);
             s.y = r * cos(theta);
-            s.z = glm::linearRand(0.0f, 1.0f);
-            s.w = glm::linearRand(0.0f, 1.0f);
+            s.z = linearRand(0.0f, 1.0f);
+            s.w = linearRand(0.0f, 1.0f);
         }
     }
 
@@ -515,7 +525,7 @@ std::vector<float> VAO::getSphereHeights() const
     for (uint32_t i = 0; i < mKernelSize; i++)
     {
         auto rand = float2(mData.sampleKernel[i].x, mData.sampleKernel[i].y);
-        float sphereHeight = glm::sqrt(1.0f - dot(rand, rand));
+        float sphereHeight = sqrt(1.0f - dot(rand, rand));
         heights.push_back(sphereHeight);
     }
     return heights;
@@ -536,5 +546,5 @@ void VAO::setNoiseTexture()
         data[i] = uint8_t(ditherValues[i] / 16.0f * 255.0f);
     }
 
-    mpNoiseTexture = Texture::create2D(mpDevice.get(), NOISE_SIZE, NOISE_SIZE, ResourceFormat::R8Unorm, 1, 1, data.data());
+    mpNoiseTexture = Texture::create2D(mpDevice, NOISE_SIZE, NOISE_SIZE, ResourceFormat::R8Unorm, 1, 1, data.data());
 }

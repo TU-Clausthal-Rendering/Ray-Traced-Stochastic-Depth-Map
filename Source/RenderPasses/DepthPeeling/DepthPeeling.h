@@ -36,14 +36,12 @@ class DepthPeeling : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(DepthPeeling, "DepthPeeling", "Peels one depth layer");
 
-    using SharedPtr = std::shared_ptr<DepthPeeling>;
-
     /** Create a new render pass object.
         \param[in] pDevice GPU device.
         \param[in] dict Dictionary of serialized parameters.
         \return A new object, or an exception is thrown if creation failed.
     */
-    static SharedPtr create(ref<Device> pDevice, const Dictionary& dict);
+    static ref<DepthPeeling> create(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -53,9 +51,8 @@ public:
     virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
-
-private:
     DepthPeeling(ref<Device> pDevice);
+private:
 
     ref<Fbo> mpFbo;
     ref<GraphicsState> mpDepthPeelState;

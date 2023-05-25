@@ -244,15 +244,15 @@ void RenderGraphEditor::onGuiRender(Gui* pGui)
         if (cachedEntry != mRenderPassImageCache.end())
         {
             // display cached image
-            passWindow.image(iconLabel.c_str(), cachedEntry->second, { 148.0f, 44.0f });
+            passWindow.image(iconLabel.c_str(), cachedEntry->second.get(), { 148.0f, 44.0f });
         }
         else
         {
             // create cache entry
-            auto icon = Texture::createFromFile(getDevice().get(), customIconPath, false, true);
+            auto icon = Texture::createFromFile(getDevice(), customIconPath, false, true);
             if (!icon) icon = mpDefaultIconTex; // take default icon if not found
             mRenderPassImageCache[type] = icon;
-            passWindow.image(iconLabel.c_str(), icon, { 148.0f, 44.0f });
+            passWindow.image(iconLabel.c_str(), icon.get(), { 148.0f, 44.0f });
         }
 
         passWindow.dragDropSource(type.c_str(), "RenderPassType", type);

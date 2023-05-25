@@ -36,14 +36,12 @@ class DepthPass : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(DepthPass, "DepthPass", "Creates a depth-buffer using the scene's active camera.");
 
-    using SharedPtr = std::shared_ptr<DepthPass>;
-
     /** Create a new render pass object.
         \param[in] pDevice GPU device.
         \param[in] dict Dictionary of serialized parameters.
         \return A new object, or an exception is thrown if creation failed.
     */
-    static SharedPtr create(std::shared_ptr<Device> pDevice, const Dictionary& dict);
+    static ref<DepthPass> create(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -55,8 +53,8 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
     DepthPass& setDepthBufferFormat(ResourceFormat format);
+    DepthPass(ref<Device> pDevice);
 private:
-    DepthPass(std::shared_ptr<Device> pDevice);
 
     ref<Fbo> mpFbo;
     ref<GraphicsState> mpState;

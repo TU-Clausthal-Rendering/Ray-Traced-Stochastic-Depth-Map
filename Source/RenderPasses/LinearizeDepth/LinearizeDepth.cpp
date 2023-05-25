@@ -41,19 +41,19 @@ namespace
     const std::string kDepthFormat = "depthFormat";
 }
 
-LinearizeDepth::LinearizeDepth(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+LinearizeDepth::LinearizeDepth(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
     mpPass = FullScreenPass::create(mpDevice, kShaderFilename);
     Sampler::Desc samplerDesc;
     samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point);
-    mpPass["s"] = Sampler::create(mpDevice.get(), samplerDesc);
+    mpPass->getRootVar()["s"] = Sampler::create(mpDevice, samplerDesc);
 
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 }
 
-LinearizeDepth::SharedPtr LinearizeDepth::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<LinearizeDepth> LinearizeDepth::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new LinearizeDepth(std::move(pDevice)));
+    auto pPass = make_ref<LinearizeDepth>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
         if (key == kDepthFormat) pPass->mDepthFormat = value;
@@ -87,14 +87,14 @@ void LinearizeDepth::execute(RenderContext* pRenderContext, const RenderData& re
     auto pCamera = mpScene->getCamera();
 
     mpFbo->attachColorTarget(depthOut, 0);
-    mpPass["depths"] = depthIn;
+    mpPass->getRootVar()["depths"] = depthIn;
 
     float zNear = pCamera->getNearPlane();
     float zFar = pCamera->getFarPlane();
     if (mLastZNear != zNear || mLastZFar != zFar)
     {
-        mpPass["StaticCB"]["zNear"] = zNear;
-        mpPass["StaticCB"]["zFar"] = zFar;
+        mpPass->getRootVar()["StaticCB"]["zNear"] = zNear;
+        mpPass->getRootVar()["StaticCB"]["zFar"] = zFar;
         mLastZNear = zNear;
         mLastZFar = zFar;
     }

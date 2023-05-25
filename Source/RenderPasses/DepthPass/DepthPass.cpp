@@ -49,15 +49,15 @@ namespace
     };
 }
 
-DepthPass::DepthPass(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+DepthPass::DepthPass(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
     mpState = GraphicsState::create(mpDevice);
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 }
 
-DepthPass::SharedPtr DepthPass::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<DepthPass> DepthPass::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new DepthPass(std::move(pDevice)));
+    auto pPass = make_ref<DepthPass>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
         if (key == kDepthFormat) pPass->setDepthBufferFormat(value);
@@ -132,7 +132,7 @@ void DepthPass::renderUI(Gui::Widgets& widget)
         mCullMode = (RasterizerState::CullMode)cullMode;
 }
 
-void DepthPass::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+void DepthPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     mpVars = nullptr;

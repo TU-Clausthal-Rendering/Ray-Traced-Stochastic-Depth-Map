@@ -39,15 +39,15 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, MaterialDoubleSided>();
 }
 
-MaterialDoubleSided::MaterialDoubleSided(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+MaterialDoubleSided::MaterialDoubleSided(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
     mpPass = FullScreenPass::create(mpDevice, kShaderFilename);
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 }
 
-MaterialDoubleSided::SharedPtr MaterialDoubleSided::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<MaterialDoubleSided> MaterialDoubleSided::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new MaterialDoubleSided(std::move(pDevice)));
+    auto pPass = make_ref<MaterialDoubleSided>(std::move(pDevice));
     return pPass;
 }
 
@@ -70,7 +70,7 @@ void MaterialDoubleSided::execute(RenderContext* pRenderContext, const RenderDat
     auto pDoubleSided = renderData[kMatOut]->asTexture();
 
     mpFbo->attachColorTarget(pDoubleSided, 0);
-    mpPass["gMtlData"] = pMtlData;
+    mpPass->getRootVar()["gMtlData"] = pMtlData;
 
     mpPass->execute(pRenderContext, mpFbo);
 }

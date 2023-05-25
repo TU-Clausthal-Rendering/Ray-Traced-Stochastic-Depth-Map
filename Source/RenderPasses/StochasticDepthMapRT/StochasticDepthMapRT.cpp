@@ -120,7 +120,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
 }
 
 
-StochasticDepthMapRT::StochasticDepthMapRT(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+StochasticDepthMapRT::StochasticDepthMapRT(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
     DepthStencilState::Desc dsdesc;
     // set stencil test to pass when values > 0 are present (not equal to 0)
@@ -145,9 +145,9 @@ StochasticDepthMapRT::StochasticDepthMapRT(std::shared_ptr<Device> pDevice) : Re
     mpStencilPass->getState()->setDepthStencilState(DepthStencilState::create(dsdesc));
 }
 
-StochasticDepthMapRT::SharedPtr StochasticDepthMapRT::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new StochasticDepthMapRT(std::move(pDevice)));
+    auto pPass = make_ref<StochasticDepthMapRT>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
         if (key == kSampleCount) pPass->mSampleCount = value;
@@ -187,15 +187,15 @@ void StochasticDepthMapRT::compile(RenderContext* pRenderContext, const CompileD
 {
     mpRayProgram.reset();
     mpRasterProgram.reset();
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 
     // generate data for stratified sampling
     std::vector<int> indices;
     std::vector<uint32_t> lookUpTable;
     generateStratifiedLookupTable(mSampleCount, indices, lookUpTable);
 
-    mpStratifiedIndices = Buffer::createStructured(mpDevice.get(), sizeof(indices[0]), uint32_t(indices.size()), ResourceBindFlags::ShaderResource, Buffer::CpuAccess::None, indices.data(), false);
-    mpStratifiedLookUpBuffer = Buffer::createStructured(mpDevice.get(), sizeof(lookUpTable[0]), uint32_t(lookUpTable.size()), ResourceBindFlags::ShaderResource, Buffer::CpuAccess::None, lookUpTable.data(), false);
+    mpStratifiedIndices = Buffer::createStructured(mpDevice, sizeof(indices[0]), uint32_t(indices.size()), ResourceBindFlags::ShaderResource, Buffer::CpuAccess::None, indices.data(), false);
+    mpStratifiedLookUpBuffer = Buffer::createStructured(mpDevice, sizeof(lookUpTable[0]), uint32_t(lookUpTable.size()), ResourceBindFlags::ShaderResource, Buffer::CpuAccess::None, lookUpTable.data(), false);
 }
 
 void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -204,7 +204,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
 
     auto pDepthIn = renderData[kDepthIn]->asTexture();
     auto psDepths = renderData[ksDepth]->asTexture();
-    Texture::SharedPtr pStencilMask;
+    ref<Texture> pStencilMask;
     if (renderData[kStencil]) pStencilMask = renderData[kStencil]->asTexture();
 
     if(mClear)
@@ -246,7 +246,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             desc.addTypeConformances(mpScene->getTypeConformances());
             desc.setShaderModel("6_5");
 
-            RtBindingTable::SharedPtr sbt = RtBindingTable::create(1, 1, mpScene->getGeometryCount());
+            auto sbt = RtBindingTable::create(1, 1, mpScene->getGeometryCount());
             sbt->setRayGen(desc.addRayGen("rayGen"));
             sbt->setMiss(0, desc.addMiss("miss"));
             sbt->setHitGroup(0, mpScene->getGeometryIDs(GeometryType::TriangleMesh), desc.addHitGroup("closestHit", "anyHit"));
@@ -255,17 +255,17 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             mRayVars = RtProgramVars::create(mpDevice, mpRayProgram, sbt);    
         }
 
-        mRayVars["stratifiedIndices"] = mpStratifiedIndices;
-        mRayVars["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
-        mpRasterProgram["stratifiedIndices"] = mpStratifiedIndices;
-        mpRasterProgram["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
+        mRayVars->getRootVar()["stratifiedIndices"] = mpStratifiedIndices;
+        mRayVars->getRootVar()["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
+        mpRasterProgram->getRootVar()["stratifiedIndices"] = mpStratifiedIndices;
+        mpRasterProgram->getRootVar()["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
     }
 
     if (mUseRayPipeline)
     {
-        mRayVars["depthInTex"] = pDepthIn;
-        mRayVars["depthOutTex"] = psDepths;
-        mRayVars["maskTex"] = pStencilMask;
+        mRayVars->getRootVar()["depthInTex"] = pDepthIn;
+        mRayVars->getRootVar()["depthOutTex"] = psDepths;
+        mRayVars->getRootVar()["maskTex"] = pStencilMask;
 
         mpScene->raytrace(pRenderContext, mpRayProgram.get(), mRayVars, uint3(psDepths->getWidth(), psDepths->getHeight(), 1));
     
@@ -282,7 +282,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             mpFbo->attachDepthStencilTarget(stencil, 0, 0, 1);
 
             // copy mask to stencil buffer
-            mpStencilPass["mask"] = pStencilMask;
+            mpStencilPass->getRootVar()["mask"] = pStencilMask;
             mpStencilPass->execute(pRenderContext, mpFbo);
 
             // set state for raster pass
@@ -293,7 +293,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             mpRasterProgram->getState()->setDepthStencilState(nullptr);
         }
 
-        mpRasterProgram["depthInTex"] = pDepthIn;
+        mpRasterProgram->getRootVar()["depthInTex"] = pDepthIn;
 
         // set gScene and raytracing data
         mpScene->setRaytracingShaderData(pRenderContext, mpRasterProgram->getRootVar());

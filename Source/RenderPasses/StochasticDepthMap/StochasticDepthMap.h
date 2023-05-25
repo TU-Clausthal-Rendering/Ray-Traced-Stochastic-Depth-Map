@@ -37,14 +37,12 @@ class StochasticDepthMap : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(StochasticDepthMap, "StochasticDepthMap", "Captures mutliple depth layers stochastically inside a MSAA texture");
 
-    using SharedPtr = std::shared_ptr<StochasticDepthMap>;
-
     /** Create a new render pass object.
         \param[in] pDevice GPU device.
         \param[in] dict Dictionary of serialized parameters.
         \return A new object, or an exception is thrown if creation failed.
     */
-    static SharedPtr create(std::shared_ptr<Device> pDevice, const Dictionary& dict);
+    static ref<StochasticDepthMap> create(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -54,9 +52,9 @@ public:
     virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
+    StochasticDepthMap(ref<Device> pDevice);
 
 private:
-    StochasticDepthMap(std::shared_ptr<Device> pDevice);
 
     ref<Fbo> mpFbo;
     ref<GraphicsState> mpState;

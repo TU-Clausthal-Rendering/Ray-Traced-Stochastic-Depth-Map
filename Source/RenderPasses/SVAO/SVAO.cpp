@@ -65,17 +65,17 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, SVAO>();
 }
 
-SVAO::SVAO(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+SVAO::SVAO(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
     Sampler::Desc samplerDesc;
     samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap);
-    mpNoiseSampler = Sampler::create(mpDevice.get(), samplerDesc);
+    mpNoiseSampler = Sampler::create(mpDevice, samplerDesc);
 
     samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
-    mpTextureSampler = Sampler::create(mpDevice.get(), samplerDesc);
+    mpTextureSampler = Sampler::create(mpDevice, samplerDesc);
 
-    mpFbo = Fbo::create(mpDevice.get());
-    mpFbo2 = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
+    mpFbo2 = Fbo::create(mpDevice);
 
     mpNoiseTexture = genNoiseTexture();
 
@@ -99,7 +99,7 @@ SVAO::SVAO(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
     stencil.setStencilReadMask(1);
     stencil.setStencilWriteMask(1);
     mpStencilPass->getState()->setDepthStencilState(DepthStencilState::create(stencil));
-    mpStencilFbo = Fbo::create(mpDevice.get());
+    mpStencilFbo = Fbo::create(mpDevice);
 
     std::filesystem::path resPath;
     auto found = findFileInDataDirectories("NeuralNet/net_relu_reg_weights0_bias0.npy", resPath);
@@ -108,9 +108,9 @@ SVAO::SVAO(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
     mNeuralNet2.load(resPath.parent_path().string() + "/net_relu_reg");
 }
 
-SVAO::SharedPtr SVAO::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<SVAO> SVAO::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new SVAO(std::move(pDevice)));
+    auto pPass = make_ref<SVAO>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
         if (key == kRadius) pPass->mData.radius = value;
@@ -172,7 +172,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     sdDict["Alpha"] = 0.2f;
     sdDict["CullMode"] = RasterizerState::CullMode::Back;
     mpStochasticDepthGraph = RenderGraph::create(mpDevice, "Stochastic Depth");
-    RenderPass::SharedPtr pStochasticDepthPass;
+    ref<RenderPass> pStochasticDepthPass;
     switch(mStochasticDepthImpl)
     {
     case StochasticDepthImpl::Raster:
@@ -251,7 +251,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         desc.addTypeConformances(mpScene->getTypeConformances());
         desc.setShaderModel("6_5");
 
-        RtBindingTable::SharedPtr sbt = RtBindingTable::create(1, 1, mpScene->getGeometryCount());
+        auto sbt = RtBindingTable::create(1, 1, mpScene->getGeometryCount());
         sbt->setRayGen(desc.addRayGen("rayGen"));
         sbt->setMiss(0, desc.addMiss("miss"));
         sbt->setHitGroup(0, mpScene->getGeometryIDs(GeometryType::TriangleMesh), desc.addHitGroup("closestHit", "anyHit"));
@@ -261,23 +261,27 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mDirty = true;
     }
 
+    auto rasterVars = mpRasterPass->getRootVar();
+    auto rasterVars2 = mpRasterPass2->getRootVar();
+    auto rayVars = mRayVars->getRootVar();
+
     if (mDirty)
     {
         // update data raster
-        mpRasterPass["StaticCB"].setBlob(mData);
-        mpRasterPass["gNoiseSampler"] = mpNoiseSampler;
-        mpRasterPass["gTextureSampler"] = mpTextureSampler;
-        mpRasterPass["gNoiseTex"] = mpNoiseTexture;
+        rasterVars["StaticCB"].setBlob(mData);
+        rasterVars["gNoiseSampler"] = mpNoiseSampler;
+        rasterVars["gTextureSampler"] = mpTextureSampler;
+        rasterVars["gNoiseTex"] = mpNoiseTexture;
         // update data raster 2
-        mpRasterPass2["StaticCB"].setBlob(mData);
-        mpRasterPass2["gNoiseSampler"] = mpNoiseSampler;
-        mpRasterPass2["gTextureSampler"] = mpTextureSampler;
-        mpRasterPass2["gNoiseTex"] = mpNoiseTexture;
+        rasterVars2["StaticCB"].setBlob(mData);
+        rasterVars2["gNoiseSampler"] = mpNoiseSampler;
+        rasterVars2["gTextureSampler"] = mpTextureSampler;
+        rasterVars2["gNoiseTex"] = mpNoiseTexture;
         // update data ray
-        mRayVars["StaticCB"].setBlob(mData);
-        mRayVars["gNoiseSampler"] = mpNoiseSampler;
-        mRayVars["gTextureSampler"] = mpTextureSampler;
-        mRayVars["gNoiseTex"] = mpNoiseTexture;
+        rayVars["StaticCB"].setBlob(mData);
+        rayVars["gNoiseSampler"] = mpNoiseSampler;
+        rayVars["gTextureSampler"] = mpTextureSampler;
+        rayVars["gNoiseTex"] = mpNoiseTexture;
 
         // also clear ao texture if guard band changed
         pRenderContext->clearTexture(pAoDst.get(), float4(0.0f));
@@ -293,20 +297,20 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     //mpFbo->attachColorTarget(mEnableRayFilter ? pAoMask2 : pAoMask, 1);
 
     auto pCamera = mpScene->getCamera().get();
-    pCamera->setShaderData(mpRasterPass["PerFrameCB"]["gCamera"]);
-    mpRasterPass["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
+    pCamera->setShaderData(rasterVars["PerFrameCB"]["gCamera"]);
+    rasterVars["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
     if (mPrimaryDepthMode == DepthMode::PerfectClassify)
     {
         // set raytracing data
         auto var = mpRasterPass->getRootVar();
         mpScene->setRaytracingShaderData(pRenderContext, var);
     }
-    mpRasterPass["gDepthTex"] = pDepth;
-    mpRasterPass["gDepthTex2"] = pDepth2;
-    mpRasterPass["gNormalTex"] = pNormal;
-    mpRasterPass["gMatDoubleSided"] = pMatDoubleSided;
+    rasterVars["gDepthTex"] = pDepth;
+    rasterVars["gDepthTex2"] = pDepth2;
+    rasterVars["gNormalTex"] = pNormal;
+    rasterVars["gMatDoubleSided"] = pMatDoubleSided;
     //mpRasterPass["gDepthAccess"] = pAccessStencil;
-    mpRasterPass["gDepthAccess"].setUav(accessStencilUAV);
+    rasterVars["gDepthAccess"].setUav(accessStencilUAV);
 
     setGuardBandScissors(*mpRasterPass->getState(), renderData.getDefaultTextureDims(), mGuardBand);
     {
@@ -320,7 +324,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     //    mpRayFilter->execute(pRenderContext, pAoMask2, pAoMask); // result should be in pAoMask finally
     //}
 
-    Texture::SharedPtr pStochasticDepthMap;
+    ref<Texture> pStochasticDepthMap;
 
     //  execute stochastic depth map
     if (mSecondaryDepthMode == DepthMode::StochasticDepth)
@@ -335,7 +339,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             break;
         }
         mpStochasticDepthGraph->setInput("StochasticDepthMap.stencilMask", pAccessStencil);
-        if(lastSize != uint2(pAoDst->getWidth(), pAoDst->getHeight()))
+        if(any(lastSize != uint2(pAoDst->getWidth(), pAoDst->getHeight())))
         {
             mpStochasticDepthGraph->onResize(mpFbo.get());
             lastSize = uint2(pAoDst->getWidth(), pAoDst->getHeight());
@@ -351,20 +355,19 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         //mpScene->setRaytracingShaderData(pRenderContext, mRayVars);
 
         // set camera data
-        auto pCamera = mpScene->getCamera().get();
-        pCamera->setShaderData(mRayVars["PerFrameCB"]["gCamera"]);
-        mRayVars["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
-        mRayVars["PerFrameCB"]["guardBand"] = mGuardBand;
+        pCamera->setShaderData(rayVars["PerFrameCB"]["gCamera"]);
+        rayVars["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
+        rayVars["PerFrameCB"]["guardBand"] = mGuardBand;
 
         // set textures
-        mRayVars["gDepthTex"] = pDepth;
-        mRayVars["gDepthTex2"] = pDepth2;
-        mRayVars["gNormalTex"] = pNormal;
-        mRayVars["gsDepthTex"] = pStochasticDepthMap;
-        mRayVars["aoMask"] = pAoMask;
-        mRayVars["gMatDoubleSided"] = pMatDoubleSided;
+        rayVars["gDepthTex"] = pDepth;
+        rayVars["gDepthTex2"] = pDepth2;
+        rayVars["gNormalTex"] = pNormal;
+        rayVars["gsDepthTex"] = pStochasticDepthMap;
+        rayVars["aoMask"] = pAoMask;
+        rayVars["gMatDoubleSided"] = pMatDoubleSided;
         //mRayVars["aoPrev"] = pAoDst; // src view
-        mRayVars["output"] = pAoDst; // uav view
+        rayVars["output"] = pAoDst; // uav view
 
 
         uint3 dims = uint3(pAoDst->getWidth() - 2 * mGuardBand, pAoDst->getHeight() - 2 * mGuardBand, 1);
@@ -379,7 +382,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             // clear stencil
             pRenderContext->clearDsv(dsv.get(), 0.0f, 0, false, true);
             mpStencilFbo->attachDepthStencilTarget(pInternalStencil);
-            mpStencilPass["aoMask"] = pAoMask;
+            mpStencilPass->getRootVar()["aoMask"] = pAoMask;
             mpStencilPass->execute(pRenderContext, mpStencilFbo);
             //pRenderContext->copySubresource(pInternalStencil.get(), 1, pAoMask.get(), 0); // <= don't do this, this results in a slow stencil
             
@@ -393,18 +396,17 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mpScene->setRaytracingShaderData(pRenderContext, var);
 
         // set camera data
-        auto pCamera = mpScene->getCamera().get();
-        pCamera->setShaderData(mpRasterPass2["PerFrameCB"]["gCamera"]);
-        mpRasterPass2["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
+        pCamera->setShaderData(rasterVars2["PerFrameCB"]["gCamera"]);
+        rasterVars2["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
 
         // set textures
-        mpRasterPass2["gDepthTex"] = pDepth;
-        mpRasterPass2["gDepthTex2"] = pDepth2;
-        mpRasterPass2["gNormalTex"] = pNormal;
-        mpRasterPass2["gsDepthTex"] = pStochasticDepthMap;
-        mpRasterPass2["gMatDoubleSided"] = pMatDoubleSided;
-        mpRasterPass2["aoMask"] = pAoMask;
-        mpRasterPass2["aoPrev"] = pAoDst;
+        rasterVars2["gDepthTex"] = pDepth;
+        rasterVars2["gDepthTex2"] = pDepth2;
+        rasterVars2["gNormalTex"] = pNormal;
+        rasterVars2["gsDepthTex"] = pStochasticDepthMap;
+        rasterVars2["gMatDoubleSided"] = pMatDoubleSided;
+        rasterVars2["aoMask"] = pAoMask;
+        rasterVars2["aoPrev"] = pAoDst;
 
         setGuardBandScissors(*mpRasterPass2->getState(), renderData.getDefaultTextureDims(), mGuardBand);
 
@@ -459,7 +461,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
     {
         if (widget.var("Machine Classify Threshold", mClassifyProbability, 0.01f, 0.99f))
         {
-            mData.classifyThreshold = -glm::log(1.0f / mClassifyProbability - 1.0f);
+            mData.classifyThreshold = -log(1.0f / mClassifyProbability - 1.0f);
             std::cout << "classify threshold: " << mClassifyProbability << ": " << mData.classifyThreshold << std::endl;
             mDirty = true;
         }
@@ -518,7 +520,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
     if (reset) requestRecompile();
 }
 
-void SVAO::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+void SVAO::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     mpRasterPass.reset(); // new scene defines => recompile
@@ -528,7 +530,7 @@ void SVAO::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScen
         mpStochasticDepthGraph->setScene(pScene);
 }
 
-Texture::SharedPtr SVAO::genNoiseTexture()
+ref<Texture> SVAO::genNoiseTexture()
 {
     static const int NOISE_SIZE = 4;
     std::vector<uint8_t> data;
@@ -543,7 +545,7 @@ Texture::SharedPtr SVAO::genNoiseTexture()
         data[i] = uint8_t(ditherValues[i] / 16.0f * 255.0f);
     }
 
-    return Texture::create2D(mpDevice.get(), NOISE_SIZE, NOISE_SIZE, ResourceFormat::R8Unorm, 1, 1, data.data());
+    return Texture::create2D(mpDevice, NOISE_SIZE, NOISE_SIZE, ResourceFormat::R8Unorm, 1, 1, data.data());
 }
 
 Program::Desc SVAO::getFullscreenShaderDesc(const std::string& filename)

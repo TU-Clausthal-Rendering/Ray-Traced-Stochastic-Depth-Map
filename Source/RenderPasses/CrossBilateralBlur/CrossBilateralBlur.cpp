@@ -43,17 +43,17 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, CrossBilateralBlur>();
 }
 
-CrossBilateralBlur::CrossBilateralBlur(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+CrossBilateralBlur::CrossBilateralBlur(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
     Sampler::Desc samplerDesc;
     samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
-    mpSampler = Sampler::create(mpDevice.get(), samplerDesc);
+    mpSampler = Sampler::create(mpDevice, samplerDesc);
 }
 
-CrossBilateralBlur::SharedPtr CrossBilateralBlur::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<CrossBilateralBlur> CrossBilateralBlur::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new CrossBilateralBlur(std::move(pDevice)));
+    auto pPass = make_ref<CrossBilateralBlur>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
         if (key == kGuardBand) pPass->mGuardBand = value;
@@ -107,7 +107,7 @@ void CrossBilateralBlur::compile(RenderContext* pRenderContext, const CompileDat
 
     mpBlur = FullScreenPass::create(mpDevice, kShaderPath, defines);
 
-    mpBlur["gSampler"] = mpSampler;
+    mpBlur->getRootVar()["gSampler"] = mpSampler;
 
     mSetScissorBuffer = true;
 }
@@ -123,32 +123,32 @@ void CrossBilateralBlur::execute(RenderContext* pRenderContext, const RenderData
     assert(pColor->getFormat() == pPingPong->getFormat());
 
     // set resources if they changed
-    if (mpBlur["gDepthTex"].getTexture() != pDepth)
+    if (mpBlur->getRootVar()["gDepthTex"].getTexture() != pDepth)
     {
-        mpBlur["gDepthTex"] = pDepth;
+        mpBlur->getRootVar()["gDepthTex"] = pDepth;
     }
 
     setGuardBandScissors(*mpBlur->getState(), renderData.getDefaultTextureDims(), mGuardBand);
     if (mSetScissorBuffer)
     {
         // set scissor cb (is shared between both shaders)
-        mpBlur["ScissorCB"]["uvMin"] = float2(float(mGuardBand) + 0.5f) / float2(renderData.getDefaultTextureDims());
-        mpBlur["ScissorCB"]["uvMax"] = (float2(renderData.getDefaultTextureDims()) - float2(float(mGuardBand) + 0.5f)) / float2(renderData.getDefaultTextureDims());
+        mpBlur->getRootVar()["ScissorCB"]["uvMin"] = float2(float(mGuardBand) + 0.5f) / float2(renderData.getDefaultTextureDims());
+        mpBlur->getRootVar()["ScissorCB"]["uvMax"] = (float2(renderData.getDefaultTextureDims()) - float2(float(mGuardBand) + 0.5f)) / float2(renderData.getDefaultTextureDims());
         mSetScissorBuffer = false;
     }
 
     for (uint32_t i = 0; i < mRepetitions; ++i)
     {
         // blur in x
-        mpBlur["gSrcTex"] = pColor;
+        mpBlur->getRootVar()["gSrcTex"] = pColor;
         mpFbo->attachColorTarget(pPingPong, 0);
-        mpBlur["Direction"]["dir"] = float2(1.0f, 0.0f);
+        mpBlur->getRootVar()["Direction"]["dir"] = float2(1.0f, 0.0f);
         mpBlur->execute(pRenderContext, mpFbo, false);
 
         // blur in y
-        mpBlur["gSrcTex"] = pPingPong;
+        mpBlur->getRootVar()["gSrcTex"] = pPingPong;
         mpFbo->attachColorTarget(pColor, 0);
-        mpBlur["Direction"]["dir"] = float2(0.0f, 1.0f);
+        mpBlur->getRootVar()["Direction"]["dir"] = float2(0.0f, 1.0f);
         mpBlur->execute(pRenderContext, mpFbo, false);
     }
 }

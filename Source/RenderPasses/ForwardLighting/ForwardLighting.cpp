@@ -44,11 +44,11 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, ForwardLighting>();
 }
 
-ForwardLighting::ForwardLighting(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+ForwardLighting::ForwardLighting(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
     mpState = GraphicsState::create(mpDevice);
 
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 
     DepthStencilState::Desc dsDesc;
     dsDesc.setDepthWriteMask(false).setDepthFunc(DepthStencilState::Func::LessEqual);
@@ -56,9 +56,9 @@ ForwardLighting::ForwardLighting(std::shared_ptr<Device> pDevice) : RenderPass(s
     mpState->setDepthStencilState(mpDsNoDepthWrite);
 }
 
-ForwardLighting::SharedPtr ForwardLighting::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<ForwardLighting> ForwardLighting::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new ForwardLighting(std::move(pDevice)));
+    auto pPass = make_ref<ForwardLighting>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
         if (key == kEnvMapIntensity) pPass->mEnvMapIntensity = value;
@@ -99,11 +99,11 @@ void ForwardLighting::execute(RenderContext* pRenderContext, const RenderData& r
     mpFbo->attachDepthStencilTarget(pDepth);
     mpState->setFbo(mpFbo);
 
-    mpVars["visibilityBuffer"] = pVisBuffer;
+    mpVars->getRootVar()["visibilityBuffer"] = pVisBuffer;
     if(mDirty)
     {
-        mpVars["ConstantCB"]["gAmbientIntensity"] = mAmbientIntensity;
-        mpVars["ConstantCB"]["gEnvMapIntensity"] = mEnvMapIntensity;
+        mpVars->getRootVar()["ConstantCB"]["gAmbientIntensity"] = mAmbientIntensity;
+        mpVars->getRootVar()["ConstantCB"]["gEnvMapIntensity"] = mEnvMapIntensity;
         mDirty = false;
     }
 
@@ -116,7 +116,7 @@ void ForwardLighting::renderUI(Gui::Widgets& widget)
     if (widget.var("Env Map Intensity", mEnvMapIntensity, 0.f, 100.f, 0.1f)) mDirty = true;
 }
 
-void ForwardLighting::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+void ForwardLighting::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     mpVars = nullptr;

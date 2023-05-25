@@ -42,15 +42,15 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, EnvMapPass>();
 }
 
-EnvMapPass::EnvMapPass(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+EnvMapPass::EnvMapPass(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 }
 
 
-EnvMapPass::SharedPtr EnvMapPass::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<EnvMapPass> EnvMapPass::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new EnvMapPass(std::move(pDevice)));
+    auto pPass = make_ref<EnvMapPass>(std::move(pDevice));
     return pPass;
 }
 
@@ -85,7 +85,7 @@ void EnvMapPass::execute(RenderContext* pRenderContext, const RenderData& render
 
     mpFbo->attachColorTarget(pColor, 0);
 
-    mpPass["gScene"] = mpScene->getParameterBlock();
+    mpPass->getRootVar()["gScene"] = mpScene->getParameterBlock();
     mpPass->execute(pRenderContext, mpFbo);
 }
 
@@ -94,7 +94,7 @@ void EnvMapPass::renderUI(Gui::Widgets& widget)
     
 }
 
-void EnvMapPass::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+void EnvMapPass::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     mpPass.reset();

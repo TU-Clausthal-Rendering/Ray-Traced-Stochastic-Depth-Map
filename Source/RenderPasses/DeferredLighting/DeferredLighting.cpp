@@ -43,14 +43,14 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, DeferredLighting>();
 }
 
-DeferredLighting::DeferredLighting(std::shared_ptr<Device> pDevice) : RenderPass(std::move(pDevice))
+DeferredLighting::DeferredLighting(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
-    mpFbo = Fbo::create(mpDevice.get());
+    mpFbo = Fbo::create(mpDevice);
 }
 
-DeferredLighting::SharedPtr DeferredLighting::create(std::shared_ptr<Device> pDevice, const Dictionary& dict)
+ref<DeferredLighting> DeferredLighting::create(ref<Device> pDevice, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new DeferredLighting(std::move(pDevice)));
+    auto pPass = make_ref<DeferredLighting>(std::move(pDevice));
     return pPass;
 }
 
@@ -85,13 +85,14 @@ void DeferredLighting::execute(RenderContext* pRenderContext, const RenderData& 
     auto pDst = renderData[kColorOut]->asTexture();
     mpFbo->attachColorTarget(pDst, 0);
 
-    mpPass["gScene"] = mpScene->getParameterBlock();
+    auto vars = mpPass->getRootVar();
+    vars["gScene"] = mpScene->getParameterBlock();
 
-    mpPass["gPos"] = pPos;
-    mpPass["gNorm"] = pNorm;
-    mpPass["gDiff"] = pDiffuse;
-    mpPass["gSpec"] = pSpecular;
-    mpPass["gEmissive"] = pEmissive;
+    vars["gPos"] = pPos;
+    vars["gNorm"] = pNorm;
+    vars["gDiff"] = pDiffuse;
+    vars["gSpec"] = pSpecular;
+    vars["gEmissive"] = pEmissive;
 
     mpPass->execute(pRenderContext, mpFbo);
 }
@@ -101,7 +102,7 @@ void DeferredLighting::renderUI(Gui::Widgets& widget)
     
 }
 
-void DeferredLighting::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+void DeferredLighting::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
     mpPass.reset();

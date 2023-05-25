@@ -37,14 +37,12 @@ class MaterialDoubleSided : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(MaterialDoubleSided, "MaterialDoubleSided", "Extracts double sided flag from material data");
 
-    using SharedPtr = std::shared_ptr<MaterialDoubleSided>;
-
     /** Create a new render pass object.
         \param[in] pDevice GPU device.
         \param[in] dict Dictionary of serialized parameters.
         \return A new object, or an exception is thrown if creation failed.
     */
-    static SharedPtr create(std::shared_ptr<Device> pDevice, const Dictionary& dict);
+    static ref<MaterialDoubleSided> create(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -54,9 +52,9 @@ public:
     virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override {}
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
+    MaterialDoubleSided(ref<Device> pDevice);
 
 private:
-    MaterialDoubleSided(std::shared_ptr<Device> pDevice);
 
     ref<FullScreenPass> mpPass;
     ref<Fbo> mpFbo;

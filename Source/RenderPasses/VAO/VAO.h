@@ -27,9 +27,11 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
-#include "RenderGraph/RenderPass.h"
 #include "VAOData.slang"
 #include "DepthMode.h"
+#include "Core/Pass/FullScreenPass.h"
+#include "RenderGraph/RenderPass.h"
+
 
 using namespace Falcor;
 
@@ -37,8 +39,6 @@ class VAO : public RenderPass
 {
 public:
     FALCOR_PLUGIN_CLASS(VAO, "VAO", "Screen-space volumetric ambient occlusion");
-
-    using SharedPtr = std::shared_ptr<VAO>;
 
     enum class SampleDistribution : uint32_t
     {
@@ -53,7 +53,7 @@ public:
         \param[in] dict Dictionary of serialized parameters.
         \return A new object, or an exception is thrown if creation failed.
     */
-    static SharedPtr create(std::shared_ptr<Device> pDevice, const Dictionary& dict);
+    static ref<VAO> create(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -66,8 +66,8 @@ public:
 
     // indicates that ML depths will be saved in the next render iteration
     void saveDepths();
+    VAO(ref<Device> pDevice);
 private:
-    VAO(std::shared_ptr<Device> pDevice);
     void setNoiseTexture();
     void setKernel();
     std::vector<float> getSphereHeights() const;
@@ -77,17 +77,17 @@ private:
 
     bool mEnabled = true;
     DepthMode mDepthMode = DepthMode::Raytraced;
-    Fbo::SharedPtr mpAOFbo;
+    ref<Fbo> mpAOFbo;
 
-    Sampler::SharedPtr mpNoiseSampler;
-    Texture::SharedPtr mpNoiseTexture;
+    ref<Sampler> mpNoiseSampler;
+    ref<Texture> mpNoiseTexture;
 
-    Sampler::SharedPtr mpTextureSampler;
+    ref<Sampler> mpTextureSampler;
     SampleDistribution mHemisphereDistribution = SampleDistribution::VanDerCorput;
 
-    FullScreenPass::SharedPtr mpSSAOPass;
+    ref<FullScreenPass> mpSSAOPass;
 
-    Scene::SharedPtr mpScene;
+    ref<Scene> mpScene;
     int mGuardBand = 64;
     bool mClearTexture = true;
     uint32_t mKernelSize = 8;

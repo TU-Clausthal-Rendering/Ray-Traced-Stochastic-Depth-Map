@@ -31,6 +31,7 @@
 #include "../VAO/DepthMode.h"
 #include "VAOData.slang"
 #include "NeuralNet.h"
+#include "Core/Pass/FullScreenPass.h"
 
 using namespace Falcor;
 
@@ -45,54 +46,51 @@ public:
 
     FALCOR_PLUGIN_CLASS(SVAO, "SVAO", "Stenciled Volumetric Ambient Occlusion");
 
-    using SharedPtr = std::shared_ptr<SVAO>;
-
     /** Create a new render pass object.
         \param[in] pDevice GPU device.
         \param[in] dict Dictionary of serialized parameters.
         \return A new object, or an exception is thrown if creation failed.
     */
-    static SharedPtr create(std::shared_ptr<Device> pDevice, const Dictionary& dict);
+    static ref<SVAO> create(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene) override;
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
-
+    SVAO(ref<Device> pDevice);
 private:
-    SVAO(std::shared_ptr<Device> pDevice);
-    Texture::SharedPtr genNoiseTexture();
+    ref<Texture> genNoiseTexture();
 
     Program::Desc getFullscreenShaderDesc(const std::string& filename);
 
-    Fbo::SharedPtr mpFbo;
+    ref<Fbo> mpFbo;
 
-    Sampler::SharedPtr mpNoiseSampler;
-    Texture::SharedPtr mpNoiseTexture;
+    ref<Sampler> mpNoiseSampler;
+    ref<Texture> mpNoiseTexture;
 
-    Sampler::SharedPtr mpTextureSampler;
-    FullScreenPass::SharedPtr mpRasterPass;
+    ref<Sampler> mpTextureSampler;
+    ref<FullScreenPass> mpRasterPass;
 
-    Scene::SharedPtr mpScene;
+    ref<Scene> mpScene;
     bool mEnableRayFilter = false;
 
-    std::shared_ptr<RenderGraph> mpStochasticDepthGraph;
+    ref<RenderGraph> mpStochasticDepthGraph;
     //RayFilter::SharedPtr mpRayFilter;
 
     // 2nd pass
-    Fbo::SharedPtr mpFbo2;
-    FullScreenPass::SharedPtr mpRasterPass2;
-    DepthStencilState::SharedPtr mpDepthStencilState;
+    ref<Fbo> mpFbo2;
+    ref<FullScreenPass> mpRasterPass2;
+    ref<DepthStencilState> mpDepthStencilState;
 
-    FullScreenPass::SharedPtr mpStencilPass;
-    Fbo::SharedPtr mpStencilFbo;
+    ref<FullScreenPass> mpStencilPass;
+    ref<Fbo> mpStencilFbo;
 
-    RtProgram::SharedPtr mpRayProgram;
-    RtProgramVars::SharedPtr mRayVars;
+    ref<RtProgram> mpRayProgram;
+    ref<RtProgramVars> mRayVars;
 
     int msaa_sample = 4; // for stochastic depth map
 
