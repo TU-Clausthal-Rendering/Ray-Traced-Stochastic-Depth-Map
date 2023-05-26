@@ -47,8 +47,8 @@ public:
      */
     struct DefaultProperties
     {
-        uint2 dims;                                      ///< Width, height of the swap chain
-        ResourceFormat format = ResourceFormat::Unknown; ///< Format to use for texture creation
+        uint2 dims = {512, 512};                         ///< Width, height of the swap chain
+        ResourceFormat format = ResourceFormat::RGBA32Float; ///< Format to use for texture creation
     };
 
     /**
