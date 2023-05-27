@@ -57,6 +57,7 @@ namespace
     const std::string kDepthMode = "depthMode";
     const std::string kGuardBand = "guardBand";
     const std::string kThickness = "thickness";
+    const std::string kExponent = "exponent";
 
     const std::string kAmbientMap = "ambientMap";
     const std::string kDepth = "depth";
@@ -131,6 +132,7 @@ ref<VAO> VAO::create(ref<Device> pDevice, const Dictionary& dict)
         else if (key == kDepthMode) pPass->mDepthMode = value;
         else if (key == kGuardBand) pPass->mGuardBand = value;
         else if (key == kThickness) pPass->mData.thickness = value;
+        else if (key == kExponent) pPass->mData.exponent = value;
         else logWarning("Unknown field '" + key + "' in a VAO dictionary");
     }
     return pPass;
@@ -146,6 +148,7 @@ Dictionary VAO::getScriptingDictionary()
     dict[kDepthMode] = mDepthMode;
     dict[kGuardBand] = mGuardBand;
     dict[kThickness] = mData.thickness;
+    dict[kExponent] = mData.exponent;
     return dict;
 }
 
