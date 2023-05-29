@@ -323,9 +323,9 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     {
         rasterVars["gDepthAccess"].setUav(accessStencilUAV);
 
-        //pRenderContext->clearUAV(pInternalRayMin->getUAV().get(), uint4(0u));
+        pRenderContext->clearUAV(pInternalRayMin->getUAV().get(), uint4(asuint(std::numeric_limits<float>::max())));
         pRenderContext->clearUAV(pInternalRayMax->getUAV().get(), uint4(0u));
-        //rasterVars["gRayMinAccess"] = pInternalRayMin;
+        rasterVars["gRayMinAccess"] = pInternalRayMin;
         rasterVars["gRayMaxAccess"] = pInternalRayMax;
     }
     

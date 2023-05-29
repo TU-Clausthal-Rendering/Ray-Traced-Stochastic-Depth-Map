@@ -31,6 +31,7 @@ namespace
 {
     const std::string kDepthIn = "linearZ";
     const std::string ksDepth = "stochasticDepth";
+    const std::string kRayMin = "rayMin"; // ray T values for Ray.TMin
     const std::string kRayMax = "rayMax"; // ray T values for Ray.TMax
     const std::string kStencil = "stencilMask";
 
@@ -179,6 +180,7 @@ RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileDat
     RenderPassReflection reflector;
     reflector.addInput(kDepthIn, "non-linear (primary) depth map").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kStencil, "(optional) stencil-mask").format(ResourceFormat::R8Uint).flags(RenderPassReflection::Field::Flags::Optional);
+    reflector.addInput(kRayMin, "min ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addInput(kRayMax, "max ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(mDepthFormat).texture2D(0, 0, 1, 1, mSampleCount);
     reflector.addInternal(kInternalStencil, "stencil-mask").bindFlags(ResourceBindFlags::DepthStencil).format(ResourceFormat::D32FloatS8X24);
@@ -208,6 +210,8 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     auto psDepths = renderData[ksDepth]->asTexture();
     ref<Texture> pStencilMask;
     if (renderData[kStencil]) pStencilMask = renderData[kStencil]->asTexture();
+    ref<Texture> pRayMin;
+    if (renderData[kRayMin]) pRayMin = renderData[kRayMin]->asTexture();
     ref<Texture> pRayMax;
     if (renderData[kRayMax]) pRayMax = renderData[kRayMax]->asTexture();
 
@@ -270,6 +274,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         mRayVars->getRootVar()["depthInTex"] = pDepthIn;
         mRayVars->getRootVar()["depthOutTex"] = psDepths;
         mRayVars->getRootVar()["maskTex"] = pStencilMask;
+        mRayVars->getRootVar()["rayMinTex"] = pRayMin;
         mRayVars->getRootVar()["rayMaxTex"] = pRayMax;
 
         mpScene->raytrace(pRenderContext, mpRayProgram.get(), mRayVars, uint3(psDepths->getWidth(), psDepths->getHeight(), 1));
