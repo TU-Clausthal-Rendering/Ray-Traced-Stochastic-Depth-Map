@@ -3,6 +3,7 @@ import Scene.Raytracing;
 Texture2D<float> depthInTex;
 RWTexture2DArray<float> depthOutTex;
 Texture2D<uint> maskTex;
+Texture2D<uint> rayMaxTex; // contains float values: use asfloat()
 
 StructuredBuffer<uint> stratifiedIndices;
 StructuredBuffer<uint> stratifiedLookUpTable;
@@ -153,8 +154,10 @@ void rayGen()
     RayDesc ray = gScene.camera.computeRayPinhole(DispatchRaysIndex().xy, DispatchRaysDimensions().xy).toRayDesc();
     float epsilon = 0.1 * gScene.camera.data.nearZ; // small ray offset
     ray.TMin = ViewDepthToRay(ray.Direction, depthInTex[svPos]) + epsilon; // start after first known hit
+    uint iRayMax = rayMaxTex[svPos];
+    if(iRayMax != 0u) // test if valid values
+        ray.TMax = min(asfloat(iRayMax), ray.TMax);
     
-    // TODO offset ray start to depth in
     RayData rayData;
     rayData.count = 0;
     for (uint i = 0; i < NUM_SAMPLES; ++i)

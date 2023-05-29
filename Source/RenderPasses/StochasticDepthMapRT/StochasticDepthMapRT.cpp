@@ -31,6 +31,7 @@ namespace
 {
     const std::string kDepthIn = "linearZ";
     const std::string ksDepth = "stochasticDepth";
+    const std::string kRayMax = "rayMax"; // ray T values for Ray.TMax
     const std::string kStencil = "stencilMask";
 
     const std::string kInternalStencil = "internalStencil";
@@ -169,7 +170,7 @@ Dictionary StochasticDepthMapRT::getScriptingDictionary()
     d[kCullMode] = mCullMode;
     d[kDepthFormat] = mDepthFormat;
     d[kNormalize] = mNormalize;
-    d[kUseRayPipeline] = mUseRayPipeline;
+    //d[kUseRayPipeline] = mUseRayPipeline;
     return d;
 }
 
@@ -178,6 +179,7 @@ RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileDat
     RenderPassReflection reflector;
     reflector.addInput(kDepthIn, "non-linear (primary) depth map").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kStencil, "(optional) stencil-mask").format(ResourceFormat::R8Uint).flags(RenderPassReflection::Field::Flags::Optional);
+    reflector.addInput(kRayMax, "max ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(mDepthFormat).texture2D(0, 0, 1, 1, mSampleCount);
     reflector.addInternal(kInternalStencil, "stencil-mask").bindFlags(ResourceBindFlags::DepthStencil).format(ResourceFormat::D32FloatS8X24);
     return reflector;
@@ -206,6 +208,8 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     auto psDepths = renderData[ksDepth]->asTexture();
     ref<Texture> pStencilMask;
     if (renderData[kStencil]) pStencilMask = renderData[kStencil]->asTexture();
+    ref<Texture> pRayMax;
+    if (renderData[kRayMax]) pRayMax = renderData[kRayMax]->asTexture();
 
     if(mClear)
     {
@@ -266,12 +270,16 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         mRayVars->getRootVar()["depthInTex"] = pDepthIn;
         mRayVars->getRootVar()["depthOutTex"] = psDepths;
         mRayVars->getRootVar()["maskTex"] = pStencilMask;
+        mRayVars->getRootVar()["rayMaxTex"] = pRayMax;
 
         mpScene->raytrace(pRenderContext, mpRayProgram.get(), mRayVars, uint3(psDepths->getWidth(), psDepths->getHeight(), 1));
     
     }
     else // raster pipeline
     {
+        assert(false); // NOT updated!! (slow performance)
+        return;
+        
         if(pStencilMask)
         {
             FALCOR_PROFILE(pRenderContext, "Stencil Clear&Copy");
@@ -294,6 +302,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         }
 
         mpRasterProgram->getRootVar()["depthInTex"] = pDepthIn;
+        mpRasterProgram->getRootVar()["rayMaxTex"] = pRayMax;
 
         // set gScene and raytracing data
         mpScene->setRaytracingShaderData(pRenderContext, mpRasterProgram->getRootVar());
@@ -322,8 +331,8 @@ void StochasticDepthMapRT::renderUI(Gui::Widgets& widget)
     if (widget.checkbox("Normalize Depths", mNormalize))
         requestRecompile();
 
-    if (widget.checkbox("Use Ray Pipeline", mUseRayPipeline))
-        requestRecompile();
+    //if (widget.checkbox("Use Ray Pipeline", mUseRayPipeline))
+    //    requestRecompile();
 }
 
 void StochasticDepthMapRT::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

@@ -41,6 +41,9 @@ namespace
     const std::string kNormals = "normals";
     const std::string kMatDoubleSided = "doubleSided";
     const std::string kInternalStencil = "internalStencil";
+    // ray bounds for the stochastic depth map RT
+    const std::string kInternalRayMin = "internalRayMin";
+    const std::string kInternalRayMax = "internalRayMax";
 
     const std::string kRasterShader = "RenderPasses/SVAO/SVAORaster.ps.slang";
     const std::string kRasterShader2 = "RenderPasses/SVAO/SVAORaster2.ps.slang";
@@ -153,6 +156,9 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     reflector.addOutput(kAccessStencil, "Stencil Bitmask for secondary depth map accesses").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24);
     reflector.addOutput(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24).bindFlags(ResourceBindFlags::DepthStencil);
+
+    reflector.addOutput(kInternalRayMin, "internal ray min").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews);
+    reflector.addOutput(kInternalRayMax, "internal ray max").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews);
     return reflector;
 }
 
@@ -208,6 +214,9 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     //auto pAoMask2 = renderData[kAoStencil2]->asTexture();
     auto pAccessStencil = renderData[kAccessStencil]->asTexture();
     auto pInternalStencil = renderData[kInternalStencil]->asTexture();
+
+    auto pInternalRayMin = renderData[kInternalRayMin]->asTexture();
+    auto pInternalRayMax = renderData[kInternalRayMax]->asTexture();
 
     if (!mEnabled)
     {
@@ -310,7 +319,16 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     rasterVars["gNormalTex"] = pNormal;
     rasterVars["gMatDoubleSided"] = pMatDoubleSided;
     //mpRasterPass["gDepthAccess"] = pAccessStencil;
-    rasterVars["gDepthAccess"].setUav(accessStencilUAV);
+    if(mSecondaryDepthMode == DepthMode::StochasticDepth)
+    {
+        rasterVars["gDepthAccess"].setUav(accessStencilUAV);
+
+        //pRenderContext->clearUAV(pInternalRayMin->getUAV().get(), uint4(0u));
+        pRenderContext->clearUAV(pInternalRayMax->getUAV().get(), uint4(0u));
+        //rasterVars["gRayMinAccess"] = pInternalRayMin;
+        rasterVars["gRayMaxAccess"] = pInternalRayMax;
+    }
+    
 
     setGuardBandScissors(*mpRasterPass->getState(), renderData.getDefaultTextureDims(), mGuardBand);
     {
@@ -336,6 +354,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             break;
         case StochasticDepthImpl::Ray:
             mpStochasticDepthGraph->setInput("StochasticDepthMap.linearZ", pDepth);
+            mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMax", pInternalRayMax);
             break;
         }
         mpStochasticDepthGraph->setInput("StochasticDepthMap.stencilMask", pAccessStencil);
