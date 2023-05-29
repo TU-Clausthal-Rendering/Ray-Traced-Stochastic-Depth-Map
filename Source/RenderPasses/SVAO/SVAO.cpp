@@ -354,6 +354,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             break;
         case StochasticDepthImpl::Ray:
             mpStochasticDepthGraph->setInput("StochasticDepthMap.linearZ", pDepth);
+            mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMin", pInternalRayMin);
             mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMax", pInternalRayMax);
             break;
         }
