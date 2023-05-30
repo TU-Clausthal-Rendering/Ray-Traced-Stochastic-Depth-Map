@@ -1,5 +1,6 @@
 add_subdirectory(AccumulatePass)
 add_subdirectory(AOFlickerMask)
+add_subdirectory(BinaryDilation)
 add_subdirectory(BlitPass)
 add_subdirectory(BSDFViewer)
 add_subdirectory(CrossBilateralBlur)
