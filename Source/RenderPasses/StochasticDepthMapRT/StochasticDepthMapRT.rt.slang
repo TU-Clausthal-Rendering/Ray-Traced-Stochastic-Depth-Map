@@ -51,19 +51,37 @@ float ViewDepthToRay(float3 rayDir, float viewDepth)
 void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs)
 {
     #define SD_VERSION 2
-    #define MAX_COUNT 5
+    #define MAX_COUNT (2 * NUM_SAMPLES)
 
-    float rng = hash4D(float4(attribs.barycentrics, RayTCurrent(), 1.438943289));
+    //float rng = hash3D(float3(attribs.barycentrics, RayTCurrent()));
+    float rng = hash(attribs.barycentrics);
     
     #if SD_VERSION == 2
-    float threshold = 1.0 / float(1u + rayData.count);
+    uint slot = rayData.count; // insertion slot
+    if (rayData.count >= NUM_SAMPLES)
+        slot = uint(rng * rayData.count); // slot in [0, count - 1]
+    
     rayData.count += 1;
-    if (rng > threshold)
+    if(slot >= NUM_SAMPLES) // rejected?
     {
         if (rayData.count > MAX_COUNT)
             return;
         IgnoreHit();
     }
+
+    // accepted => do (early) depth test
+    float t = RayTCurrent();
+    t = RayToViewDepth(WorldRayDirection(), t); // convert to view depth
+    if (NORMALIZE) t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
+
+    //if (rayData.depths[slot] <= t)
+    //    IgnoreHit();
+    for (uint i = 0; i < NUM_SAMPLES; ++i)
+    {
+        if (i == slot && rayData.depths[i] <= t)
+            IgnoreHit();
+    }
+
     #endif
 
     { // ALPHA test
@@ -84,16 +102,15 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
     }
     
 
-    float t = RayTCurrent();
-    t = RayToViewDepth(WorldRayDirection(), t); // convert to view depth
-
-    if (NORMALIZE)
-    {
-        t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
-    }
+    
     
     #if SD_VERSION == 2
-    rayData.depths[0] = t;
+    //rayData.depths[slot] = t;
+    for (uint i = 0; i < NUM_SAMPLES; ++i)
+    {
+        if (i == slot) rayData.depths[i] = t;
+    }
+
     if (rayData.count > MAX_COUNT)
         return;
     IgnoreHit();

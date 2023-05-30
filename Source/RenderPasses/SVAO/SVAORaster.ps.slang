@@ -170,8 +170,9 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC) && (PRIMARY_DEPTH_MODE != DEPTH_MODE_MACHINE_CLASSIFY)
             gDepthAccess[uint2(rasterSamplePosUV * gData.resolution)] = 1u;
-            InterlockedMin(gRayMinAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(posVLength - sphereStart));
-            InterlockedMax(gRayMaxAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(posVLength - sphereEnd));
+            InterlockedMin(gRayMinAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(posVLength - sphereStart - CONST_RADIUS - HALO_RADIUS, 0.0)));
+            //InterlockedMin(gRayMinAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(posVLength - sphereStart, 0.0)));
+            InterlockedMax(gRayMaxAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(posVLength - sphereEnd, 0.0)));
 #endif
 
 #if PRIMARY_DEPTH_MODE == DEPTH_MODE_PERFECT_CLASSIFY

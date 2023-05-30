@@ -174,8 +174,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
 
     // create stochastic depth graph
     Dictionary sdDict;
-    sdDict["SampleCount"] = msaa_sample;
-    sdDict["Alpha"] = 0.2f;
+    sdDict["SampleCount"] = mStochSamples;
     sdDict["CullMode"] = RasterizerState::CullMode::Back;
     mpStochasticDepthGraph = RenderGraph::create(mpDevice, "Stochastic Depth");
     ref<RenderPass> pStochasticDepthPass;
@@ -184,12 +183,13 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     case StochasticDepthImpl::Raster:
         sdDict["linearize"] = true;
         sdDict["depthFormat"] = ResourceFormat::D32FloatS8X24;
+        sdDict["Alpha"] = 0.2f;
         pStochasticDepthPass = RenderPass::create("StochasticDepthMap", mpDevice, sdDict);
         break;
     case StochasticDepthImpl::Ray:
         sdDict["normalize"] = true;
         sdDict["depthFormat"] = ResourceFormat::R32Float;
-        sdDict["useRayPipeline"] = mUseRayPipeline;
+        sdDict["useRayPipeline"] = true; // performs better than raster //mUseRayPipeline;
         pStochasticDepthPass = RenderPass::create("StochasticDepthMapRT", mpDevice, sdDict);    
         break;
     }
@@ -235,7 +235,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         Program::DefineList defines;
         defines.add("PRIMARY_DEPTH_MODE", std::to_string(uint32_t(mPrimaryDepthMode)));
         defines.add("SECONDARY_DEPTH_MODE", std::to_string(uint32_t(mSecondaryDepthMode)));
-        defines.add("MSAA_SAMPLES", std::to_string(msaa_sample)); // TODO update this from gui
+        defines.add("MSAA_SAMPLES", std::to_string(mStochSamples)); // TODO update this from gui
         defines.add("PREVENT_DARK_HALOS", mPreventDarkHalos ? "1" : "0");
         defines.add("TRACE_OUT_OF_SCREEN", mTraceOutOfScreen ? "1" : "0");
         defines.add("TRACE_DOUBLE_ON_DOUBLE", mTraceDoubleOnDouble ? "1" : "0");
@@ -459,6 +459,15 @@ void SVAO::renderUI(Gui::Widgets& widget)
         {(uint32_t)StochasticDepthImpl::Ray, "Ray"},
     };
 
+    const Gui::DropdownList kSampleCountList =
+    {
+        { (uint32_t)1, "1" },
+        { (uint32_t)2, "2" },
+        { (uint32_t)4, "4" },
+        { (uint32_t)8, "8" },
+        //{ (uint32_t)16, "16" }, // falcor (and directx) only support 8 render targets, which are required for the raster variant
+    };
+
 
     auto reset = false;
 
@@ -501,6 +510,9 @@ void SVAO::renderUI(Gui::Widgets& widget)
             mStochasticDepthImpl = (StochasticDepthImpl)stochasticImpl;
             reset = true;
         }
+
+        if (widget.dropdown("St. Sample Count", kSampleCountList, mStochSamples))
+            reset = true;
     }
 
     if (widget.checkbox("Ray Pipeline", mUseRayPipeline)) reset = true;

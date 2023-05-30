@@ -92,7 +92,7 @@ private:
     ref<RtProgram> mpRayProgram;
     ref<RtProgramVars> mRayVars;
 
-    int msaa_sample = 4; // for stochastic depth map
+    uint mStochSamples = 4; // for stochastic depth map
 
 
     // general settings

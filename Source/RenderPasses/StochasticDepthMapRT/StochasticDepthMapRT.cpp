@@ -42,7 +42,6 @@ namespace
     const std::string kStencilFile = "RenderPasses/StochasticDepthMapRT/Stencil.ps.slang";
     
     const std::string kSampleCount = "SampleCount";
-    const std::string kAlpha = "Alpha";
     const std::string kCullMode = "CullMode";
     const std::string kDepthFormat = "depthFormat";
     const std::string kNormalize = "normalize";
@@ -153,7 +152,6 @@ ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, cons
     for (const auto& [key, value] : dict)
     {
         if (key == kSampleCount) pPass->mSampleCount = value;
-        else if (key == kAlpha) pPass->mAlpha = value;
         else if (key == kCullMode) pPass->mCullMode = value;
         else if (key == kDepthFormat) pPass->mDepthFormat = value;
         else if (key == kNormalize) pPass->mNormalize = value;
@@ -167,7 +165,6 @@ Dictionary StochasticDepthMapRT::getScriptingDictionary()
 {
     Dictionary d;
     d[kSampleCount] = mSampleCount;
-    d[kAlpha] = mAlpha;
     d[kCullMode] = mCullMode;
     d[kDepthFormat] = mDepthFormat;
     d[kNormalize] = mNormalize;
@@ -229,7 +226,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     {
         auto defines = mpScene->getSceneDefines();
         defines.add("NUM_SAMPLES", std::to_string(mSampleCount));
-        defines.add("ALPHA", std::to_string(mAlpha));
+        defines.add("ALPHA", std::to_string(0.2f));
         defines.add("NORMALIZE", mNormalize ? "1" : "0");
 
         // raster pass
@@ -329,9 +326,6 @@ void StochasticDepthMapRT::renderUI(Gui::Widgets& widget)
 
     if (widget.dropdown("Sample Count", kSampleCountList, mSampleCount))
         requestRecompile(); // reload pass (recreate texture)
-
-    if (widget.var("Alpha", mAlpha, 0.0f, 1.0f, 0.01f))
-        requestRecompile();
 
     if (widget.checkbox("Normalize Depths", mNormalize))
         requestRecompile();
