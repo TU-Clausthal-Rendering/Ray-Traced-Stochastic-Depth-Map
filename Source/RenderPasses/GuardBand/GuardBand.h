@@ -34,7 +34,7 @@ using namespace Falcor;
 class GuardBand : public RenderPass
 {
 public:
-    FALCOR_PLUGIN_CLASS(GuardBand, "GuardBand", "Insert pass description here.");
+    FALCOR_PLUGIN_CLASS(GuardBand, "GuardBand", "Sets a global guardBand variable in the dictionary");
 
     static ref<GuardBand> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<GuardBand>(pDevice, dict); }
 

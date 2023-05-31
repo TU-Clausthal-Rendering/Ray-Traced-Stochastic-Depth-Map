@@ -13,6 +13,13 @@ cbuffer PerFrameCB
 {
     Camera gCamera;
     float4x4 prevViewToCurView; // viewMat * Inverse(prevViewMat)
+    float2 uvMin; // uv coordinate clamping when using a guard band
+    float2 uvMax;
+}
+
+bool isInValidArea(float2 uv)
+{
+    return uv.x >= uvMin.x && uv.x <= uvMax.x && uv.y >= uvMin.y && uv.y <= uvMax.y;
 }
 
 // uv: uv coordinates [0, 1]
@@ -46,6 +53,12 @@ float main(float2 texC : TEXCOORD) : SV_TARGET0
     //float3 posV = UVToViewSpace(texC, depth);
 
     float2 mvec = gMotionVec.SampleLevel(gDepthSampler, texC, 0.0);
+    
+    if (!isInValidArea(texC + mvec)) // test if motion vector is outside of the screen
+    {
+        return ao; // reset history, use new value
+    }
+    
     float prevRawDepth = gPrevDepth.SampleLevel(gDepthSampler, texC + mvec, 0.0);
     float3 prevPosV = mul(prevViewToCurView, float4(UVToViewSpace(texC + mvec, prevRawDepth), 1.0)).xyz;
     float prevDepth = -prevPosV.z;

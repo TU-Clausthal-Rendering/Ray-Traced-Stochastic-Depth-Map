@@ -26,6 +26,7 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #include "TemporalAO.h"
+#include "../Utils/GuardBand/guardband.h"
 
 namespace
 {
@@ -93,9 +94,19 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
     auto pMotionVec = renderData[kMotionVec]->asTexture();
     auto pAOOut = renderData[kAOOut]->asTexture();
 
+    if (!mEnabled)
+    {
+        pRenderContext->blit(pAOIn->getSRV(), pAOOut->getRTV());
+        return;
+    }
+
     // check if resource dimensions changed and allocate texture accordingly
     mpPrevAO = allocatePrevFrameTexture(pAOOut, std::move(mpPrevAO));
     mpPrevDepth = allocatePrevFrameTexture(pDepth, std::move(mpPrevDepth));
+
+    auto& dict = renderData.getDictionary();
+    auto guardBand = dict.getValue("guardBand", 0);
+    setGuardBandScissors(*mpPass->getState(), renderData.getDefaultTextureDims(), guardBand);
 
     auto vars = mpPass->getRootVar();
     vars["gMotionVec"] = pMotionVec;
@@ -106,9 +117,11 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
     mpScene->getCamera()->setShaderData(vars["PerFrameCB"]["gCamera"]);
     auto conversionMat = math::mul(mpScene->getCamera()->getViewMatrix(), math::inverse(mpScene->getCamera()->getPrevViewMatrix()));
     vars["PerFrameCB"]["prevViewToCurView"] = conversionMat;
+    vars["PerFrameCB"]["uvMin"] = dict.getValue("guardBand.uvMin", float2(0.0f));
+    vars["PerFrameCB"]["uvMax"] = dict.getValue("guardBand.uvMax", float2(1.0f));
 
     mpFbo->attachColorTarget(pAOOut, 0);
-    mpPass->execute(pRenderContext, mpFbo);
+    mpPass->execute(pRenderContext, mpFbo, false);
 
     // save depth and ao from this frame for next frame
     pRenderContext->blit(pDepth->getSRV(), mpPrevDepth->getRTV());
@@ -117,6 +130,7 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
 
 void TemporalAO::renderUI(Gui::Widgets& widget)
 {
+    widget.checkbox("Enable", mEnabled);
 }
 
 void TemporalAO::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

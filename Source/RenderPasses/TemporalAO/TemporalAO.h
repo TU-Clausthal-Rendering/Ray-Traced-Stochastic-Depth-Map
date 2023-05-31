@@ -60,4 +60,5 @@ private:
     ref<Texture> mpPrevAO;
 
     ref<Scene> mpScene;
+    bool mEnabled = true;
 };
