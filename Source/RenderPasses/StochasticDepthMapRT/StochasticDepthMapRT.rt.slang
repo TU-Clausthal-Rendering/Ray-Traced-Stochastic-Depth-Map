@@ -176,7 +176,7 @@ void rayGen()
     uint iRayMin = rayMinTex[svPos];
     if (iRayMin != 0u) // test if valid values
         ray.TMin = max(asfloat(iRayMin), ray.TMin);
-
+    
     uint iRayMax = rayMaxTex[svPos];
     if(iRayMax != 0u) // test if valid values
         ray.TMax = min(asfloat(iRayMax), ray.TMax);

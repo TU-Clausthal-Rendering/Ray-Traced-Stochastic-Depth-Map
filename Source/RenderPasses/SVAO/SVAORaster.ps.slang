@@ -171,7 +171,6 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC) && (PRIMARY_DEPTH_MODE != DEPTH_MODE_MACHINE_CLASSIFY)
             gDepthAccess[uint2(rasterSamplePosUV * gData.resolution)] = 1u;
             InterlockedMin(gRayMinAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(posVLength - sphereStart - CONST_RADIUS - HALO_RADIUS, 0.0)));
-            //InterlockedMin(gRayMinAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(posVLength - sphereStart, 0.0)));
             InterlockedMax(gRayMaxAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(posVLength - sphereEnd, 0.0)));
 #endif
 
@@ -303,6 +302,20 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             float2 rasterSamplePosUV = screenUv;
             rasterSamplePosUV = getSnappedUV(rasterSamplePosUV); // snap to pixel center
             gDepthAccess[uint2(rasterSamplePosUV * gData.resolution)] = 1u;
+            
+            const float sphereHeight = sqrt(gData.radius * gData.radius - radius * radius);
+            float sphereStart = sphereHeight; // in object coordinates (bigger is closer to the camera)
+            float sphereEnd = -sphereHeight; // in object coordinates (smaller is futher from the camera)
+
+            { // HEMISPHERE SAMPLING
+                //float zIntersect = -dot(rand.xy, normalO.xy) / normalO.z;
+                float zIntersect = -dot(dir.xy, normalO.xy) / makeNonZero(normalO.z, 0.0001);
+                float zIntersectClamped = clamp(zIntersect, -sphereHeight, sphereHeight);
+                sphereEnd = zIntersectClamped;
+            }
+            InterlockedMin(gRayMinAccess[uint2(rasterSamplePosUV * gData.resolution)], asuint(max(posVLength - sphereStart - CONST_RADIUS - HALO_RADIUS, 0.0)));
+            InterlockedMax(gRayMaxAccess[uint2(rasterSamplePosUV * gData.resolution)], asuint(max(posVLength - sphereEnd, 0.0)));
+            
         }
     }
     #endif

@@ -183,7 +183,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     case StochasticDepthImpl::Raster:
         sdDict["linearize"] = true;
         sdDict["depthFormat"] = ResourceFormat::D32FloatS8X24;
-        sdDict["Alpha"] = 0.2f;
+        sdDict["Alpha"] = 0.375f; // for 4 samples => ALPHA * 4 = 1.5 => 1.5 + rng will save 1-2 samples per pixel
         pStochasticDepthPass = RenderPass::create("StochasticDepthMap", mpDevice, sdDict);
         break;
     case StochasticDepthImpl::Ray:
@@ -351,6 +351,8 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         {
         case StochasticDepthImpl::Raster:
             mpStochasticDepthGraph->setInput("StochasticDepthMap.depthMap", pNonLinearDepth);
+            mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMin", pInternalRayMin);
+            mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMax", pInternalRayMax);
             break;
         case StochasticDepthImpl::Ray:
             mpStochasticDepthGraph->setInput("StochasticDepthMap.linearZ", pDepth);

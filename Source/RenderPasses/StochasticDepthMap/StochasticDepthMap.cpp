@@ -39,6 +39,9 @@ namespace
     const std::string kLinearize = "linearize";
     const std::string kDepthFormat = "depthFormat";
     const std::string kStencil = "stencilMask";
+    const std::string kRayMin = "rayMin"; // ray T values for Ray.TMin
+    const std::string kRayMax = "rayMax"; // ray T values for Ray.TMax
+
 
     const Gui::DropdownList kCullModeList =
     {
@@ -171,6 +174,8 @@ RenderPassReflection StochasticDepthMap::reflect(const CompileData& compileData)
     RenderPassReflection reflector;
     reflector.addInput(kDepthIn, "non-linear (primary) depth map").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kStencil, "(optional) stencil-mask").format(ResourceFormat::R8Uint).flags(RenderPassReflection::Field::Flags::Optional);
+    reflector.addInput(kRayMin, "min ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
+    reflector.addInput(kRayMax, "max ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllDepthViews).format(mDepthFormat).texture2D(0, 0, mSampleCount);
     return reflector;
 }
@@ -211,6 +216,11 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
             pStencilMask.reset();
         }
     }
+    ref<Texture> pRayMin;
+    if (renderData[kRayMin]) pRayMin = renderData[kRayMin]->asTexture();
+    ref<Texture> pRayMax;
+    if (renderData[kRayMax]) pRayMax = renderData[kRayMax]->asTexture();
+
 
     auto pCamera = mpScene->getCamera();
 
@@ -254,6 +264,8 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
         var["stratifiedIndices"] = mpStratifiedIndices;
         var["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
         var["depthBuffer"] = pDepthIn;
+        var["rayMin"] = pRayMin;
+        var["rayMax"] = pRayMax;
 
         // set camera data
         float zNear = pCamera->getNearPlane();

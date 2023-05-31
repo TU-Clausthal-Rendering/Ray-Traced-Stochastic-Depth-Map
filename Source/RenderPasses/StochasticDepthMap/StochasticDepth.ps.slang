@@ -10,6 +10,8 @@ VSOut vsMain(VSIn vIn)
 StructuredBuffer<uint> stratifiedIndices;
 StructuredBuffer<uint> stratifiedLookUpTable;
 Texture2D<float> depthBuffer;
+Texture2D<uint> rayMin; // additional texture for a more precise depth range
+Texture2D<uint> rayMax; // contains float values: use asfloat()
 
 cbuffer CameraCB
 {
@@ -51,10 +53,20 @@ PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
     PsOut output;
 
     // assume that a depth-map of the first layer is available => discard fragments with the same depth
-    float firstDepth = depthBuffer[uint2(vsOut.posH.xy)];
+    uint2 svPos = uint2(vsOut.posH.xy);
+    float firstDepth = depthBuffer[svPos];
     if (vsOut.posH.z <= firstDepth)
         discard;
-
+    
+    // use ray min from texture (can be bigger than depth buffer)
+    uint iRayMin = rayMin[svPos];
+    if (iRayMin != 0u && vsOut.posH.w <= asfloat(iRayMin))
+        discard;
+    
+    uint iRayMax = rayMax[svPos];
+    if (iRayMax != 0u && vsOut.posH.w >= asfloat(iRayMax))
+        discard; // save bandwidth (cannot depth cull because of linearize...)
+    
     // #if NON_STOCHASTIC_FIRST_LAYER // Potentially, you could create the regular depth map in this same pass by never discarding the first sample
     // 	if (gl_SampleID == 0) { return; } 
     // #endif
