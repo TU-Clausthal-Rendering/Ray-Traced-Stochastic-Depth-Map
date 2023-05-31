@@ -28,93 +28,27 @@
 #pragma once
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
-#include "../VAO/DepthMode.h"
-#include "VAOData.slang"
-#include "NeuralNet.h"
-#include "Core/Pass/FullScreenPass.h"
 
 using namespace Falcor;
 
-class SVAO : public RenderPass
+class GuardBand : public RenderPass
 {
 public:
-    enum StochasticDepthImpl
-    {
-        Raster = 0,
-        Ray = 1
-    };
+    FALCOR_PLUGIN_CLASS(GuardBand, "GuardBand", "Insert pass description here.");
 
-    FALCOR_PLUGIN_CLASS(SVAO, "SVAO", "Stenciled Volumetric Ambient Occlusion");
+    static ref<GuardBand> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<GuardBand>(pDevice, dict); }
 
-    /** Create a new render pass object.
-        \param[in] pDevice GPU device.
-        \param[in] dict Dictionary of serialized parameters.
-        \return A new object, or an exception is thrown if creation failed.
-    */
-    static ref<SVAO> create(ref<Device> pDevice, const Dictionary& dict);
+    GuardBand(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
-    virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
+    virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {}
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override {}
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
-    SVAO(ref<Device> pDevice);
+
 private:
-    ref<Texture> genNoiseTexture();
-
-    Program::Desc getFullscreenShaderDesc(const std::string& filename);
-
-    ref<Fbo> mpFbo;
-
-    ref<Sampler> mpNoiseSampler;
-    ref<Texture> mpNoiseTexture;
-
-    ref<Sampler> mpTextureSampler;
-    ref<FullScreenPass> mpRasterPass;
-
-    ref<Scene> mpScene;
-    bool mEnableRayFilter = false;
-
-    ref<RenderGraph> mpStochasticDepthGraph;
-    //RayFilter::SharedPtr mpRayFilter;
-
-    // 2nd pass
-    ref<Fbo> mpFbo2;
-    ref<FullScreenPass> mpRasterPass2;
-    ref<DepthStencilState> mpDepthStencilState;
-
-    ref<FullScreenPass> mpStencilPass;
-    ref<Fbo> mpStencilFbo;
-
-    ref<RtProgram> mpRayProgram;
-    ref<RtProgramVars> mRayVars;
-
-    uint mStochSamples = 4; // for stochastic depth map
-
-
-    // general settings
-    bool mEnabled = true;
-
-    VAOData mData;
-    bool mDirty = true;
-    uint2 lastSize;
-    DepthMode mPrimaryDepthMode = DepthMode::SingleDepth;
-    DepthMode mSecondaryDepthMode = DepthMode::Raytraced;
-    bool mUseRayPipeline = true;
-
-    bool mPreventDarkHalos = true;
-
-    // performance knobs
-    bool mTraceOutOfScreen = true;
-    bool mTraceDoubleOnDouble = false;
-    float mClassifyProbability = 0.5;
-    bool mSaveStochasticDepth = false;
-
-    NeuralNetCollection mNeuralNet;
-    NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
-
-    StochasticDepthImpl mStochasticDepthImpl = StochasticDepthImpl::Ray;
+    int mGuardBand = 64;
 };

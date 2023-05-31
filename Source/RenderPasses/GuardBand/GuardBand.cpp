@@ -25,43 +25,45 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
-#pragma once
-#include "Falcor.h"
-#include "Core/Pass/FullScreenPass.h"
-#include "RenderGraph/RenderPass.h"
+#include "GuardBand.h"
 
-using namespace Falcor;
-
-class CrossBilateralBlur : public RenderPass
+extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
-public:
-    FALCOR_PLUGIN_CLASS(CrossBilateralBlur, "CrossBilateralBlur", "Depth-Aware Cross Bilateral Blur");
+    registry.registerClass<RenderPass, GuardBand>();
+}
 
-    /** Create a new render pass object.
-        \param[in] pDevice GPU device.
-        \param[in] dict Dictionary of serialized parameters.
-        \return A new object, or an exception is thrown if creation failed.
-    */
-    static ref<CrossBilateralBlur> create(ref<Device> pDevice, const Dictionary& dict);
+GuardBand::GuardBand(ref<Device> pDevice, const Dictionary& dict)
+    : RenderPass(pDevice)
+{
+    mGuardBand = dict.get("guardBand", mGuardBand);
+}
 
-    virtual Dictionary getScriptingDictionary() override;
-    virtual RenderPassReflection reflect(const CompileData& compileData) override;
-    virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
-    virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
-    virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override {}
-    virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
-    virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
-    CrossBilateralBlur(ref<Device> pDevice);
-private:
+Dictionary GuardBand::getScriptingDictionary()
+{
+    Dictionary d;
+    d["guardBand"] = mGuardBand;
+    return d;
+}
 
-    ref<Fbo> mpFbo;
-    ref<Sampler> mpSampler;
-    bool mEnabled = true;
-    uint32_t mKernelRadius = 4;
-    uint32_t mRepetitions = 1;
-    bool mReady = false;
+RenderPassReflection GuardBand::reflect(const CompileData& compileData)
+{
+    RenderPassReflection reflector;
+    return reflector;
+}
 
-    ref<FullScreenPass> mpBlur;
-    ResourceFormat mLastFormat = ResourceFormat::RGBA32Float;
-};
+void GuardBand::execute(RenderContext* pRenderContext, const RenderData& renderData)
+{
+    auto& dict = renderData.getDictionary();
+    dict["guardBand"] = mGuardBand;
+    dict["guardBand.uvMin"] = float2(float(mGuardBand) + 0.5f) / float2(renderData.getDefaultTextureDims());
+    dict["guardBand.uvMax"] = (float2(renderData.getDefaultTextureDims()) - float2(float(mGuardBand) + 0.5f)) / float2(renderData.getDefaultTextureDims());
+}
+
+void GuardBand::renderUI(Gui::Widgets& widget)
+{
+    widget.var("Guard  Band", mGuardBand, 0, 256);
+    if (widget.button("Recompile"))
+    {
+        requestRecompile();
+    }
+}

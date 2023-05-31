@@ -55,7 +55,6 @@ namespace
 
     // settings
     const std::string kRadius = "radius";
-    const std::string kGuardBand = "guardBand";
     const std::string kPrimaryDepthMode = "primaryDepthMode";
     const std::string kSecondaryDepthMode = "secondaryDepthMode";
     const std::string kExponent = "exponent";
@@ -121,7 +120,6 @@ ref<SVAO> SVAO::create(ref<Device> pDevice, const Dictionary& dict)
         else if (key == kSecondaryDepthMode) pPass->mSecondaryDepthMode = value;
         else if (key == kExponent) pPass->mData.exponent = value;
         else if (key == kUseRayPipeline) pPass->mUseRayPipeline = value;
-        else if (key == kGuardBand) pPass->mGuardBand = value;
         else if (key == kThickness) pPass->mData.thickness = value;
         else logWarning("Unknown field '" + key + "' in a VAONonInterleaved dictionary");
     }
@@ -136,7 +134,6 @@ Dictionary SVAO::getScriptingDictionary()
     d[kSecondaryDepthMode] = mSecondaryDepthMode;
     d[kExponent] = mData.exponent;
     d[kUseRayPipeline] = mUseRayPipeline;
-    d[kGuardBand] = mGuardBand;
     d[kThickness] = mData.thickness;
     return d;
 }
@@ -329,8 +326,9 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         rasterVars["gRayMaxAccess"] = pInternalRayMax;
     }
     
-
-    setGuardBandScissors(*mpRasterPass->getState(), renderData.getDefaultTextureDims(), mGuardBand);
+    auto& dict = renderData.getDictionary();
+    auto guardBand = dict.getValue("guardBand", 0);
+    setGuardBandScissors(*mpRasterPass->getState(), renderData.getDefaultTextureDims(), guardBand);
     {
         FALCOR_PROFILE(pRenderContext, "AO 1");
         mpRasterPass->execute(pRenderContext, mpFbo, false);
@@ -379,7 +377,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         // set camera data
         pCamera->setShaderData(rayVars["PerFrameCB"]["gCamera"]);
         rayVars["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
-        rayVars["PerFrameCB"]["guardBand"] = mGuardBand;
+        rayVars["PerFrameCB"]["guardBand"] = guardBand;
 
         // set textures
         rayVars["gDepthTex"] = pDepth;
@@ -392,7 +390,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         rayVars["output"] = pAoDst; // uav view
 
 
-        uint3 dims = uint3(pAoDst->getWidth() - 2 * mGuardBand, pAoDst->getHeight() - 2 * mGuardBand, 1);
+        uint3 dims = uint3(pAoDst->getWidth() - 2 * guardBand, pAoDst->getHeight() - 2 * guardBand, 1);
         mpScene->raytrace(pRenderContext, mpRayProgram.get(), mRayVars, uint3{ pAoDst->getWidth(), pAoDst->getHeight(), 1 });
     }
     else // RASTER PIPELINE
@@ -430,7 +428,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         rasterVars2["aoMask"] = pAoMask;
         rasterVars2["aoPrev"] = pAoDst;
 
-        setGuardBandScissors(*mpRasterPass2->getState(), renderData.getDefaultTextureDims(), mGuardBand);
+        setGuardBandScissors(*mpRasterPass2->getState(), renderData.getDefaultTextureDims(), guardBand);
 
         {
             FALCOR_PROFILE(pRenderContext, "AO 2 (raster)");
@@ -478,9 +476,6 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
     if (widget.checkbox("Prevent Dark Halos", mPreventDarkHalos))
         reset = true;
-
-    if (widget.var("Guard Band", mGuardBand, 0, 256))
-        mDirty = true;
 
     uint32_t primaryDepthMode = (uint32_t)mPrimaryDepthMode;
     if (widget.dropdown("Primary Depth Mode", kPrimaryDepthModeDropdown, primaryDepthMode)) {

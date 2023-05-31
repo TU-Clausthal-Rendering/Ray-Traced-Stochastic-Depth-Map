@@ -56,8 +56,7 @@ ref<CrossBilateralBlur> CrossBilateralBlur::create(ref<Device> pDevice, const Di
     auto pPass = make_ref<CrossBilateralBlur>(std::move(pDevice));
     for (const auto& [key, value] : dict)
     {
-        if (key == kGuardBand) pPass->mGuardBand = value;
-        else logWarning("Unknown field '" + key + "' in a CrossBilateralBlur dictionary");
+        logWarning("Unknown field '" + key + "' in a CrossBilateralBlur dictionary");
     }
     return pPass;
 }
@@ -65,7 +64,6 @@ ref<CrossBilateralBlur> CrossBilateralBlur::create(ref<Device> pDevice, const Di
 Dictionary CrossBilateralBlur::getScriptingDictionary()
 {
     Dictionary dict;
-    dict[kGuardBand] = mGuardBand;
     return dict;
 }
 
@@ -108,8 +106,6 @@ void CrossBilateralBlur::compile(RenderContext* pRenderContext, const CompileDat
     mpBlur = FullScreenPass::create(mpDevice, kShaderPath, defines);
 
     mpBlur->getRootVar()["gSampler"] = mpSampler;
-
-    mSetScissorBuffer = true;
 }
 
 void CrossBilateralBlur::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -128,14 +124,12 @@ void CrossBilateralBlur::execute(RenderContext* pRenderContext, const RenderData
         mpBlur->getRootVar()["gDepthTex"] = pDepth;
     }
 
-    setGuardBandScissors(*mpBlur->getState(), renderData.getDefaultTextureDims(), mGuardBand);
-    if (mSetScissorBuffer)
-    {
-        // set scissor cb (is shared between both shaders)
-        mpBlur->getRootVar()["ScissorCB"]["uvMin"] = float2(float(mGuardBand) + 0.5f) / float2(renderData.getDefaultTextureDims());
-        mpBlur->getRootVar()["ScissorCB"]["uvMax"] = (float2(renderData.getDefaultTextureDims()) - float2(float(mGuardBand) + 0.5f)) / float2(renderData.getDefaultTextureDims());
-        mSetScissorBuffer = false;
-    }
+    auto& dict = renderData.getDictionary();
+    auto guardBand = dict.getValue("guardBand", 0);
+    setGuardBandScissors(*mpBlur->getState(), renderData.getDefaultTextureDims(), guardBand);
+    // set scissor cb (is shared between both shaders)
+    mpBlur->getRootVar()["ScissorCB"]["uvMin"] = dict.getValue("guardBand.uvMin", float2(0.0f));
+    mpBlur->getRootVar()["ScissorCB"]["uvMax"] = dict.getValue("guardBand.uvMax", float2(1.0f));
 
     for (uint32_t i = 0; i < mRepetitions; ++i)
     {
@@ -157,9 +151,6 @@ void CrossBilateralBlur::renderUI(Gui::Widgets& widget)
 {
     widget.checkbox("Enabled", mEnabled);
     if (!mEnabled) return;
-
-    if (widget.var("Guard  Band", mGuardBand, 0, 256))
-        mSetScissorBuffer = true;
 
     if (widget.var("Kernel Radius", mKernelRadius, uint32_t(1), uint32_t(20))) requestRecompile();
     widget.var("Blur Repetitions", mRepetitions, uint32_t(1), uint32_t(20));
