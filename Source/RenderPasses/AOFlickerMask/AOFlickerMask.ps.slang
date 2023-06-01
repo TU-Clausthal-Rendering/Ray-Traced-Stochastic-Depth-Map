@@ -27,7 +27,12 @@ float2 PixelToUV(int2 pixel)
 
 float RelativeDepth(float reference, float value)
 {
-    return abs(value / reference - 1.0);
+    return abs(1.0 - value / reference);
+}
+
+float AbsoluteDepth(float reference, float value)
+{
+    return abs(reference - value);
 }
 
 uint main(float2 uv : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
@@ -40,11 +45,18 @@ uint main(float2 uv : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
     float P_up = gLinearDepth[px - int2(0, 1)];
 
     // min distance of neighbors
-    float dx = min(RelativeDepth(P, P_right), RelativeDepth(P, P_left));
+    /*float dx = min(RelativeDepth(P, P_right), RelativeDepth(P, P_left));
     float dy = min(RelativeDepth(P, P_down), RelativeDepth(P, P_up));
 
-    float threshold = 0.01;
-    if (dx <= threshold && dy <= threshold)
+    float threshold = 0.001;
+    //if (dx <= threshold && dy <= threshold)
+    if(min(dx, dy) < threshold)
+        return 1;
+    return 0;*/
+    float dx = min(AbsoluteDepth(P, P_right), AbsoluteDepth(P, P_left));
+    float dy = min(AbsoluteDepth(P, P_down), AbsoluteDepth(P, P_up));
+    float threshold = gCamera.data.nearZ * 0.4;
+    if(dx <= threshold && dy <= threshold)
         return 1;
     return 0;
     

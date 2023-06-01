@@ -35,6 +35,7 @@ namespace
     const std::string kAOOut = "aoOut";
     const std::string kDepth = "linearZ"; // linear?
     const std::string kHistoryCount = "n";
+    const std::string kStableMask = "stableMask"; // mask with stable pixels (1) and unstable (0). Unstable pixels will be filtered
 
     const std::string kShaderFilename = "RenderPasses/TemporalAO/TemporalAO.ps.slang";
     
@@ -82,6 +83,7 @@ RenderPassReflection TemporalAO::reflect(const CompileData& compileData)
     reflector.addInput(kAOIn, "AO").format(ResourceFormat::R8Unorm).bindFlags(Resource::BindFlags::ShaderResource);
     reflector.addInput(kDepth, "linear? depths").bindFlags(Resource::BindFlags::ShaderResource);
     reflector.addInput(kMotionVec, "Motion vectors").bindFlags(Resource::BindFlags::ShaderResource);
+    reflector.addInput(kStableMask, "mask with stable pixels (1) and unstable (0). Unstable pixels will be filtered").bindFlags(Resource::BindFlags::ShaderResource);
     reflector.addOutput(kAOOut, "AO").format(ResourceFormat::R8Unorm).bindFlags(ResourceBindFlags::AllColorViews);
     reflector.addInternal(kHistoryCount, "history count").format(ResourceFormat::R8Uint).bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
     return reflector;
@@ -96,6 +98,7 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
     auto pMotionVec = renderData[kMotionVec]->asTexture();
     auto pAOOut = renderData[kAOOut]->asTexture();
     auto pHistoryCount = renderData[kHistoryCount]->asTexture();
+    auto pStableMask = renderData[kStableMask]->asTexture();
 
     if (!mEnabled)
     {
@@ -122,6 +125,7 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
     vars["gAO"] = pAOIn;
     vars["gPrevAO"] = mpPrevAO;
     vars["gPrevHistory"] = mpPrevHistory;
+    vars["gStableMask"] = pStableMask;
     mpScene->getCamera()->setShaderData(vars["PerFrameCB"]["gCamera"]);
     auto conversionMat = math::mul(mpScene->getCamera()->getViewMatrix(), math::inverse(mpScene->getCamera()->getPrevViewMatrix()));
     vars["PerFrameCB"]["prevViewToCurView"] = conversionMat;

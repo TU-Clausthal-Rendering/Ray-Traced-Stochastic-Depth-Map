@@ -7,6 +7,8 @@ Texture2D<float> gAO;
 Texture2D<float> gPrevAO;
 Texture2D<uint> gPrevHistory;
 
+Texture2D<uint> gStableMask;
+
 SamplerState gDepthSampler;
 SamplerState gAOSampler;
 
@@ -60,7 +62,7 @@ struct PsOut
     uint n : SV_Target1; // history
 };
 
-PsOut main(float2 texC : TEXCOORD)
+PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 {
     float depth = gDepth.SampleLevel(gDepthSampler, texC, 0.0);
     PsOut o;
@@ -81,15 +83,15 @@ PsOut main(float2 texC : TEXCOORD)
     float3 prevPosV = mul(prevViewToCurView, float4(UVToViewSpace(texC + mvec, prevRawDepth), 1.0)).xyz;
     float prevDepth = -prevPosV.z;
 
-    bool isStablePixel = false;
+    bool isStablePixel = gStableMask[int2(svPos.xy)] != 0;
     if (RelativeDepth(depth, prevDepth) < 0.1 && !isStablePixel)
     {
-        //float prevAO = gPrevAO.SampleLevel(gAOSampler, texC + mvec, 0.0);
+        float prevAO = gPrevAO.SampleLevel(gAOSampler, texC + mvec, 0.0);
         //uint prevN = gPrevAO.SampleLevel(gAOSampler, texC + mvec, 0.0);
-        float prevAO = gPrevAO[prevPixel];
+        //float prevAO = gPrevAO[prevPixel];
         uint prevN = gPrevHistory[prevPixel];
-        o.ao = (o.n * prevAO + o.ao) / (o.n + 1);
-        o.n = min(prevN + 1u, 128u);
+        o.ao = (prevN * prevAO + o.ao) / (prevN + 1);
+        o.n = min(prevN + 1u, 30u);
         //o.ao = o.n / 128.0;
     }
     //else o.ao = 0.0;
