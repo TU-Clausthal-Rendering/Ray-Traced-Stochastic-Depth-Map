@@ -34,6 +34,7 @@ namespace
     const std::string kAOIn = "aoIn";
     const std::string kAOOut = "aoOut";
     const std::string kDepth = "linearZ"; // linear?
+    const std::string kHistoryCount = "n";
 
     const std::string kShaderFilename = "RenderPasses/TemporalAO/TemporalAO.ps.slang";
     
@@ -82,6 +83,7 @@ RenderPassReflection TemporalAO::reflect(const CompileData& compileData)
     reflector.addInput(kDepth, "linear? depths").bindFlags(Resource::BindFlags::ShaderResource);
     reflector.addInput(kMotionVec, "Motion vectors").bindFlags(Resource::BindFlags::ShaderResource);
     reflector.addOutput(kAOOut, "AO").format(ResourceFormat::R8Unorm).bindFlags(ResourceBindFlags::AllColorViews);
+    reflector.addInternal(kHistoryCount, "history count").format(ResourceFormat::R8Uint).bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
     return reflector;
 }
 
@@ -93,16 +95,21 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
     auto pDepth = renderData[kDepth]->asTexture();
     auto pMotionVec = renderData[kMotionVec]->asTexture();
     auto pAOOut = renderData[kAOOut]->asTexture();
+    auto pHistoryCount = renderData[kHistoryCount]->asTexture();
 
     if (!mEnabled)
     {
         pRenderContext->blit(pAOIn->getSRV(), pAOOut->getRTV());
+        mpPrevAO.reset();
+        mpPrevDepth.reset();
+        mpPrevHistory.reset();
         return;
     }
 
     // check if resource dimensions changed and allocate texture accordingly
     mpPrevAO = allocatePrevFrameTexture(pAOOut, std::move(mpPrevAO));
     mpPrevDepth = allocatePrevFrameTexture(pDepth, std::move(mpPrevDepth));
+    mpPrevHistory = allocatePrevFrameTexture(pHistoryCount, std::move(mpPrevHistory));
 
     auto& dict = renderData.getDictionary();
     auto guardBand = dict.getValue("guardBand", 0);
@@ -114,6 +121,7 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
     vars["gPrevDepth"] = mpPrevDepth;
     vars["gAO"] = pAOIn;
     vars["gPrevAO"] = mpPrevAO;
+    vars["gPrevHistory"] = mpPrevHistory;
     mpScene->getCamera()->setShaderData(vars["PerFrameCB"]["gCamera"]);
     auto conversionMat = math::mul(mpScene->getCamera()->getViewMatrix(), math::inverse(mpScene->getCamera()->getPrevViewMatrix()));
     vars["PerFrameCB"]["prevViewToCurView"] = conversionMat;
@@ -121,11 +129,13 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
     vars["PerFrameCB"]["uvMax"] = dict.getValue("guardBand.uvMax", float2(1.0f));
 
     mpFbo->attachColorTarget(pAOOut, 0);
+    mpFbo->attachColorTarget(pHistoryCount, 1);
     mpPass->execute(pRenderContext, mpFbo, false);
 
     // save depth and ao from this frame for next frame
     pRenderContext->blit(pDepth->getSRV(), mpPrevDepth->getRTV());
     pRenderContext->blit(pAOOut->getSRV(), mpPrevAO->getRTV());
+    pRenderContext->blit(pHistoryCount->getSRV(), mpPrevHistory->getRTV());
 }
 
 void TemporalAO::renderUI(Gui::Widgets& widget)

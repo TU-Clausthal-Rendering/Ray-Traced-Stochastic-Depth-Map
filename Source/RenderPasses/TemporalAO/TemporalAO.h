@@ -58,6 +58,7 @@ private:
 
     ref<Texture> mpPrevDepth;
     ref<Texture> mpPrevAO;
+    ref<Texture> mpPrevHistory;
 
     ref<Scene> mpScene;
     bool mEnabled = true;

@@ -5,6 +5,7 @@ Texture2D<float> gDepth;
 Texture2D<float> gPrevDepth;
 Texture2D<float> gAO;
 Texture2D<float> gPrevAO;
+Texture2D<uint> gPrevHistory;
 
 SamplerState gDepthSampler;
 SamplerState gAOSampler;
@@ -20,6 +21,13 @@ cbuffer PerFrameCB
 bool isInValidArea(float2 uv)
 {
     return uv.x >= uvMin.x && uv.x <= uvMax.x && uv.y >= uvMin.y && uv.y <= uvMax.y;
+}
+
+int2 UVToPixel(float2 uv)
+{
+    float width, height;
+    gDepth.GetDimensions(width, height);
+    return int2(floor(uv * float2(width, height)));
 }
 
 // uv: uv coordinates [0, 1]
@@ -46,29 +54,45 @@ float RelativeDepth(float reference, float value)
     return abs(1.0 - value / reference);
 }
 
-float main(float2 texC : TEXCOORD) : SV_TARGET0
+struct PsOut
+{
+    float ao : SV_Target0;
+    uint n : SV_Target1; // history
+};
+
+PsOut main(float2 texC : TEXCOORD)
 {
     float depth = gDepth.SampleLevel(gDepthSampler, texC, 0.0);
-    float ao = gAO.SampleLevel(gAOSampler, texC, 0.0);
+    PsOut o;
+    o.ao = gAO.SampleLevel(gAOSampler, texC, 0.0);
+    o.n = 1;
     //float3 posV = UVToViewSpace(texC, depth);
 
     float2 mvec = gMotionVec.SampleLevel(gDepthSampler, texC, 0.0);
     
     if (!isInValidArea(texC + mvec)) // test if motion vector is outside of the screen
     {
-        return ao; // reset history, use new value
+        return o; // reset history, use new value
     }
-    
-    float prevRawDepth = gPrevDepth.SampleLevel(gDepthSampler, texC + mvec, 0.0);
+
+    int2 prevPixel = UVToPixel(texC + mvec);
+    //float prevRawDepth = gPrevDepth.SampleLevel(gDepthSampler, texC + mvec, 0.0);
+    float prevRawDepth = gPrevDepth[prevPixel];
     float3 prevPosV = mul(prevViewToCurView, float4(UVToViewSpace(texC + mvec, prevRawDepth), 1.0)).xyz;
     float prevDepth = -prevPosV.z;
 
     bool isStablePixel = false;
     if (RelativeDepth(depth, prevDepth) < 0.1 && !isStablePixel)
     {
-        float prevAO = gPrevAO.SampleLevel(gAOSampler, texC + mvec, 0.0);
-        return lerp(ao, prevAO, 0.9);
+        //float prevAO = gPrevAO.SampleLevel(gAOSampler, texC + mvec, 0.0);
+        //uint prevN = gPrevAO.SampleLevel(gAOSampler, texC + mvec, 0.0);
+        float prevAO = gPrevAO[prevPixel];
+        uint prevN = gPrevHistory[prevPixel];
+        o.ao = (o.n * prevAO + o.ao) / (o.n + 1);
+        o.n = min(prevN + 1u, 128u);
+        //o.ao = o.n / 128.0;
     }
+    //else o.ao = 0.0;
     
-    return ao;
+    return o;
 }
