@@ -33,7 +33,7 @@ namespace
     const std::string kMotionVec = "mvec";
     const std::string kAOIn = "aoIn";
     const std::string kAOOut = "aoOut";
-    const std::string kDepth = "linearZ"; // linear?
+    const std::string kDepth = "linearZ";
     const std::string kHistoryCount = "n";
     const std::string kStableMask = "stableMask"; // mask with stable pixels (1) and unstable (0). Unstable pixels will be filtered
 

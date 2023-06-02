@@ -31,11 +31,13 @@ namespace
 {
     const std::string kMotionVec = "motionVecs";
     const std::string kColorIn = "colorIn";
+    const std::string kLinearZ = "linearZ";
     const std::string kColorOut = "colorOut";
 
     const std::string kAlpha = "alpha";
     const std::string kColorBoxSigma = "colorBoxSigma";
     const std::string kAntiFlicker = "antiFlicker";
+    const std::string kUseDepth = "useDepth";
 
     const std::string kShaderFilename = "RenderPasses/TAA/TAA.ps.slang";
 }
@@ -68,6 +70,7 @@ TAA::TAA(ref<Device> pDevice, const Dictionary& dict)
         if (key == kAlpha) mControls.alpha = value;
         else if (key == kColorBoxSigma) mControls.colorBoxSigma = value;
         else if (key == kAntiFlicker) mControls.antiFlicker = value;
+        else if (key == kUseDepth) mControls.useDepthBuffer = value;
         else logWarning("Unknown field '{}' in a TemporalAA dictionary.", key);
     }
 }
@@ -78,6 +81,7 @@ Dictionary TAA::getScriptingDictionary()
     dict[kAlpha] = mControls.alpha;
     dict[kColorBoxSigma] = mControls.colorBoxSigma;
     dict[kAntiFlicker] = mControls.antiFlicker;
+    dict[kUseDepth] = mControls.useDepthBuffer;
     return dict;
 }
 
@@ -86,6 +90,7 @@ RenderPassReflection TAA::reflect(const CompileData& compileData)
     RenderPassReflection reflection;
     reflection.addInput(kMotionVec, "Screen-space motion vectors");
     reflection.addInput(kColorIn, "Color-buffer of the current frame");
+    reflection.addInput(kLinearZ, "Linear depth-buffer of the current frame");
     reflection.addOutput(kColorOut, "Anti-aliased color buffer");
     return reflection;
 }
@@ -95,7 +100,17 @@ void TAA::execute(RenderContext* pRenderContext, const RenderData& renderData)
     const auto& pColorIn = renderData.getTexture(kColorIn);
     const auto& pColorOut = renderData.getTexture(kColorOut);
     const auto& pMotionVec = renderData.getTexture(kMotionVec);
-    allocatePrevColor(pColorOut.get());
+    auto pLinearZ = renderData.getTexture(kLinearZ);
+
+    mpPrevColor = allocatePrevFrameTexture(pColorOut, mpPrevColor);
+    if (mControls.useDepthBuffer)
+        mpPrevDepth = allocatePrevFrameTexture(pLinearZ, mpPrevDepth);
+    else
+    {
+        pLinearZ = nullptr;
+        mpPrevDepth = nullptr;
+    }
+
     mpFbo->attachColorTarget(pColorOut, 0);
 
     // Make sure the dimensions match
@@ -107,25 +122,19 @@ void TAA::execute(RenderContext* pRenderContext, const RenderData& renderData)
     var["PerFrameCB"]["gAlpha"] = mControls.alpha;
     var["PerFrameCB"]["gColorBoxSigma"] = mControls.colorBoxSigma;
     var["PerFrameCB"]["gAntiFlicker"] = mControls.antiFlicker;
+    var["PerFrameCB"]["gUseDepth"] = mControls.useDepthBuffer;
     var["gTexColor"] = pColorIn;
     var["gTexMotionVec"] = pMotionVec;
     var["gTexPrevColor"] = mpPrevColor;
+    var["gDepth"] = pLinearZ;
+    var["gPrevDepth"] = mpPrevDepth;
     var["gSampler"] = mpLinearSampler;
 
     mpPass->execute(pRenderContext, mpFbo);
     pRenderContext->blit(pColorOut->getSRV(), mpPrevColor->getRTV());
-}
 
-void TAA::allocatePrevColor(const Texture* pColorOut)
-{
-    bool allocate = mpPrevColor == nullptr;
-    allocate = allocate || (mpPrevColor->getWidth() != pColorOut->getWidth());
-    allocate = allocate || (mpPrevColor->getHeight() != pColorOut->getHeight());
-    allocate = allocate || (mpPrevColor->getDepth() != pColorOut->getDepth());
-    allocate = allocate || (mpPrevColor->getFormat() != pColorOut->getFormat());
-    FALCOR_ASSERT(pColorOut->getSampleCount() == 1);
-
-    if (allocate) mpPrevColor = Texture::create2D(mpDevice, pColorOut->getWidth(), pColorOut->getHeight(), pColorOut->getFormat(), 1, 1, nullptr, Resource::BindFlags::RenderTarget | Resource::BindFlags::ShaderResource);
+    if(mControls.useDepthBuffer)
+        pRenderContext->blit(pLinearZ->getSRV(), mpPrevDepth->getRTV());
 }
 
 void TAA::renderUI(Gui::Widgets& widget)
@@ -133,4 +142,18 @@ void TAA::renderUI(Gui::Widgets& widget)
     widget.var("Alpha", mControls.alpha, 0.f, 1.0f, 0.001f);
     widget.var("Color-Box Sigma", mControls.colorBoxSigma, 0.f, 15.f, 0.001f);
     widget.checkbox("Anti Flicker", mControls.antiFlicker);
+    widget.checkbox("Use Depth Buffer", mControls.useDepthBuffer);
+}
+
+ref<Texture> TAA::allocatePrevFrameTexture(const ref<Texture>& original, ref<Texture> prev) const
+{
+    assert(original);
+    bool allocate = prev == nullptr;
+    allocate = allocate || (prev->getWidth() != original->getWidth());
+    allocate = allocate || (prev->getHeight() != original->getHeight());
+    allocate = allocate || (prev->getFormat() != original->getFormat());
+
+    if (!allocate) return prev;
+
+    return Texture::create2D(mpDevice, original->getWidth(), original->getHeight(), original->getFormat(), 1, 1, nullptr, original->getBindFlags());
 }

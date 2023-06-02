@@ -56,7 +56,7 @@ public:
     bool getAntiFlicker() { return mControls.antiFlicker; }
 
 private:
-    void allocatePrevColor(const Texture* pColorOut);
+    ref<Texture> allocatePrevFrameTexture(const ref<Texture>& original, ref<Texture> prev) const;
 
     ref<FullScreenPass> mpPass;
     ref<Fbo> mpFbo;
@@ -67,7 +67,9 @@ private:
         float alpha = 0.1f;
         float colorBoxSigma = 1.0f;
         bool antiFlicker = true;
+        bool useDepthBuffer = false;
     } mControls;
 
     ref<Texture> mpPrevColor;
+    ref<Texture> mpPrevDepth;
 };
