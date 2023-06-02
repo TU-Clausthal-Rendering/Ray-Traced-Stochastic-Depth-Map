@@ -88,7 +88,7 @@ RenderPassReflection VarianceMap::reflect(const CompileData& compileData)
         .format(ResourceFormat::RG32Float)
         .texture2D(0, 0, 1, mMipLevels);
     reflector.addOutput(kNormalOut, "view-normal variance map (n.x, n.x^2, n.y, n.y^2)").bindFlags(ResourceBindFlags::AllColorViews)
-        .format(ResourceFormat::RGBA32Float)
+        .format(ResourceFormat::RGBA16Float)
         .texture2D(0, 0, 1, mMipLevels);
         
     return reflector;
