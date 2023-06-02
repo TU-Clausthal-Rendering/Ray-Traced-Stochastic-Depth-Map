@@ -541,7 +541,7 @@ void Texture::captureToFile(
             const auto size = gliTex.size(level);
             for (uint32_t layer = 0; layer < mArraySize; ++layer)
             {
-                auto subresourceIndex = getSubresourceIndex(layer, mipLevel);
+                auto subresourceIndex = getSubresourceIndex(layer, level);
                 auto srcData = pContext->readTextureSubresource(this, subresourceIndex);
                 auto dstData = gliTex.data(layer, 0, level);
                 assert(size <= srcData.size());
