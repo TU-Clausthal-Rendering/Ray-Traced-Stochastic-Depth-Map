@@ -310,16 +310,16 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         if (mSaveDepths)
         {
             // write sample information
-            pInternalRasterDepth->captureToFile(0, -1, "ML/raster.dds", Bitmap::FileFormat::DdsFile);
-            pInternalRayDepth->captureToFile(0, -1, "ML/ray.dds", Bitmap::FileFormat::DdsFile);
+            pInternalRasterDepth->captureToFile(0, -1, "raster.dds", Bitmap::FileFormat::DdsFile);
+            pInternalRayDepth->captureToFile(0, -1, "ray.dds", Bitmap::FileFormat::DdsFile);
             //pInternalInstanceID->captureToFile(0, -1, "instance.dds", Bitmap::FileFormat::DdsFile);
             //pInstanceID->captureToFile(0, -1, "instance_center.dds", Bitmap::FileFormat::DdsFile);
-            pInternalForceRay->captureToFile(0, -1, "ML/forceRay.dds", Bitmap::FileFormat::DdsFile);
-            pInternalRequireRay->captureToFile(0, -1, "ML/requireRay.dds", Bitmap::FileFormat::DdsFile);
-            pInternalAskRay->captureToFile(0, -1, "ML/askRay.dds", Bitmap::FileFormat::DdsFile);
-            pInternalRasterAO->captureToFile(0, -1, "ML/rasterAO.dds", Bitmap::FileFormat::DdsFile);
-            pInternalRayAO->captureToFile(0, -1, "ML/rayAO.dds", Bitmap::FileFormat::DdsFile);
-            pInternalSphereEnd->captureToFile(0, -1, "ML/sphereEnd.dds", Bitmap::FileFormat::DdsFile);
+            pInternalForceRay->captureToFile(0, -1, "forceRay.dds", Bitmap::FileFormat::DdsFile);
+            pInternalRequireRay->captureToFile(0, -1, "requireRay.dds", Bitmap::FileFormat::DdsFile);
+            pInternalAskRay->captureToFile(0, -1, "askRay.dds", Bitmap::FileFormat::DdsFile);
+            pInternalRasterAO->captureToFile(0, -1, "rasterAO.dds", Bitmap::FileFormat::DdsFile);
+            pInternalRayAO->captureToFile(0, -1, "rayAO.dds", Bitmap::FileFormat::DdsFile);
+            pInternalSphereEnd->captureToFile(0, -1, "sphereEnd.dds", Bitmap::FileFormat::DdsFile);
 
             auto sphereHeights = getSphereHeights();
 
