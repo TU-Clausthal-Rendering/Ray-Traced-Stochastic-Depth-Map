@@ -236,6 +236,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("PREVENT_DARK_HALOS", mPreventDarkHalos ? "1" : "0");
         defines.add("TRACE_OUT_OF_SCREEN", mTraceOutOfScreen ? "1" : "0");
         defines.add("TRACE_DOUBLE_ON_DOUBLE", mTraceDoubleOnDouble ? "1" : "0");
+        defines.add("FOLIAGE_LAZY_EVAL", mFoliageLazyEvaluation ? "1" : "0");
         defines.add("RAY_FILTER", mEnableRayFilter ? "1" : "0");
         defines.add("STOCHASTIC_DEPTH_IMPL", std::to_string(uint32_t(mStochasticDepthImpl)));
         defines.add(mpScene->getSceneDefines());
@@ -538,6 +539,9 @@ void SVAO::renderUI(Gui::Widgets& widget)
     widget.tooltip("If a sample point is outside of the screen, a ray is traced. Otherwise the closest sample from the border is used.");
     if (widget.checkbox("Trace Foliage Hits on Foliage Material", mTraceDoubleOnDouble)) reset = true;
     widget.tooltip("If disabled then no rays will be traced for double sided materials that hit double sided samples");
+    if (widget.checkbox("Foliage Lazy Evaluation", mFoliageLazyEvaluation)) reset = true;
+    widget.tooltip("If enabled, raster samples from doubled sided materials will also be accepted when the hit point is inside the halo area (instead of the const/sphere area)");
+    
 
     if (widget.var("Fade End (Screen Space Radius)", mData.ssRadiusFadeEnd, 0.0f, 100.0f, 1.0f)) mDirty = true;
     widget.tooltip("radius in pixels where the ray tracing result is completely faded and only rasterization remains");

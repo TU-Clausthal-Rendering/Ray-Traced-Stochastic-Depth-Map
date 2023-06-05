@@ -44,6 +44,7 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
     float visibility = 0.0f;
 
     bool isDoubleSided = (gMatDoubleSided[UVToPixel(texC)] & MTL_DOUBLE_SIDED) != 0;
+    bool acceptHaloHits = FOLIAGE_LAZY_EVAL && isDoubleSided;
     
     uint i = 0;
     //[loop] while(mask != 0u)
@@ -86,6 +87,10 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
         {
             continue; // skip sample (no visibility)
         }
+
+        float TRUSTED_AREA = sphereStart + CONST_RADIUS;
+        if (acceptHaloHits)
+            TRUSTED_AREA += HALO_RADIUS;
 
         // sample position calculate uv position of sample
         float3 initialSamplePosV = posV + tangent * dir.x + bitangent * dir.y;
@@ -206,6 +211,14 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
 
                         if (isDoubleSided && !TRACE_DOUBLE_ON_DOUBLE)
                             rayQuery.CommitNonOpaqueTriangleHit(); // always commit in this case
+
+                        // special configuration that accepts the first hit (for foliage)
+                        if (acceptHaloHits)
+                        {
+                            tFirstFrontFaceInside = min(tFirstFrontFaceInside, t);
+                            rayQuery.CommitNonOpaqueTriangleHit(); // accept hits early for this configuration
+                            continue;
+                        }
                         
                         if (t <= tSphereStart)
                         {
@@ -223,7 +236,8 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
                 }
 
                 // calculate visibility inside and outside of sphere
-                float sphereVisibility = calcSphereVisibility(posVLength - tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+                //float sphereVisibility = calcSphereVisibility(posVLength - tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+                float sphereVisibility = calcVisibility(posVLength - tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
                 float haloVisibility = calcHaloVisibility(posVLength - tLastFrontFaceHalo * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
 
                 float rayVisibility = min(curVisibility, min(sphereVisibility, haloVisibility));

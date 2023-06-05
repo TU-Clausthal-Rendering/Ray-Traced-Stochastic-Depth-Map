@@ -179,7 +179,10 @@ void rayGen()
     float3 normalO = float3(dot(normalV, tangent), dot(normalV, bitangent), dot(normalV, normal));
     
     float visibility = 0.0f;
-
+    
+    bool isDoubleSided = (gMatDoubleSided[UVToPixel(texC)] & MTL_DOUBLE_SIDED) != 0;
+    bool acceptHaloHits = FOLIAGE_LAZY_EVAL && isDoubleSided;
+    
     uint i = 0;
     //[loop] while(mask != 0u)
     [unroll]
@@ -319,6 +322,13 @@ void rayGen()
                 rayData.tFirstFrontFaceInside = tSphereEnd; // max
                 rayData.tConstRadiusStart = tConstRadiusStart;
                 rayData.tSphereStart = tSphereStart;
+                if (acceptHaloHits)
+                {
+                    // set start to halo start to force collecting the global tmin
+                    rayData.tSphereStart = tHaloStart;
+                    rayData.tConstRadiusStart = tHaloStart;
+                }
+                
                 TraceRay(
                     gScene.rtAccel,
                     RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
@@ -327,7 +337,8 @@ void rayGen()
                 );
 
                 // calculate visibility inside and outside of sphere
-                float sphereVisibility = calcSphereVisibility(posVLength - rayData.tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+                //float sphereVisibility = calcSphereVisibility(posVLength - rayData.tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+                float sphereVisibility = calcVisibility(posVLength - rayData.tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
                 float haloVisibility = calcHaloVisibility(posVLength - rayData.tLastFrontFaceHalo * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
 
                 float rayVisibility = min(curVisibility, min(sphereVisibility, haloVisibility));

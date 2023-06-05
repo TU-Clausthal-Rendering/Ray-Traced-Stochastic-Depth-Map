@@ -66,6 +66,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 
     uint forceRayMask = 0; // forces rays due to double sided materials
     bool isDoubleSided = (gMatDoubleSided[UVToPixel(texC)] & MTL_DOUBLE_SIDED) != 0;
+    bool acceptHaloHits = FOLIAGE_LAZY_EVAL && isDoubleSided;
     
     [unroll] for (uint i = 0; i < NUM_DIRECTIONS; i++)
     {
@@ -125,9 +126,12 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         {
             continue; // skip sample (no visibility)
         }
+
+        float TRUSTED_AREA = sphereStart + CONST_RADIUS;
+        if (acceptHaloHits) TRUSTED_AREA += HALO_RADIUS;
         
         // require hybrid ray if intersection is outside of sphere radius
-        if (!denyRays && PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL && objectSpaceZ > sphereStart + CONST_RADIUS)
+        if (!denyRays && PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL && objectSpaceZ > TRUSTED_AREA)
         {
             bool hitDoubleSided = (gMatDoubleSided[UVToPixel(rasterSamplePosUV)] & MTL_DOUBLE_SIDED) != 0;
         // require ray unless we dont want double sided hit and both materials are double sided
@@ -143,11 +147,11 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             
         }
 
-        if (PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL && objectSpaceZ > sphereStart + CONST_RADIUS)
+        if (PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL && objectSpaceZ > TRUSTED_AREA)
         {
             float objectSpaceZ = calcObjectSpaceZ(posV, normal, rasterSamplePosUV, gDepthTex2);
             curVisibility = COMBINE_VIS(curVisibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf));
-            if (objectSpaceZ > sphereStart + CONST_RADIUS) // both samples were before the sphere starts
+            if (objectSpaceZ > TRUSTED_AREA) // both samples were before the sphere starts
                 requireRay = true;
         }
 
@@ -257,9 +261,6 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
                         
                     }
                 }
-
-                //objectSpaceZ = (posVLength - tFirstFrontFace * posVLength / initialSamplePosLength);
-                float rayDepth = objectSpaceZ;
 
                 bool requireRay = true;
                 if(!firstFrontFaceDoubleSided)

@@ -89,6 +89,14 @@ RenderPassReflection TemporalAO::reflect(const CompileData& compileData)
     return reflector;
 }
 
+void TemporalAO::compile(RenderContext* pRenderContext, const CompileData& compileData)
+{
+    // reset textures to get a fresh new image after settings changed
+    mpPrevHistory.reset();
+    mpPrevAO.reset();
+    mpPrevDepth.reset();
+}
+
 void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     if (!mpScene) return;
