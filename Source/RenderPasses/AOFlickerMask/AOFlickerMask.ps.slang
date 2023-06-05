@@ -1,6 +1,7 @@
 import Scene.Camera.Camera;
 
 Texture2D<float> gLinearDepth;
+Texture2D<float4> gNormals;
 
 cbuffer PerFrameCB
 {
@@ -35,10 +36,17 @@ float AbsoluteDepth(float reference, float value)
     return abs(reference - value);
 }
 
+float PlaneDiff(float3 P, float3 N, float3 P2)
+{
+    //return abs(dot(P - P2, N));
+    return abs(dot(normalize(P - P2), N));
+}
+
 uint main(float2 uv : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
 {
     int2 px = int2(svPos.xy);
     float P = gLinearDepth[px];
+    float3 normalV = mul(float3x3(gCamera.data.viewMat), gNormals[px].xyz);
     float P_right = gLinearDepth[px + int2(1, 0)];
     float P_left = gLinearDepth[px - int2(1, 0)];
     float P_down = gLinearDepth[px + int2(0, 1)];
@@ -53,10 +61,22 @@ uint main(float2 uv : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
     if(min(dx, dy) < threshold)
         return 1;
     return 0;*/
-    float dx = min(AbsoluteDepth(P, P_right), AbsoluteDepth(P, P_left));
+    /*float dx = min(AbsoluteDepth(P, P_right), AbsoluteDepth(P, P_left));
     float dy = min(AbsoluteDepth(P, P_down), AbsoluteDepth(P, P_up));
     float threshold = gCamera.data.nearZ * 0.4;
     if(dx <= threshold && dy <= threshold)
+        return 1;
+    return 0;*/
+    float3 PV = UVToViewSpace(PixelToUV(px), P);
+    float3 PV_right = UVToViewSpace(PixelToUV(px + int2(1, 0)), P_right);
+    float3 PV_left = UVToViewSpace(PixelToUV(px - int2(1, 0)), P_left);
+    float3 PV_down = UVToViewSpace(PixelToUV(px + int2(0, 1)), P_down);
+    float3 PV_up = UVToViewSpace(PixelToUV(px - int2(0, 1)), P_up);
+    float dx = min(PlaneDiff(PV, normalV, PV_right), PlaneDiff(PV, normalV, PV_left));
+    float dy = min(PlaneDiff(PV, normalV, PV_down), PlaneDiff(PV, normalV, PV_up));
+    //float threshold = gCamera.data.nearZ * 0.4;
+    float threshold = 0.2;
+    if (dx <= threshold && dy <= threshold)
         return 1;
     return 0;
     

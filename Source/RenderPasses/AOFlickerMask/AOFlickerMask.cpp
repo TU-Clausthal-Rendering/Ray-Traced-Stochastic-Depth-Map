@@ -30,6 +30,7 @@
 namespace
 {
     const std::string kDepth = "linearZ";
+    const std::string kNormals = "normalW";
     const std::string kMask = "mask";
 
     const std::string kShaderFile = "RenderPasses/AOFlickerMask/AOFlickerMask.ps.slang";
@@ -56,6 +57,7 @@ RenderPassReflection AOFlickerMask::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
     reflector.addInput(kDepth, "linear depths").bindFlags(ResourceBindFlags::ShaderResource);
+    reflector.addInput(kNormals, "world space normals").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addOutput(kMask, "mask with stable pixels (1) and unstable/flickering (0)").format(ResourceFormat::R8Uint).bindFlags(ResourceBindFlags::RenderTarget);
     return reflector;
 }
@@ -65,10 +67,12 @@ void AOFlickerMask::execute(RenderContext* pRenderContext, const RenderData& ren
     if (!mpScene) return;
     
     auto pDepth = renderData[kDepth]->asTexture();
+    auto pNormals = renderData[kNormals]->asTexture();
     auto pMask = renderData[kMask]->asTexture();
 
     mpFbo->attachColorTarget(pMask, 0);
     mpPass->getRootVar()["gLinearDepth"] = pDepth;
+    mpPass->getRootVar()["gNormals"] = pNormals;
     mpScene->getCamera()->setShaderData(mpPass->getRootVar()["PerFrameCB"]["gCamera"]);
     mpPass->execute(pRenderContext, mpFbo);
 }
