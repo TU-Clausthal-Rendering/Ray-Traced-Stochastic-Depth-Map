@@ -130,7 +130,6 @@ ref<VAO> VAO::create(ref<Device> pDevice, const Dictionary& dict)
         else if (key == kDistribution) pPass->mHemisphereDistribution = value;
         else if (key == kRadius) pPass->mData.radius = value;
         else if (key == kDepthMode) pPass->mDepthMode = value;
-        else if (key == kGuardBand) pPass->mGuardBand = value;
         else if (key == kThickness) pPass->mData.thickness = value;
         else if (key == kExponent) pPass->mData.exponent = value;
         else logWarning("Unknown field '" + key + "' in a VAO dictionary");
@@ -146,7 +145,6 @@ Dictionary VAO::getScriptingDictionary()
     dict[kRadius] = mData.radius;
     dict[kDistribution] = mHemisphereDistribution;
     dict[kDepthMode] = mDepthMode;
-    dict[kGuardBand] = mGuardBand;
     dict[kThickness] = mData.thickness;
     dict[kExponent] = mData.exponent;
     return dict;
@@ -304,7 +302,9 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
         // Generate AO
         mpAOFbo->attachColorTarget(pAoDst, 0);
-        setGuardBandScissors(*mpSSAOPass->getState(), renderData.getDefaultTextureDims(), mGuardBand);
+        auto dict = renderData.getDictionary();
+        auto guardBand = dict.getValue("guardBand", 0);
+        setGuardBandScissors(*mpSSAOPass->getState(), renderData.getDefaultTextureDims(), guardBand);
         mpSSAOPass->execute(pRenderContext, mpAOFbo, false);
 
         if (mSaveDepths)
@@ -344,8 +344,6 @@ void VAO::renderUI(Gui::Widgets& widget)
     {
         mpSSAOPass.reset();
     }
-
-    if (widget.var("Guard Band", mGuardBand, 0, 256)) mClearTexture = true;
 
     uint32_t depthMode = (uint32_t)mDepthMode;
     if (widget.dropdown("Depth Mode", kDepthModeDropdown, depthMode)) {

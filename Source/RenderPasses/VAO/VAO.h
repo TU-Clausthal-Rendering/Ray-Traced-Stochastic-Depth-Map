@@ -88,7 +88,6 @@ private:
     ref<FullScreenPass> mpSSAOPass;
 
     ref<Scene> mpScene;
-    int mGuardBand = 64;
     bool mClearTexture = true;
     uint32_t mKernelSize = 8;
 
