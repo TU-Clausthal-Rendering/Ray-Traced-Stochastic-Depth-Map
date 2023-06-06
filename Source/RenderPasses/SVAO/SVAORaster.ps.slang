@@ -128,7 +128,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         }
 
         float TRUSTED_AREA = sphereStart + CONST_RADIUS;
-        if (acceptHaloHits) TRUSTED_AREA += HALO_RADIUS;
+        if (acceptHaloHits) TRUSTED_AREA = gData.radius * 4.0;
         
         // require hybrid ray if intersection is outside of sphere radius
         if (!denyRays && PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL && objectSpaceZ > TRUSTED_AREA)
@@ -140,8 +140,8 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
                 requireRay = true;
 #if PRIMARY_DEPTH_MODE >= DEPTH_MODE_MACHINE_CLASSIFY
         // fetch material data to check for double sided flag
-        if (hitDoubleSided)
-            forceRay = true;
+        //if (hitDoubleSided)
+        //    forceRay = true;
 #endif    
             }
             

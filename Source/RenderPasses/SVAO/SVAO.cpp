@@ -486,10 +486,15 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
     if (mPrimaryDepthMode == DepthMode::MachineClassify)
     {
-        if (widget.var("Machine Classify Threshold", mClassifyProbability, 0.01f, 0.99f))
+        if (widget.var("Machine Classify Threshold", mClassifyProbability, 0.000000000001f, 0.99999999999999f))
         {
             mData.classifyThreshold = -log(1.0f / mClassifyProbability - 1.0f);
-            std::cout << "classify threshold: " << mClassifyProbability << ": " << mData.classifyThreshold << std::endl;
+            mDirty = true;
+        }
+
+        if(widget.var("Raw Classify Threshold", mData.classifyThreshold))
+        {
+            mClassifyProbability = 1.0f / (1.0f + exp(-mData.classifyThreshold));
             mDirty = true;
         }
     }
