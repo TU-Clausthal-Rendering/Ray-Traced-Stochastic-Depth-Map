@@ -193,10 +193,18 @@ float calcSampleImportance(
     float3 sampleColor)
 {
     float screen_radius = dot(ViewSpaceRadiusToUVRadius(sampleLinearZ, sampleRadius), float2(0.5));
+    // clamp screen radius
+    screen_radius = saturate(screen_radius / 20.0);
+    
     //float normal_diff = abs(dot(sampleNormal, centerNormal));
-    float dist = max(objectSpaceZ - sphereEnd, 0.0);
+    float dist = max(objectSpaceZ - sphereEnd, 0.0) / gData.radius;
+    // clamp dist
+    dist = saturate(dist / 5.0);
+    
     float contrib = saturate((sphereStart - sphereEnd) / (2.0 * sphereStart));
     float luminance = saturate(dot(sampleColor, float3(0.2126, 0.7152, 0.0722)));
-
-    return contrib * luminance * 0.999;
+    luminance = pow(luminance, 1.0 / 2.4);
+    
+    return contrib * luminance * 0.999 * screen_radius * dist;
+    //return 0.999 * screen_radius * dist;
 }

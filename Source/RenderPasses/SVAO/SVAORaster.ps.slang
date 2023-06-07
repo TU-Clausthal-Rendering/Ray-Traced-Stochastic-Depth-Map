@@ -165,7 +165,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         // calc pixel importance
         float sampleImportance = calcSampleImportance(radius, gDepthTex.SampleLevel(gTextureSampler, rasterSamplePosUV, 0.0), sphereStart, sphereEnd, objectSpaceZ, color);
         if (sampleImportance <= gData.importanceThreshold)
-            requireRay = false;
+            continue;
         
         if (forceRay && (PRIMARY_DEPTH_MODE >= DEPTH_MODE_MACHINE_CLASSIFY))
         {

@@ -236,6 +236,12 @@ public:
 
     void breakStrongReferenceToDevice();
 
+    /**
+     * Find an event that was previously created.
+     * @param[in] name The event name.
+     * @return Returns the event or nullptr if none was found.
+     */
+    Event* findEvent(const std::string& name);
 private:
     /**
      * Create a new event.
@@ -243,13 +249,6 @@ private:
      * @return Returns the new event.
      */
     Event* createEvent(const std::string& name);
-
-    /**
-     * Find an event that was previously created.
-     * @param[in] name The event name.
-     * @return Returns the event or nullptr if none was found.
-     */
-    Event* findEvent(const std::string& name);
 
     BreakableReference<Device> mpDevice;
 

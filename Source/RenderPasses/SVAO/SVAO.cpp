@@ -348,6 +348,32 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
     ref<Texture> pStochasticDepthMap;
 
+    FALCOR_PROFILE(pRenderContext, "AORefine");
+
+    auto profiler = pRenderContext->getProfiler();
+    if (profiler && profiler->isEnabled())
+    {
+        auto event = profiler->findEvent("/onFrameRender/RenderGraphExe::execute()/SVAO/AORefine");
+        if (event)
+        {
+            //auto timeMs = event->getGpuTimeAverage();
+            auto timeMs = event->getGpuTime();
+            mLastGpuTime = std::clamp(timeMs, mLastGpuTime * 0.99f, (mLastGpuTime + 0.01f) * 1.01f);
+
+            if(mLastGpuTime > mTargetTimeMs * 1.05f)
+            {
+                // we spent too much time, increase the importance threshold
+                mData.importanceThreshold = std::min(mData.importanceThreshold + 0.001f, 1.0f);
+            }
+            else if (mLastGpuTime < mTargetTimeMs * 0.7f)
+            {
+                // we can spend more time, lower the importance threshold
+                mData.importanceThreshold = std::max(mData.importanceThreshold - 0.001f, 0.0f);
+            }
+            mDirty = true;
+        }
+    }
+
     //  execute stochastic depth map
     if (mSecondaryDepthMode == DepthMode::StochasticDepth)
     {
@@ -490,6 +516,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
     }
 
     if (widget.slider("Importance Threshold", mData.importanceThreshold, 0.0f, 1.0f)) mDirty = true;
+    widget.var("Target Time", mTargetTimeMs, 0.0f, FLT_MAX, 0.1f);
+    widget.text("current time: " + std::to_string(mLastGpuTime) + " ms");
 
     if (mPrimaryDepthMode == DepthMode::MachineClassify)
     {

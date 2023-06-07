@@ -109,9 +109,12 @@ private:
 
     // performance knobs
     bool mTraceOutOfScreen = true;
-    bool mTraceDoubleOnDouble = false;
+    bool mTraceDoubleOnDouble = true;
     bool mFoliageLazyEvaluation = false;
-    float mClassifyProbability = 0.5;
+    float mClassifyProbability = 0.5f;
+    float mTargetTimeMs = 0.6f;
+
+    float mLastGpuTime = 0.0;
 
     NeuralNetCollection mNeuralNet;
     NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
