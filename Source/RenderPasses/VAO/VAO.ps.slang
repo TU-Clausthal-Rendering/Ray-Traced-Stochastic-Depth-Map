@@ -113,6 +113,8 @@ RWTexture2DArray<float> gRayAO;
 RWTexture2DArray<uint> gAskRay;
 RWTexture2DArray<uint> gRequireRay;
 RWTexture2DArray<uint> gForceRay;
+RWTexture2DArray<float4> gImportance;
+Texture2D<float4> gColor;
 Texture2D<uint4> gMaterialData;
 RWTexture2DArray<float> gSphereEnd;
 
@@ -252,6 +254,30 @@ float calcObjectSpaceZ(float3 posV, float3 normal, RayDesc ray, float t)
     return objectSpaceZ;
 }
 
+float2 ViewSpaceRadiusToUVRadius(float z, float r)
+{
+    float width, height;
+    gDepthTex.GetDimensions(width, height);
+    return float2(r * gCamera.data.focalLength) * float2(width, height) / (float2(gCamera.data.frameWidth, gCamera.data.frameHeight) * z); // radius in normalized device coordinates
+}
+
+
+float4 calcSampleImportance(
+    float sampleRadius, float centerLinearZ,
+    float3 sampleNormal, float3 centerNormal,
+    float sphereStart, float sphereEnd, float objectSpaceZ,
+    float3 sampleColor)
+{
+    float screen_radius = dot(ViewSpaceRadiusToUVRadius(centerLinearZ, sampleRadius), float2(0.5));
+    float normal_diff = abs(dot(sampleNormal, centerNormal));
+    float dist = max(objectSpaceZ - sphereEnd, 0.0) /  gData.radius;
+    //float dist = max(objectSpaceZ, 0.0);
+    float contrib = (sphereStart - sphereEnd) / (2.0 * sphereStart);
+    float luminance = dot(sampleColor, float3(0.2126, 0.7152, 0.0722));
+    
+    return float4(screen_radius, normal_diff, dist, contrib);
+}
+
 float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET0
 {
     float linearDepth = gDepthTex.SampleLevel(gTextureSampler, texC, 0);
@@ -313,11 +339,11 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET0
         // determine distance within [-sphereHeight, +sphereHeight]
         float sphereStart = sphereHeight; // in object coordinates (bigger is closer to the camera)
         float sphereEnd = -sphereHeight; // in object coordinates (smaller is futher from the camera)
-
+        float zIntersect = sphereEnd;
+        
         if (SAMPLE_MODE == SAMPLE_MODE_HEMISPHERE) // determine correct sphereStart and sphereEnd for hemisphere
         {
-            //float zIntersect = -dot(rand.xy, normalO.xy) / normalO.z;
-            float zIntersect = -dot(rand.xy, normalO.xy) / makeNonZero(normalO.z, 0.0001);
+            zIntersect = -dot(rand.xy, normalO.xy) / makeNonZero(normalO.z, 0.0001);
             float zIntersectClamped = clamp(zIntersect, -sphereHeight, sphereHeight);
             sphereEnd = zIntersectClamped;
         }
@@ -354,7 +380,14 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET0
             gRayDepth[uint3(XY, i)] = objectSpaceZ / gData.radius;
             gRasterAO[uint3(XY, i)] = curVisibility;
             gRayAO[uint3(XY, i)] = curVisibility;
-            gSphereEnd[uint3(XY, i)] = sphereEnd / gData.radius;                
+            gSphereEnd[uint3(XY, i)] = sphereEnd / gData.radius;
+            gImportance[uint3(XY, i)] = calcSampleImportance(
+                length(rand.xy), linearDepth,
+                gNormalTex.SampleLevel(gTextureSampler, rasterSamplePosUV, 0).xyz, normalW,
+                sphereStart, sphereEnd, objectSpaceZ,
+                gColor.SampleLevel(gTextureSampler, texC, 0).xyz
+            );
+                
             
             // material info about sample
             uint4 mtlData = gMaterialData[UVToPixel(rasterSamplePosUV)];

@@ -170,9 +170,10 @@ float calcObjectSpaceZ(float3 posV, float3 normal, RayDesc ray, float t)
 // r: radius in view/world space
 float2 ViewSpaceRadiusToUVRadius(float z, float r)
 {
-    const float2 imageScale = 0.5 * float2(gCamera.data.frameWidth / gCamera.data.focalLength, gCamera.data.frameHeight / gCamera.data.focalLength);
-    float2 ndc = float2(r) / (imageScale * z); // radius in normalized device coordinates
-    return ndc * 0.5; // scale to uv radius
+    //const float2 imageScale = 0.5 * float2(gCamera.data.frameWidth / gCamera.data.focalLength, gCamera.data.frameHeight / gCamera.data.focalLength);
+    //float2 ndc = float2(r) / (imageScale * z); // radius in normalized device coordinates
+    //return ndc * 0.5; // scale to uv radius
+    return float2(r * gCamera.data.focalLength) * gData.resolution / (float2(gCamera.data.frameWidth, gCamera.data.frameHeight) * z); // radius in normalized device coordinates
 }
 
 float GetAORadiusInPixels(float ViewDepth)
@@ -181,4 +182,19 @@ float GetAORadiusInPixels(float ViewDepth)
     float2 radiusUV = ViewSpaceRadiusToUVRadius(ViewDepth, gData.radius);
     // convert uv radius to pixel radius
     return lerp(radiusUV.x * gData.resolution.x, radiusUV.y * gData.resolution.y, 0.5); // take mean between width and height radii TODO  test
+}
+
+float calcSampleImportance(
+    float sampleRadius, float sampleLinearZ,
+    float3 sampleNormal, float3 centerNormal,
+    float sphereStart, float sphereEnd, float objectSpaceZ,
+    float3 sampleColor)
+{
+    float screen_radius = dot(ViewSpaceRadiusToUVRadius(sampleLinearZ, sampleRadius), float2(0.5));
+    float normal_diff = abs(dot(sampleNormal, centerNormal));
+    float dist = max(objectSpaceZ - sphereEnd, 0.0);
+    float contrib = (sphereStart - sphereEnd) / (2.0 * sphereStart);
+    float luminance = dot(sampleColor, float3(0.2126, 0.7152, 0.0722));
+
+    return screen_radius;
 }

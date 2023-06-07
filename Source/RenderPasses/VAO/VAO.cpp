@@ -31,6 +31,7 @@
 
 #include "../Utils/GuardBand/guardband.h"
 #include "Utils/Math/FalcorMath.h"
+#include "vao_to_numpy.h"
 
 namespace
 {
@@ -65,6 +66,7 @@ namespace
     const std::string ksDepth = "stochasticDepth";
     const std::string kNormals = "normals";
     const std::string kMaterial = "materialData";
+    const std::string kColor = "color";
     //const std::string kInstanceID = "instanceID";
 
     const std::string kInternalRasterDepth = "iRasterDepth";
@@ -76,6 +78,7 @@ namespace
     const std::string kInternalRasterAO = "iRasterAO";
     const std::string kInternalRayAO = "iRayAO";
     const std::string kInternalSphereEnd = "iSphereEnd";
+    const std::string kInternalImportance = "iImportance";
 
     const std::string kSSAOShader = "RenderPasses/VAO/VAO.ps.slang";
 
@@ -159,6 +162,7 @@ RenderPassReflection VAO::reflect(const CompileData& compileData)
     //reflector.addInput(kInstanceID, "Instance ID").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(ksDepth, "Linear Stochastic Depth Map").texture2D(0, 0, 0).bindFlags(ResourceBindFlags::ShaderResource).flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addInput(kMaterial, "Material data").bindFlags(ResourceBindFlags::ShaderResource);
+    reflector.addInput(kColor, "Final color (for pixel importance)").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addOutput(kAmbientMap, "Ambient Occlusion").bindFlags(Falcor::ResourceBindFlags::RenderTarget).format(ResourceFormat::R8Unorm);
 
     reflector.addInternal(kInternalRasterDepth, "internal raster depth").texture2D(0, 0, 1, 1, mKernelSize)
@@ -179,6 +183,9 @@ RenderPassReflection VAO::reflect(const CompileData& compileData)
         .bindFlags(ResourceBindFlags::UnorderedAccess).format(ResourceFormat::R8Unorm);
     reflector.addInternal(kInternalSphereEnd, "internal sphere end").texture2D(0, 0, 1, 1, mKernelSize)
         .bindFlags(ResourceBindFlags::UnorderedAccess).format(ResourceFormat::R32Float);
+
+    reflector.addInternal(kInternalImportance, "internal importance").texture2D(0, 0, 1, 1, mKernelSize)
+        .bindFlags(ResourceBindFlags::UnorderedAccess).format(ResourceFormat::RGBA32Float);
 
     return reflector;
 }
@@ -217,6 +224,8 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     auto pInternalRasterAO = renderData[kInternalRasterAO]->asTexture();
     auto pInternalRayAO = renderData[kInternalRayAO]->asTexture();
     auto pInternalSphereEnd = renderData[kInternalSphereEnd]->asTexture();
+    auto pInternalImportance = renderData[kInternalImportance]->asTexture();
+    auto pColor = renderData[kColor]->asTexture();
 
     auto pCamera = mpScene->getCamera().get();
 
@@ -255,6 +264,8 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             vars["gAskRay"] = pInternalAskRay;
             vars["gRequireRay"] = pInternalRequireRay;
             vars["gForceRay"] = pInternalForceRay;
+            vars["gImportance"] = pInternalImportance;
+            vars["gColor"] = pColor;
             //mpSSAOPass["gInstanceIDOut"] = pInternalInstanceID;
         }
 
@@ -320,10 +331,12 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             pInternalRasterAO->captureToFile(0, -1, "rasterAO.dds", Bitmap::FileFormat::DdsFile);
             pInternalRayAO->captureToFile(0, -1, "rayAO.dds", Bitmap::FileFormat::DdsFile);
             pInternalSphereEnd->captureToFile(0, -1, "sphereEnd.dds", Bitmap::FileFormat::DdsFile);
+            pInternalImportance->captureToFile(0, -1, "importance.dds", Bitmap::FileFormat::DdsFile);
 
             auto sphereHeights = getSphereHeights();
 
-            // TODO vao_to_numpy(sphereHeights, "ML/raster.dds", "ML/ray.dds", "ML/askRay.dds", "ML/requireRay.dds", "ML/forceRay.dds", "ML/rasterAO.dds", "ML/rayAO.dds", "ML/sphereEnd.dds", mTrainingIndex, mIsTraining);
+            //vao_to_numpy(sphereHeights, "raster.dds", "ray.dds", "askRay.dds", "requireRay.dds", "forceRay.dds", "rasterAO.dds", "rayAO.dds", "sphereEnd.dds", mTrainingIndex, mIsTraining);
+            vao_importance_to_numpy("raster.dds", "ray.dds", "askRay.dds", "forceRay.dds", "rasterAO.dds", "rayAO.dds", "importance.dds", mTrainingIndex, mIsTraining);
             mTrainingIndex++;
 
             mSaveDepths = false;
@@ -380,7 +393,11 @@ void VAO::renderUI(Gui::Widgets& widget)
 
     widget.text("Training Index: " + std::to_string(mTrainingIndex));
 
-    if (widget.button("Save Depths")) mSaveDepths = true;
+    if (widget.button("Save Depths"))
+    {
+        mSaveDepths = true;
+        mDepthMode = DepthMode::Raytraced; // needs to be used for proper eval
+    }
 }
 
 void VAO::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
