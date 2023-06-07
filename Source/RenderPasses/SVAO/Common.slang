@@ -63,6 +63,8 @@ SamplerState gTextureSampler;
 Texture2D<float> gDepthTex;
 Texture2D<float> gDepthTex2;
 
+Texture2D<float4> gColor;
+
 Texture2D gNormalTex;
 Texture2D<float> gNoiseTex;
 
@@ -186,15 +188,15 @@ float GetAORadiusInPixels(float ViewDepth)
 
 float calcSampleImportance(
     float sampleRadius, float sampleLinearZ,
-    float3 sampleNormal, float3 centerNormal,
+    //float3 sampleNormal, float3 centerNormal,
     float sphereStart, float sphereEnd, float objectSpaceZ,
     float3 sampleColor)
 {
     float screen_radius = dot(ViewSpaceRadiusToUVRadius(sampleLinearZ, sampleRadius), float2(0.5));
-    float normal_diff = abs(dot(sampleNormal, centerNormal));
+    //float normal_diff = abs(dot(sampleNormal, centerNormal));
     float dist = max(objectSpaceZ - sphereEnd, 0.0);
-    float contrib = (sphereStart - sphereEnd) / (2.0 * sphereStart);
-    float luminance = dot(sampleColor, float3(0.2126, 0.7152, 0.0722));
+    float contrib = saturate((sphereStart - sphereEnd) / (2.0 * sphereStart));
+    float luminance = saturate(dot(sampleColor, float3(0.2126, 0.7152, 0.0722)));
 
-    return screen_radius;
+    return contrib * luminance * 0.999;
 }

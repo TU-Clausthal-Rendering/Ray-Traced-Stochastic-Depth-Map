@@ -40,6 +40,8 @@ namespace
     const std::string kDepth2 = "depth2";
     const std::string kNormals = "normals";
     const std::string kMatDoubleSided = "doubleSided";
+    const std::string kColor = "color";
+
     const std::string kInternalStencil = "internalStencil";
     // ray bounds for the stochastic depth map RT
     const std::string kInternalRayMin = "internalRayMin";
@@ -147,6 +149,7 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     reflector.addInput(kDepth2, "Linear Depth-buffer of second layer").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kNormals, "World space normals, [0, 1] range").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kMatDoubleSided, "Material double sided flag").bindFlags(ResourceBindFlags::ShaderResource);
+    reflector.addInput(kColor, "Color for pixel importance").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addOutput(kAmbientMap, "Ambient Occlusion (primary)").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::RenderTarget).format(ResourceFormat::R8Unorm);
     reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kAoStencil2, "ping pong for stencil mask").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
@@ -206,6 +209,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     auto pAoDst = renderData[kAmbientMap]->asTexture();
     auto pDepth2 = renderData[kDepth2]->asTexture();
     auto pMatDoubleSided = renderData[kMatDoubleSided]->asTexture();
+    auto pColor = renderData[kColor]->asTexture();
 
     auto pAoMask = renderData[kAoStencil]->asTexture();
     //auto pAoMask2 = renderData[kAoStencil2]->asTexture();
@@ -316,6 +320,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     rasterVars["gDepthTex2"] = pDepth2;
     rasterVars["gNormalTex"] = pNormal;
     rasterVars["gMatDoubleSided"] = pMatDoubleSided;
+    rasterVars["gColor"] = pColor;
     //mpRasterPass["gDepthAccess"] = pAccessStencil;
     if(mSecondaryDepthMode == DepthMode::StochasticDepth)
     {
@@ -483,6 +488,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
         mPrimaryDepthMode = (DepthMode)primaryDepthMode;
         reset = true;
     }
+
+    if (widget.slider("Importance Threshold", mData.importanceThreshold, 0.0f, 1.0f)) mDirty = true;
 
     if (mPrimaryDepthMode == DepthMode::MachineClassify)
     {

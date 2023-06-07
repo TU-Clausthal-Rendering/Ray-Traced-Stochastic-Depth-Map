@@ -44,6 +44,8 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     if (dot(posV, normalV) > 0.0)
         normalV = -normalV;
 
+    float3 color = saturate(gColor.SampleLevel(gTextureSampler, texC, 0).xyz); // for pixel importance
+
     // Calculate tangent space (use random direction for tangent orientation)
     float randRotation = gNoiseTex.SampleLevel(gNoiseSampler, texC * gData.noiseScale, 0) * 2.0 * 3.141;
     float2 randDir = float2(sin(randRotation), cos(randRotation));
@@ -159,6 +161,11 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         output.ao1 += curVisibility;
         if (denyRays)
             continue;
+
+        // calc pixel importance
+        float sampleImportance = calcSampleImportance(radius, gDepthTex.SampleLevel(gTextureSampler, rasterSamplePosUV, 0.0), sphereStart, sphereEnd, objectSpaceZ, color);
+        if (sampleImportance <= gData.importanceThreshold)
+            requireRay = false;
         
         if (forceRay && (PRIMARY_DEPTH_MODE >= DEPTH_MODE_MACHINE_CLASSIFY))
         {
