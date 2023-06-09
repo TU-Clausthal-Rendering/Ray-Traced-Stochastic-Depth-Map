@@ -201,6 +201,61 @@ float calcSampleImportance(
     //return 0.999 * screen_radius * dist;
 }
 
+struct BasicAOData
+{
+    float3 posV;
+    float posVLength;
+    float3 normal;
+    float3 tangent; 
+    float3 bitangent;
+    float3 normalO; 
+
+    float radiusInPixels;
+    float rayRasterBlend;
+
+    // returns false if sample needs no shading (background)
+    [mutating] bool Init(float2 texC)
+    {
+        float linearDepth = gDepthTex.SampleLevel(gTextureSampler, texC, 0);
+        radiusInPixels = GetAORadiusInPixels(linearDepth);
+        rayRasterBlend = saturate((radiusInPixels - gData.ssRadiusFadeEnd) / gData.ssRadiusFadeSize);
+        
+        if (radiusInPixels < 0.5)
+            return false;
+
+        posV = UVToViewSpace(texC, linearDepth);
+        posVLength = length(posV);
+
+        // view space normal of current pixel
+        float3 normalW = gNormalTex.SampleLevel(gTextureSampler, texC, 0).xyz;
+        float3 normalV = mul(float3x3(gCamera.data.viewMat), normalW);
+        if (dot(posV, normalV) > 0.0)
+            normalV = -normalV;
+
+        // Calculate tangent space (use random direction for tangent orientation)
+        float randRotation = gNoiseTex.SampleLevel(gNoiseSampler, texC * gData.noiseScale, 0) * 2.0 * 3.141;
+        float2 randDir = float2(sin(randRotation), cos(randRotation));
+        //randDir = float2(1.0f, 0.0f);
+    
+        // determine tangent space
+        normal = -posV / posVLength;
+        bitangent = normalize(cross(normal, float3(randDir, 0.0f)));
+        tangent = cross(bitangent, normal);
+
+        // transfer view space normal to normal in object coordinates of the sampling sphere
+        normalO = float3(dot(normalV, tangent), dot(normalV, bitangent), dot(normalV, normal));
+        
+        
+        return true;
+    }
+
+    bool denyRays()
+    {
+        return radiusInPixels <= gData.ssRadiusFadeEnd;
+    }
+    
+};
+
 struct RayData // cannot be compressed to half floats => no diff in rendering time + insufficient visual quality
 {
     float tLastFrontFaceHalo; // ray min
@@ -214,34 +269,10 @@ void traceAORay(RayDesc ray, inout RayData rayData);
 float calcAO2(uint2 svPos, uint mask)
 {
     float2 texC = (float2(svPos) + 0.5) * gData.invResolution;
-    
-    // fetch linear depth a second time
-    float linearDepth = gDepthTex.SampleLevel(gTextureSampler, texC, 0);
-    float radiusInPixels = GetAORadiusInPixels(linearDepth);
-    float rayRasterBlend = saturate((radiusInPixels - gData.ssRadiusFadeEnd) / gData.ssRadiusFadeSize);
-    
-    // view space position of current pixel
-    const float3 posV = UVToViewSpace(texC, linearDepth);
-    const float posVLength = length(posV);
 
-    // view space normal of current pixel
-    float3 normalW = gNormalTex.SampleLevel(gTextureSampler, texC, 0).xyz;
-    float3 normalV = mul(float3x3(gCamera.data.viewMat), normalW);
-    if (dot(posV, normalV) > 0.0)
-        normalV = -normalV;
+    BasicAOData data;
+    data.Init(texC);
 
-    // Calculate tangent space (use random direction for tangent orientation)
-    float randRotation = gNoiseTex.SampleLevel(gNoiseSampler, texC * gData.noiseScale, 0) * 2.0 * 3.141;
-    float2 randDir = float2(sin(randRotation), cos(randRotation));
-    
-    // determine tangent space
-    float3 normal = -posV / posVLength;
-    float3 bitangent = normalize(cross(normal, float3(randDir, 0.0f)));
-    float3 tangent = cross(bitangent, normal);
-
-    // transfer view space normal to normal in object coordinates of the sampling sphere
-    float3 normalO = float3(dot(normalV, tangent), dot(normalV, bitangent), dot(normalV, normal));
-    
     float visibility = 0.0f;
 
     uint i = 0;
@@ -277,7 +308,7 @@ float calcAO2(uint2 svPos, uint mask)
 
         { // HEMISPHERE SAMPLING
             //float zIntersect = -dot(rand.xy, normalO.xy) / normalO.z;
-            float zIntersect = -dot(dir.xy, normalO.xy) / makeNonZero(normalO.z, 0.0001);
+            float zIntersect = -dot(dir.xy, data.normalO.xy) / makeNonZero(data.normalO.z, 0.0001);
             float zIntersectClamped = clamp(zIntersect, -sphereHeight, sphereHeight);
             sphereEnd = zIntersectClamped;
         }
@@ -289,7 +320,7 @@ float calcAO2(uint2 svPos, uint mask)
         }
 
         // sample position calculate uv position of sample
-        float3 initialSamplePosV = posV + tangent * dir.x + bitangent * dir.y;
+        float3 initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
         float2 samplePosUV = ViewSpaceToUV(initialSamplePosV);
         float curVisibility = 1.0f;
 
@@ -304,12 +335,12 @@ float calcAO2(uint2 svPos, uint mask)
             // reuse old depth (this does not really cost much)
             if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL) // DEPTH_MODE = SINGLE (or classify)
             {
-                float objectSpaceZ = calcObjectSpaceZ(posV, normal, rasterSamplePosUV, gDepthTex);
+                float objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex);
                 curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
             }
             else // DEPTH_MODE == DUAL
             {
-                float objectSpaceZ = calcObjectSpaceZ(posV, normal, rasterSamplePosUV, gDepthTex2);
+                float objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex2);
                 curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
             }
 
@@ -330,7 +361,7 @@ float calcAO2(uint2 svPos, uint mask)
                 // linearSampleDepth is in [0, 1] => scale accordingly
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(rasterSamplePosUV, linearSampleDepth);
-                float objectSpaceZ = dot(samplePosV - posV, normal);
+                float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
                 float newVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
                 curVisibility = COMBINE_VIS(curVisibility, newVisibility);
             }
@@ -349,19 +380,19 @@ float calcAO2(uint2 svPos, uint mask)
             ray.Origin = gCamera.data.posW; // offset a little bit in normal direction
             ray.Direction = mul(float3x3(invViewMat), sampleDirV);
 
-            float tSphereStart = (posVLength - sphereStart) * initialSamplePosLength / posVLength;
-            float tSphereEnd = (posVLength - sphereEnd) * initialSamplePosLength / posVLength;
-            float tHaloStart = (posVLength - sphereHeight - CONST_RADIUS - HALO_RADIUS) * initialSamplePosLength / posVLength;
-            float tConstRadiusStart = (posVLength - sphereHeight - CONST_RADIUS) * initialSamplePosLength / posVLength;
+            float tSphereStart = (data.posVLength - sphereStart) * initialSamplePosLength / data.posVLength;
+            float tSphereEnd = (data.posVLength - sphereEnd) * initialSamplePosLength / data.posVLength;
+            float tHaloStart = (data.posVLength - sphereHeight - CONST_RADIUS - HALO_RADIUS) * initialSamplePosLength / data.posVLength;
+            float tConstRadiusStart = (data.posVLength - sphereHeight - CONST_RADIUS) * initialSamplePosLength / data.posVLength;
             ray.TMin = max(tHaloStart, 0.0);
             ray.TMax = tSphereEnd;
 
             const float epsilon = gData.radius * 0.01;
             float objectSpaceZ;
             if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL) // DEPTH_MODE = SINGLE (or classify)
-                objectSpaceZ = calcObjectSpaceZ(posV, normal, samplePosUV, gDepthTex);
+                objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, samplePosUV, gDepthTex);
             else // if(PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL)
-                objectSpaceZ = calcObjectSpaceZ(posV, normal, samplePosUV, gDepthTex2);
+                objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, samplePosUV, gDepthTex2);
             curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
 
             // subtract old visibility from raster (will be replaced with new visibility)
@@ -369,7 +400,7 @@ float calcAO2(uint2 svPos, uint mask)
 
             // include the value of the depth buffer when choosing TMin to save some traversal time
             if (isInScreen)
-                ray.TMin = max(ray.TMin, (posVLength - objectSpaceZ) * initialSamplePosLength / posVLength + epsilon);
+                ray.TMin = max(ray.TMin, (data.posVLength - objectSpaceZ) * initialSamplePosLength / data.posVLength + epsilon);
             else
                 curVisibility = 1.0;
 
@@ -381,11 +412,11 @@ float calcAO2(uint2 svPos, uint mask)
             rayData.tSphereStart = tSphereStart;
             traceAORay(ray, rayData);
 
-            float sphereVisibility = calcVisibility(posVLength - rayData.tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
-            float haloVisibility = calcHaloVisibility(posVLength - rayData.tLastFrontFaceHalo * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+            float sphereVisibility = calcVisibility(data.posVLength - rayData.tFirstFrontFaceInside * data.posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+            float haloVisibility = calcHaloVisibility(data.posVLength - rayData.tLastFrontFaceHalo * data.posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
 
             float rayVisibility = min(curVisibility, min(sphereVisibility, haloVisibility));
-            curVisibility = lerp(curVisibility, rayVisibility, rayRasterBlend);
+            curVisibility = lerp(curVisibility, rayVisibility, data.rayRasterBlend);
         }
 
         visibility += curVisibility;
