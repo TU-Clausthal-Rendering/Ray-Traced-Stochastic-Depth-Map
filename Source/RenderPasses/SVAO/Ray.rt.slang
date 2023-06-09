@@ -18,35 +18,13 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
     hit.instanceID = getGeometryInstanceID();
     hit.primitiveIndex = PrimitiveIndex();
     hit.barycentrics = attribs.barycentrics;
-    const uint materialID = gScene.getMaterialID(hit.instanceID);
-    const MaterialHeader header = gScene.materials.materialData[materialID].header;
+    
+    uint res = aoAnyHit(rayData, t, hit, frontFace);
+    if(res == AO_HIT_IGNORE)
+        IgnoreHit();
+    if (res == AO_HIT_ACCEPT_AND_END)
+        AcceptHitAndEndSearch();
 
-    bool isAlphaTested = header.getAlphaMode() == AlphaMode::Mask;
-
-    // needs alpha testing?
-    if (isAlphaTested)
-    {
-        const VertexData v = gScene.getVertexData(hit);
-        if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
-            IgnoreHit(); // alpha test failed => ignore this triangle
-    }
-
-    frontFace = frontFace || isAlphaTested || header.isDoubleSided();
-    if (!frontFace)
-        IgnoreHit(); // this is just for rasterizer compability
-
-    if (t <= rayData.tSphereStart)
-    {
-        rayData.tLastFrontFaceHalo = max(rayData.tLastFrontFaceHalo, t);
-        if (t >= rayData.tConstRadiusStart)
-            AcceptHitAndEndSearch(); // we can stop the query, because this will set the visibility to zero
-    }
-    else // inside sphere
-    {
-        rayData.tFirstFrontFaceInside = min(rayData.tFirstFrontFaceInside, t);
-        return; // since we save the min, we can commit TMax here
-    }
-    IgnoreHit(); // continue traversal
 }
 
 [shader("miss")]

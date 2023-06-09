@@ -16,42 +16,19 @@ void traceAORay(RayDesc ray, inout RayData rayData)
     {
         if (rayQuery.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE)
         {
-                // extract hit properties
+            // extract hit properties
             float t = rayQuery.CandidateTriangleRayT();
             if (t < rayData.tLastFrontFaceHalo)
                 continue; // we can skip this since it would not contribute anyways (unfortunately there is no option to set the ray.min afterwards)
 
             bool frontFace = rayQuery.CandidateTriangleFrontFace();
             const TriangleHit hit = getCandidateTriangleHit(rayQuery);
-            const uint materialID = gScene.getMaterialID(hit.instanceID);
-            const MaterialHeader header = gScene.materials.materialData[materialID].header;
 
-            bool isAlphaTested = header.getAlphaMode() == AlphaMode::Mask;
-
-                    // needs alpha testing?
-            if (isAlphaTested)
-            {
-                const VertexData v = gScene.getVertexData(hit);
-                if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
-                    continue; // alpha test failed => ignore this triangle
-            }
-
-            frontFace = frontFace || isAlphaTested || header.isDoubleSided();
-            if (!frontFace)
-                continue; // this is just for rasterizer compability
-                        
-            if (t <= rayData.tSphereStart)
-            {
-                rayData.tLastFrontFaceHalo = max(rayData.tLastFrontFaceHalo, t);
-                if (t >= rayData.tConstRadiusStart)
-                    break; // we can stop the query, because this will set the visibility to zero
-            }
-            else // inside sphere
-            {
-                rayData.tFirstFrontFaceInside = min(rayData.tFirstFrontFaceInside, t);
-                rayQuery.CommitNonOpaqueTriangleHit(); // since we save the min, we can commit here
-            }
-                        
+            uint res = aoAnyHit(rayData, t, hit, frontFace);
+            if (res == AO_HIT_ACCEPT)
+                rayQuery.CommitNonOpaqueTriangleHit();
+            if (res == AO_HIT_ACCEPT_AND_END)
+                break;      
         }
     }
 }

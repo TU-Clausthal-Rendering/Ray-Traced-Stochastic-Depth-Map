@@ -398,3 +398,42 @@ float calcAO2(uint2 svPos, uint mask)
     visibility *= 2.0 / float(NUM_DIRECTIONS);
     return visibility;
 }
+
+#define AO_HIT_IGNORE 0
+#define AO_HIT_ACCEPT 1
+#define AO_HIT_ACCEPT_AND_END 2
+
+// returns any of the above A0_HIT defines
+uint aoAnyHit(inout RayData rayData, float t, const TriangleHit hit, bool frontFace)
+{
+    const uint materialID = gScene.getMaterialID(hit.instanceID);
+    const MaterialHeader header = gScene.materials.materialData[materialID].header;
+
+    bool isAlphaTested = header.getAlphaMode() == AlphaMode::Mask;
+
+    // needs alpha testing?
+    if (isAlphaTested)
+    {
+        const VertexData v = gScene.getVertexData(hit);
+        if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
+            return AO_HIT_IGNORE; // alpha test failed => ignore this triangle
+    }
+
+    frontFace = frontFace || isAlphaTested || header.isDoubleSided();
+    if (!frontFace)
+        return AO_HIT_IGNORE; // this is just for rasterizer compability
+
+    if (t <= rayData.tSphereStart)
+    {
+        rayData.tLastFrontFaceHalo = max(rayData.tLastFrontFaceHalo, t);
+        if (t >= rayData.tConstRadiusStart)
+            return AO_HIT_ACCEPT_AND_END; // we can stop the query, because this will set the visibility to zero
+    }
+    else // inside sphere
+    {
+        rayData.tFirstFrontFaceInside = min(rayData.tFirstFrontFaceInside, t);
+        return AO_HIT_ACCEPT; // since we save the min, we can commit TMax here
+    }
+
+    return AO_HIT_IGNORE;
+}
