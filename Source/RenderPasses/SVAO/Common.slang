@@ -253,7 +253,84 @@ struct BasicAOData
     {
         return radiusInPixels <= gData.ssRadiusFadeEnd;
     }
+};
+
+struct SampleAOData
+{
+    float sphereStart;
+    float sphereEnd;
+    float pdf; // 2 * sphereStart
+    bool isInScreen;
+
+    float2 samplePosUV; // possible out-of-screen sample location
+    float2 rasterSamplePosUV; // raster clamped uv
+
+    float visibility;
+    float objectSpaceZ;
+    bool requireRay;
+
+    float initialSamplePosLength;
     
+    // returns false if the sample is invalid (below hemisphere)
+    [mutating] bool Init(float2 texC, BasicAOData data, uint i)
+    {
+        // random angle on view space disc
+        float alpha = (float(i) / NUM_DIRECTIONS) * 2.0 * 3.141;
+        float radius = sampleRadius[i] * gData.radius; // radius on sampling unit sphere * world space radius
+        float2 dir = radius * float2(sin(alpha), cos(alpha)); // world space direction
+
+        const float sphereHeight = sqrt(gData.radius * gData.radius - radius * radius);
+        pdf = 2.0 * sphereHeight;
+        
+        // determine distance within [-sphereHeight, +sphereHeight]
+        sphereStart = sphereHeight; // in object coordinates (bigger is closer to the camera)
+        sphereEnd = -sphereHeight; // in object coordinates (smaller is futher from the camera)
+
+        { // HEMISPHERE SAMPLING
+            //float zIntersect = -dot(rand.xy, normalO.xy) / normalO.z;
+            float zIntersect = -dot(dir.xy, data.normalO.xy) / makeNonZero(data.normalO.z, 0.0001);
+            float zIntersectClamped = clamp(zIntersect, -sphereHeight, sphereHeight);
+            sphereEnd = zIntersectClamped;
+        }
+
+        if ((sphereStart - sphereEnd) / pdf <= 0.1)
+        {
+            return false; // skip sample (no visibility)
+        }
+        
+        // sample position calculate uv position of sample
+        float3 initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
+        initialSamplePosLength = length(initialSamplePosV);
+        samplePosUV = ViewSpaceToUV(initialSamplePosV);
+        requireRay = false;
+        visibility = 0.0;
+        objectSpaceZ = 0.0;
+        
+        float2 screenUv = getScreenClampedUV(texC, samplePosUV); // clip to screen border
+        isInScreen = all(samplePosUV == screenUv);
+            
+        rasterSamplePosUV = screenUv;
+        rasterSamplePosUV = getSnappedUV(rasterSamplePosUV); // snap to pixel center
+        
+        return true;
+    }
+
+    [mutating] void evalPrimaryVisibility(BasicAOData data)
+    {
+        objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex);
+        visibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
+        requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
+    }
+
+    [mutating] void evalDualVisibility(BasicAOData data)
+    {
+        if (!requireRay)
+            return; // not needed
+        
+        objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex2);
+        visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf));
+        requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
+    }
 };
 
 struct RayData // cannot be compressed to half floats => no diff in rendering time + insufficient visual quality
@@ -294,63 +371,23 @@ float calcAO2(uint2 svPos, uint mask)
             ++i;
         }
 
-        // random angle on view space disc
-        float alpha = (float(i) / NUM_DIRECTIONS) * 2.0 * 3.141;
-        float radius = sampleRadius[i] * gData.radius; // radius on sampling unit sphere * world space radius
-        float2 dir = radius * float2(sin(alpha), cos(alpha)); // world space direction
+        SampleAOData s;
+        s.Init(texC, data, i);
 
-        const float sphereHeight = sqrt(gData.radius * gData.radius - radius * radius);
-        const float pdf = 2.0 * sphereHeight;
+        // subtract old visibility from raster (will be replaced with new visibility)
+        if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL) // DEPTH_MODE = SINGLE (or classify)
+            s.evalPrimaryVisibility(data);
+        else // DEPTH_MODE == DUAL
+            s.evalDualVisibility(data);
+        float curVisibility = s.visibility;
+        visibility -= s.visibility;
         
-        // determine distance within [-sphereHeight, +sphereHeight]
-        float sphereStart = sphereHeight; // in object coordinates (bigger is closer to the camera)
-        float sphereEnd = -sphereHeight; // in object coordinates (smaller is futher from the camera)
-
-        { // HEMISPHERE SAMPLING
-            //float zIntersect = -dot(rand.xy, normalO.xy) / normalO.z;
-            float zIntersect = -dot(dir.xy, data.normalO.xy) / makeNonZero(data.normalO.z, 0.0001);
-            float zIntersectClamped = clamp(zIntersect, -sphereHeight, sphereHeight);
-            sphereEnd = zIntersectClamped;
-        }
-
-        // if the sample range is too small, skip calculation (sample could be entirely below the surface hemisphere when looking from grazing angles)
-        if (sphereStart - sphereEnd < 0.01)
-        {
-            continue; // skip sample (no visibility)
-        }
-
-        // sample position calculate uv position of sample
-        float3 initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
-        float2 samplePosUV = ViewSpaceToUV(initialSamplePosV);
-        float curVisibility = 1.0f;
-
-        float2 screenUv = getScreenClampedUV(texC, samplePosUV); // clip to screen border
-        const bool isInScreen = all(samplePosUV == screenUv);
-
-        float2 rasterSamplePosUV = screenUv;
-        rasterSamplePosUV = getSnappedUV(rasterSamplePosUV); // snap to pixel center
-
         if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
         {
-            // reuse old depth (this does not really cost much)
-            if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL) // DEPTH_MODE = SINGLE (or classify)
-            {
-                float objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex);
-                curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
-            }
-            else // DEPTH_MODE == DUAL
-            {
-                float objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex2);
-                curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
-            }
-
-            // subtract old visibility from raster (will be replaced with new visibility)
-            visibility -= curVisibility;
-
             float width, height;
             gDepthTex.GetDimensions(width, height);
             
-            int2 pixelCoord = int2(floor(rasterSamplePosUV * float2(width, height)));
+            int2 pixelCoord = int2(floor(s.rasterSamplePosUV * float2(width, height)));
 
             const float depthRange = gCamera.data.farZ - gCamera.data.nearZ;
             const float depthOffset = gCamera.data.nearZ;
@@ -360,63 +397,49 @@ float calcAO2(uint2 svPos, uint mask)
                 float linearSampleDepth = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
                 // linearSampleDepth is in [0, 1] => scale accordingly
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
-                float3 samplePosV = UVToViewSpace(rasterSamplePosUV, linearSampleDepth);
+                float3 samplePosV = UVToViewSpace(s.rasterSamplePosUV, linearSampleDepth);
                 float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
-                float newVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
+                float newVisibility = calcVisibility(objectSpaceZ, s.sphereStart, s.sphereEnd, s.pdf);
                 curVisibility = COMBINE_VIS(curVisibility, newVisibility);
             }
         }
         else if (SECONDARY_DEPTH_MODE == DEPTH_MODE_RAYTRACING)
         {
-                        // to be consistent with the rasterizer, we snap the uv coordinate as well to the pixel center,
+            // to be consistent with the rasterizer, we snap the uv coordinate as well to the pixel center,
             // but we do not clip it since we can shoot outside of the screen space
             //samplePosUV = getScreenClampedUV(texC, samplePosUV);
-            samplePosUV = getSnappedUV(samplePosUV); // snap to pixel center
+            s.samplePosUV = getSnappedUV(s.samplePosUV); // snap to pixel center
             
-            float3 sampleDirV = normalize(UVToViewSpace(samplePosUV, 1.0)); // get sample direction in view space
-            float initialSamplePosLength = length(initialSamplePosV);
+            float3 sampleDirV = normalize(UVToViewSpace(s.samplePosUV, 1.0)); // get sample direction in view space
             
             RayDesc ray;
             ray.Origin = gCamera.data.posW; // offset a little bit in normal direction
             ray.Direction = mul(float3x3(invViewMat), sampleDirV);
 
-            float tSphereStart = (data.posVLength - sphereStart) * initialSamplePosLength / data.posVLength;
-            float tSphereEnd = (data.posVLength - sphereEnd) * initialSamplePosLength / data.posVLength;
-            float tHaloStart = (data.posVLength - sphereHeight - CONST_RADIUS - HALO_RADIUS) * initialSamplePosLength / data.posVLength;
-            float tConstRadiusStart = (data.posVLength - sphereHeight - CONST_RADIUS) * initialSamplePosLength / data.posVLength;
-            ray.TMin = max(tHaloStart, 0.0);
-            ray.TMax = tSphereEnd;
-
-            const float epsilon = gData.radius * 0.01;
-            float objectSpaceZ;
-            if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL) // DEPTH_MODE = SINGLE (or classify)
-                objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, samplePosUV, gDepthTex);
-            else // if(PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL)
-                objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, samplePosUV, gDepthTex2);
-            curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
-
-            // subtract old visibility from raster (will be replaced with new visibility)
-            visibility -= curVisibility;
-
-            // include the value of the depth buffer when choosing TMin to save some traversal time
-            if (isInScreen)
-                ray.TMin = max(ray.TMin, (data.posVLength - objectSpaceZ) * initialSamplePosLength / data.posVLength + epsilon);
-            else
-                curVisibility = 1.0;
-
             // ray query or ray pipeline implementation
             RayData rayData;
-            rayData.tLastFrontFaceHalo = tHaloStart; // min
-            rayData.tFirstFrontFaceInside = tSphereEnd; // max
-            rayData.tConstRadiusStart = tConstRadiusStart;
-            rayData.tSphereStart = tSphereStart;
+            rayData.tLastFrontFaceHalo = (data.posVLength - s.sphereStart - gData.radius - gData.thickness * gData.radius) * s.initialSamplePosLength / data.posVLength; // min (haloStart)
+            rayData.tFirstFrontFaceInside = (data.posVLength - s.sphereEnd) * s.initialSamplePosLength / data.posVLength; // max (sphereEnd)
+            rayData.tConstRadiusStart = (data.posVLength - gData.radius - gData.thickness * gData.radius) * s.initialSamplePosLength / data.posVLength;
+            rayData.tSphereStart = (data.posVLength - s.sphereStart) * s.initialSamplePosLength / data.posVLength;
+
+            ray.TMin = max(rayData.tLastFrontFaceHalo, 0.0);
+            ray.TMax = rayData.tFirstFrontFaceInside; // sphereEnd
+
+            const float epsilon = gData.radius * 0.01;
+            // include the value of the depth buffer when choosing TMin to save some traversal time
+            if (s.isInScreen)
+                ray.TMin = max(ray.TMin, (data.posVLength - s.objectSpaceZ) * s.initialSamplePosLength / data.posVLength + epsilon);
+            else
+                curVisibility = 1.0;
+            
             traceAORay(ray, rayData);
 
-            float sphereVisibility = calcVisibility(data.posVLength - rayData.tFirstFrontFaceInside * data.posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
-            float haloVisibility = calcHaloVisibility(data.posVLength - rayData.tLastFrontFaceHalo * data.posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+            float sphereVisibility = calcVisibility(data.posVLength - rayData.tFirstFrontFaceInside * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf);
+            float haloVisibility = calcHaloVisibility(data.posVLength - rayData.tLastFrontFaceHalo * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf);
 
             float rayVisibility = min(curVisibility, min(sphereVisibility, haloVisibility));
-            curVisibility = lerp(curVisibility, rayVisibility, data.rayRasterBlend);
+            curVisibility = lerp(s.visibility, rayVisibility, data.rayRasterBlend);
         }
 
         visibility += curVisibility;

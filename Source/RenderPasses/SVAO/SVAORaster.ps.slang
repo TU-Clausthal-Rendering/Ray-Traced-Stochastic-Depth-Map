@@ -35,92 +35,45 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     
     [unroll] for (uint i = 0; i < NUM_DIRECTIONS; i++)
     {
-        // random angle on view space disc
-        float alpha = (float(i) / NUM_DIRECTIONS) * 2.0 * 3.141;
-        float radius = sampleRadius[i] * gData.radius; // radius on sampling unit sphere * world space radius
-        float2 dir = radius * float2(sin(alpha), cos(alpha));  // world space direction
+        SampleAOData s;
+        if (!s.Init(texC, data, i))
+            continue;
 
-        const float sphereHeight = sqrt(gData.radius * gData.radius - radius * radius);
-        const float pdf = 2.0 * sphereHeight;
-        
-        // determine distance within [-sphereHeight, +sphereHeight]
-        float sphereStart = sphereHeight; // in object coordinates (bigger is closer to the camera)
-        float sphereEnd = -sphereHeight; // in object coordinates (smaller is futher from the camera)
-
-        { // HEMISPHERE SAMPLING
-            //float zIntersect = -dot(rand.xy, normalO.xy) / normalO.z;
-            float zIntersect = -dot(dir.xy, data.normalO.xy) / makeNonZero(data.normalO.z, 0.0001);
-            float zIntersectClamped = clamp(zIntersect, -sphereHeight, sphereHeight);
-            sphereEnd = zIntersectClamped;
-        }
-        
-        // sample position calculate uv position of sample
-        float3 initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
-        float2 samplePosUV = ViewSpaceToUV(initialSamplePosV);
-
-        float curVisibility = 0.0f;
-        bool requireRay = false;
-        bool forceRay = false;
-
-        float2 screenUv = getScreenClampedUV(texC, samplePosUV); // clip to screen border
-        if (any(samplePosUV != screenUv) && SECONDARY_DEPTH_MODE == DEPTH_MODE_RAYTRACING)
+        if (isSamePixel(texC, s.rasterSamplePosUV))
         {
-            if (TRACE_OUT_OF_SCREEN)
-                forceRay = true; // always shoot rays for screen border   
-        }
-            
-        float2 rasterSamplePosUV = screenUv;
-        rasterSamplePosUV = getSnappedUV(rasterSamplePosUV); // snap to pixel center
-
-        if (isSamePixel(texC, rasterSamplePosUV))
-        {
-            output.ao1 += (sphereStart - sphereEnd) / pdf;
+            output.ao1 += (s.sphereStart - s.sphereEnd) / s.pdf;
             continue;
         }
+
+        bool forceRay = false;
+        if (!s.isInScreen && SECONDARY_DEPTH_MODE == DEPTH_MODE_RAYTRACING && TRACE_OUT_OF_SCREEN)
+        {
+            forceRay = true; // always shoot rays for screen border   
+        }
         
-        float objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex);
-        curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
-
-        if ((sphereStart - sphereEnd) / pdf <= 0.1)
-        {
-            continue; // skip sample (no visibility)
-        }
-
-        float TRUSTED_AREA = sphereStart + CONST_RADIUS;
-        
-        // require hybrid ray if intersection is outside of sphere radius
-        if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL && objectSpaceZ > TRUSTED_AREA)
-        {
-            requireRay = true;
-        }
-
-        if (PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL && objectSpaceZ > TRUSTED_AREA)
-        {
-            float objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex2);
-            curVisibility = COMBINE_VIS(curVisibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf));
-            if (objectSpaceZ > TRUSTED_AREA) // both samples were before the sphere starts
-                requireRay = true;
-        }
+        s.evalPrimaryVisibility(data);
+        if (PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL)
+            s.evalDualVisibility(data);
 
         // always add computed visibility from raster
-        output.ao1 += curVisibility;
+        output.ao1 += s.visibility;
         if (data.denyRays())
             continue;
 
         // calc pixel importance
-        float sampleImportance = calcSampleImportance(radius, gDepthTex.SampleLevel(gTextureSampler, rasterSamplePosUV, 0.0), sphereStart, sphereEnd, objectSpaceZ, color);
+        float sampleImportance = calcSampleImportance(sampleRadius[i] * gData.radius, gDepthTex.SampleLevel(gTextureSampler, s.rasterSamplePosUV, 0.0), s.sphereStart, s.sphereEnd, s.objectSpaceZ, color);
         if (sampleImportance <= gData.importanceThreshold)
             continue;
         
-        if (requireRay || forceRay)
+        if (s.requireRay || forceRay)
         {
             // remember that this was a hybrid ray
             output.stencil |= 1u << i;
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
-            gDepthAccess[uint2(rasterSamplePosUV * gData.resolution)] = 1u;
-            InterlockedMin(gRayMinAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.posVLength - sphereStart - CONST_RADIUS - HALO_RADIUS, 0.0)));
-            InterlockedMax(gRayMaxAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.posVLength - sphereEnd, 0.0)));
+            gDepthAccess[uint2(s.rasterSamplePosUV * gData.resolution)] = 1u;
+            InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.posVLength - gData.radius - gData.thickness * gData.radius - s.sphereStart, 0.0)));
+            InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
 #endif
         }
     }
