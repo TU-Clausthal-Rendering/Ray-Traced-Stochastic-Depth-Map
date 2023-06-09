@@ -76,7 +76,6 @@ private:
     ref<FullScreenPass> mpRasterPass;
 
     ref<Scene> mpScene;
-    bool mEnableRayFilter = false;
 
     ref<RenderGraph> mpStochasticDepthGraph;
     //RayFilter::SharedPtr mpRayFilter;
@@ -105,19 +104,14 @@ private:
     DepthMode mSecondaryDepthMode = DepthMode::Raytraced;
     bool mUseRayPipeline = true;
 
-    bool mPreventDarkHalos = true;
-
     // performance knobs
     bool mTraceOutOfScreen = true;
-    bool mTraceDoubleOnDouble = true;
-    bool mFoliageLazyEvaluation = false;
-    float mClassifyProbability = 0.5f;
     float mTargetTimeMs = 0.6f;
 
     float mLastGpuTime = 0.0;
 
-    NeuralNetCollection mNeuralNet;
-    NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
+    //NeuralNetCollection mNeuralNet;
+    //NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
 
     StochasticDepthImpl mStochasticDepthImpl = StochasticDepthImpl::Ray;
 };

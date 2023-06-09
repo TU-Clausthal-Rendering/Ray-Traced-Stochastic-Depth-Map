@@ -61,14 +61,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     
     float visibility = 0.0f;
 
-    #if PRIMARY_DEPTH_MODE >= DEPTH_MODE_MACHINE_CLASSIFY
-    float rasterHeights[8] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    
-    #endif
-
     uint forceRayMask = 0; // forces rays due to double sided materials
-    bool isDoubleSided = (gMatDoubleSided[UVToPixel(texC)] & MTL_DOUBLE_SIDED) != 0;
-    bool acceptHaloHits = FOLIAGE_LAZY_EVAL && isDoubleSided;
     
     [unroll] for (uint i = 0; i < NUM_DIRECTIONS; i++)
     {
@@ -118,35 +111,17 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         float objectSpaceZ = calcObjectSpaceZ(posV, normal, rasterSamplePosUV, gDepthTex);
         curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
 
-        #if PRIMARY_DEPTH_MODE >= DEPTH_MODE_MACHINE_CLASSIFY
-        rasterHeights[i] = clamp(objectSpaceZ / gData.radius, -16.0, 16.0);
-        #endif
-
-
-
         if ((sphereStart - sphereEnd) / pdf <= 0.1)
         {
             continue; // skip sample (no visibility)
         }
 
         float TRUSTED_AREA = sphereStart + CONST_RADIUS;
-        if (acceptHaloHits) TRUSTED_AREA = gData.radius * 4.0;
         
         // require hybrid ray if intersection is outside of sphere radius
         if (!denyRays && PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL && objectSpaceZ > TRUSTED_AREA)
         {
-            bool hitDoubleSided = (gMatDoubleSided[UVToPixel(rasterSamplePosUV)] & MTL_DOUBLE_SIDED) != 0;
-        // require ray unless we dont want double sided hit and both materials are double sided
-            if (TRACE_DOUBLE_ON_DOUBLE || !isDoubleSided || !hitDoubleSided)
-            {
-                requireRay = true;
-#if PRIMARY_DEPTH_MODE >= DEPTH_MODE_MACHINE_CLASSIFY
-        // fetch material data to check for double sided flag
-        //if (hitDoubleSided)
-        //    forceRay = true;
-#endif    
-            }
-            
+            requireRay = true;
         }
 
         if (PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL && objectSpaceZ > TRUSTED_AREA)
@@ -167,238 +142,20 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         if (sampleImportance <= gData.importanceThreshold)
             continue;
         
-        if (forceRay && (PRIMARY_DEPTH_MODE >= DEPTH_MODE_MACHINE_CLASSIFY))
+        if (requireRay || forceRay)
         {
-            forceRayMask |= (1u << i);
-        }
-        else if (requireRay || forceRay)
-        {
-        // remember that this was a hybrid ray
-            if (PRIMARY_DEPTH_MODE != DEPTH_MODE_PERFECT_CLASSIFY)
-            {
-                output.stencil |= 1u << i;
-            }
+            // remember that this was a hybrid ray
+            output.stencil |= 1u << i;
             
-#if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC) && (PRIMARY_DEPTH_MODE != DEPTH_MODE_MACHINE_CLASSIFY)
+#if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
             gDepthAccess[uint2(rasterSamplePosUV * gData.resolution)] = 1u;
             InterlockedMin(gRayMinAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(posVLength - sphereStart - CONST_RADIUS - HALO_RADIUS, 0.0)));
             InterlockedMax(gRayMaxAccess[uint2(rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(posVLength - sphereEnd, 0.0)));
 #endif
-
-#if PRIMARY_DEPTH_MODE == DEPTH_MODE_PERFECT_CLASSIFY
-            // determine ray t to decide if a ray is necessary
-            samplePosUV = getSnappedUV(samplePosUV); // snap to pixel center
-            
-            float3 sampleDirV = normalize(UVToViewSpace(samplePosUV, 1.0)); // get sample direction in view space
-            float initialSamplePosLength = length(initialSamplePosV);
-
-            RayDesc ray;
-            ray.Origin = gCamera.data.posW;
-            ray.Direction = mul(float3x3(invViewMat), sampleDirV);
-
-
-            if (PREVENT_DARK_HALOS)
-            {
-                // only trace the ray inside the halo area
-                float tSphereStart = (posVLength - sphereStart) * initialSamplePosLength / posVLength;
-                float tSphereEnd = (posVLength - sphereEnd) * initialSamplePosLength / posVLength;
-                float tHaloStart = (posVLength - sphereHeight - CONST_RADIUS - HALO_RADIUS) * initialSamplePosLength / posVLength;
-                float tConstRadiusStart = (posVLength - sphereHeight - CONST_RADIUS) * initialSamplePosLength / posVLength;
-                float tExtendedRadiusStart = (posVLength - 2 * gData.radius) * initialSamplePosLength / posVLength;
-            
-                ray.TMin = 0.0; // include whole range for ML learning
-                ray.TMax = gCamera.data.farZ;
-
-                // skip procedural and force all triangle to be handled by any-hit traversal
-                RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE > rayQuery;
-                rayQuery.TraceRayInline(gScene.rtAccel, RAY_FLAG_NONE, 0xff, ray);
-
-                float tLastFrontFaceHalo = ray.TMin;
-                float tFirstFrontFace = ray.TMax;
-                float tFirstBackface = ray.TMax;
-                float tFirstFrontFaceInside = ray.TMax;
-                bool firstFrontFaceDoubleSided = false;
-
-                while (rayQuery.Proceed())
-                {
-                    if (rayQuery.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE)
-                    {
-                    // extract hit properties
-                        float t = rayQuery.CandidateTriangleRayT();
-
-                        bool frontFace = rayQuery.CandidateTriangleFrontFace();
-                        const TriangleHit hit = getCandidateTriangleHit(rayQuery);
-                        const uint materialID = gScene.getMaterialID(hit.instanceID);
-                        const MaterialHeader header = gScene.materials.materialData[materialID].header;
-                        bool isAlphaTested = header.getAlphaMode() == AlphaMode::Mask;
-
-                    // needs alpha testing?
-                        if (isAlphaTested)
-                        {
-                            const VertexData v = gScene.getVertexData(hit);
-                            if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
-                                continue; // alpha test failed => ignore this triangle
-                        }
-
-                        frontFace = frontFace || isAlphaTested || header.isDoubleSided();
-                        if (!frontFace)
-                        {
-                            tFirstBackface = min(tFirstBackface, t);
-                            if (tFirstFrontFaceInside < t)
-                                rayQuery.CommitNonOpaqueTriangleHit(); // since we save the min, we can commit here
-                            continue;
-                        }
-                        
-                        tFirstFrontFace = min(tFirstFrontFace, t);
-                        if (tFirstFrontFace == t)
-                            firstFrontFaceDoubleSided = header.isDoubleSided();
-
-                        if (t <= tSphereStart)
-                        {
-                            tLastFrontFaceHalo = max(tLastFrontFaceHalo, t);
-                            //if (t >= tConstRadiusStart)
-                            //    break; // we can stop the query, because this will set the visibility to zero
-                        }
-                        else // inside sphere
-                        {
-                            tFirstFrontFaceInside = min(tFirstFrontFaceInside, t);
-                            if (tFirstBackface < t)
-                                rayQuery.CommitNonOpaqueTriangleHit(); // since we save the min, we can commit here
-                        }
-                        
-                    }
-                }
-
-                bool requireRay = true;
-                if(!firstFrontFaceDoubleSided)
-                {
-                    if (tFirstFrontFace >= tConstRadiusStart) requireRay = false;
-                    if (tFirstBackface >= tConstRadiusStart) requireRay = false;
-                    float tGrazingAngle = 1.0 - (sphereStart - sphereEnd)/pdf;
-                    float tExtended = lerp(tConstRadiusStart, tExtendedRadiusStart, saturate(saturate(tGrazingAngle - 0.5) / 0.2));
-                    if (tFirstBackface >= tExtended)  requireRay = false;
-                }
-
-                // determine if ray is required
-                if(requireRay)
-                    output.stencil |= 1u << i; // still needs a ray
-            }
-#endif
         }
     }
-
-    #if PRIMARY_DEPTH_MODE == DEPTH_MODE_MACHINE_CLASSIFY
-    if (output.stencil != 0)
-    {
-        uint machineMask = evalClassifier(rasterHeights, gData.classifyThreshold);
-        output.stencil = output.stencil & machineMask;
-    }
-    output.stencil |= forceRayMask; // always trace the forced rays
-    #if SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC
-    // set bits in the depth access
-    [unroll]
-    for (uint i = 0; i < NUM_DIRECTIONS; ++i)
-    {
-        if ((output.stencil & (1u << i)))
-        {
-            float alpha = (float(i) / NUM_DIRECTIONS) * 2.0 * 3.141;
-            float radius = sampleRadius[i] * gData.radius; // radius on sampling unit sphere * world space radius
-            float2 dir = radius * float2(sin(alpha), cos(alpha)); // world space direction
-            float3 initialSamplePosV = posV + tangent * dir.x + bitangent * dir.y;
-            float2 samplePosUV = ViewSpaceToUV(initialSamplePosV);
-            float2 screenUv = getScreenClampedUV(texC, samplePosUV); // clip to screen border
-            float2 rasterSamplePosUV = screenUv;
-            rasterSamplePosUV = getSnappedUV(rasterSamplePosUV); // snap to pixel center
-            gDepthAccess[uint2(rasterSamplePosUV * gData.resolution)] = 1u;
-            
-            const float sphereHeight = sqrt(gData.radius * gData.radius - radius * radius);
-            float sphereStart = sphereHeight; // in object coordinates (bigger is closer to the camera)
-            float sphereEnd = -sphereHeight; // in object coordinates (smaller is futher from the camera)
-
-            { // HEMISPHERE SAMPLING
-                //float zIntersect = -dot(rand.xy, normalO.xy) / normalO.z;
-                float zIntersect = -dot(dir.xy, normalO.xy) / makeNonZero(normalO.z, 0.0001);
-                float zIntersectClamped = clamp(zIntersect, -sphereHeight, sphereHeight);
-                sphereEnd = zIntersectClamped;
-            }
-            InterlockedMin(gRayMinAccess[uint2(rasterSamplePosUV * gData.resolution)], asuint(max(posVLength - sphereStart - CONST_RADIUS - HALO_RADIUS, 0.0)));
-            InterlockedMax(gRayMaxAccess[uint2(rasterSamplePosUV * gData.resolution)], asuint(max(posVLength - sphereEnd, 0.0)));
-            
-        }
-    }
-    #endif
-    #endif
-
-
-    
-    #if PRIMARY_DEPTH_MODE == DEPTH_MODE_PERFECT_CLASSIFY
-    output.stencil |= forceRayMask; // always trace the forced rays
-    #endif
-    
-    #if PRIMARY_DEPTH_MODE == DEPTH_MODE_MACHINE_PREDICT
-    if(output.stencil != 0)
-    {
-        //output.stencil |= forceRayMask;
-        evalRegressor(rasterHeights);
-
-        [unroll]
-        for (uint i = 0; i < NUM_DIRECTIONS; ++i)
-        {
-            if ((output.stencil & (1u << i)))
-            {
-                // calc new ao value from new height
-                float alpha = (float(i) / NUM_DIRECTIONS) * 2.0 * 3.141;
-                float radius = sampleRadius[i] * gData.radius; // radius on sampling unit sphere * world space radius
-                float2 dir = radius * float2(sin(alpha), cos(alpha)); // world space direction
-
-                const float sphereHeight = sqrt(gData.radius * gData.radius - radius * radius);
-                const float pdf = 2.0 * sphereHeight;
-        
-                // determine distance within [-sphereHeight, +sphereHeight]
-                float sphereStart = sphereHeight; // in object coordinates (bigger is closer to the camera)
-                float sphereEnd = -sphereHeight; // in object coordinates (smaller is futher from the camera)
-
-                float zIntersect = -dot(dir.xy, normalO.xy) / makeNonZero(normalO.z, 0.0001);
-                float zIntersectClamped = clamp(zIntersect, -sphereHeight, sphereHeight);
-                sphereEnd = zIntersectClamped;
-
-                float objectSpaceZ = rasterHeights[i];
-                float curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
-                output.ao1 += curVisibility;
-            }
-        }
-    }
-    output.stencil = forceRayMask; // replace with forceRayMask
-    #endif
 
     output.ao1 *= 2.0 / float(NUM_DIRECTIONS);
-
-    //if (countbits(output.stencil) == 1)
-    //    output.stencil = 0;
-   
-
-    if (RAY_FILTER)
-    {
-        uint numWaves = WaveActiveCountBits(true);
-
-        // count of all other threads (not including self)
-        //uint otherRayCount = WaveActiveSum(countbits(output.stencil)) - countbits(output.stencil);
-        uint otherRayCount = WaveActiveSum(output.stencil != 0 ? 1 : 0);
-
-        float threshold = 0.2f;
-        //if (otherRayCount < uint(threshold * numWaves))
-        //    output.stencil = 0;
-
-        //if (WaveActiveMax(countbits(output.stencil)) <= 1)
-        //    output.stencil = 0;
-
-        if (countbits(output.stencil) == 1
-            && QuadReadAcrossX(output.stencil) == 0
-            && QuadReadAcrossY(output.stencil) == 0
-            && QuadReadAcrossDiagonal(output.stencil) == 0)
-            output.stencil = 0;
-
-    }
 
     // apply exponent
     if(output.stencil == 0)

@@ -53,7 +53,6 @@ namespace
     const std::string kStencilShader = "RenderPasses/SVAO/CopyStencil.ps.slang";
 
     const uint32_t kMaxPayloadSizePreventDarkHalos = 4 * 4;
-    const uint32_t kMaxPayloadSizeDarkHalos = 4 * 3;
 
     // settings
     const std::string kRadius = "radius";
@@ -104,12 +103,6 @@ SVAO::SVAO(ref<Device> pDevice) : RenderPass(std::move(pDevice))
     stencil.setStencilWriteMask(1);
     mpStencilPass->getState()->setDepthStencilState(DepthStencilState::create(stencil));
     mpStencilFbo = Fbo::create(mpDevice);
-
-    std::filesystem::path resPath;
-    auto found = findFileInDataDirectories("NeuralNet/net_relu_reg_weights0_bias0.npy", resPath);
-    assert(found);
-    mNeuralNet.load(resPath.parent_path().string() + "/net_relu");
-    mNeuralNet2.load(resPath.parent_path().string() + "/net_relu_reg");
 }
 
 ref<SVAO> SVAO::create(ref<Device> pDevice, const Dictionary& dict)
@@ -230,18 +223,12 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         // generate neural net shader files
         std::filesystem::path resPath;
         auto foundShader = findFileInShaderDirectories("RenderPasses/SVAO/SVAORaster.ps.slang", resPath);
-        mNeuralNet.writeDefinesToFile(resPath.parent_path().string() + "/NeuralNetDefines.slangh");
-        mNeuralNet2.writeDefinesToFile(resPath.parent_path().string() + "/NeuralNetDefines2.slangh");
 
         Program::DefineList defines;
         defines.add("PRIMARY_DEPTH_MODE", std::to_string(uint32_t(mPrimaryDepthMode)));
         defines.add("SECONDARY_DEPTH_MODE", std::to_string(uint32_t(mSecondaryDepthMode)));
         defines.add("MSAA_SAMPLES", std::to_string(mStochSamples)); // TODO update this from gui
-        defines.add("PREVENT_DARK_HALOS", mPreventDarkHalos ? "1" : "0");
         defines.add("TRACE_OUT_OF_SCREEN", mTraceOutOfScreen ? "1" : "0");
-        defines.add("TRACE_DOUBLE_ON_DOUBLE", mTraceDoubleOnDouble ? "1" : "0");
-        defines.add("FOLIAGE_LAZY_EVAL", mFoliageLazyEvaluation ? "1" : "0");
-        defines.add("RAY_FILTER", mEnableRayFilter ? "1" : "0");
         defines.add("STOCHASTIC_DEPTH_IMPL", std::to_string(uint32_t(mStochasticDepthImpl)));
         defines.add(mpScene->getSceneDefines());
 
@@ -256,7 +243,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         RtProgram::Desc desc;
         desc.addShaderModules(mpScene->getShaderModules());
         desc.addShaderLibrary(kRayShader);
-        desc.setMaxPayloadSize(mPreventDarkHalos ? kMaxPayloadSizePreventDarkHalos : kMaxPayloadSizeDarkHalos);
+        desc.setMaxPayloadSize(kMaxPayloadSizePreventDarkHalos);
         desc.setMaxAttributeSize(mpScene->getRaytracingMaxAttributeSize());
         desc.setMaxTraceRecursionDepth(1);
         desc.addTypeConformances(mpScene->getTypeConformances());
@@ -475,9 +462,9 @@ void SVAO::renderUI(Gui::Widgets& widget)
     {
         { (uint32_t)DepthMode::SingleDepth, "SingleDepth" },
         { (uint32_t)DepthMode::DualDepth, "DualDepth" },
-        { (uint32_t)DepthMode::MachineClassify, "MachineClassify" },
-        { (uint32_t)DepthMode::MachinePredict, "MachinePredict" },
-        { (uint32_t)DepthMode::PerfectClassify, "PerfectClassify" },
+        //{ (uint32_t)DepthMode::MachineClassify, "MachineClassify" },
+        //{ (uint32_t)DepthMode::MachinePredict, "MachinePredict" },
+        //{ (uint32_t)DepthMode::PerfectClassify, "PerfectClassify" },
     };
 
     const Gui::DropdownList kSecondaryDepthModeDropdown =
@@ -506,9 +493,6 @@ void SVAO::renderUI(Gui::Widgets& widget)
     widget.checkbox("Enabled", mEnabled);
     if (!mEnabled) return;
 
-    if (widget.checkbox("Prevent Dark Halos", mPreventDarkHalos))
-        reset = true;
-
     uint32_t primaryDepthMode = (uint32_t)mPrimaryDepthMode;
     if (widget.dropdown("Primary Depth Mode", kPrimaryDepthModeDropdown, primaryDepthMode)) {
         mPrimaryDepthMode = (DepthMode)primaryDepthMode;
@@ -518,21 +502,6 @@ void SVAO::renderUI(Gui::Widgets& widget)
     if (widget.slider("Importance Threshold", mData.importanceThreshold, 0.0f, 1.0f)) mDirty = true;
     widget.var("Target Time", mTargetTimeMs, 0.0f, FLT_MAX, 0.1f);
     widget.text("current time: " + std::to_string(mLastGpuTime) + " ms");
-
-    if (mPrimaryDepthMode == DepthMode::MachineClassify)
-    {
-        if (widget.var("Machine Classify Threshold", mClassifyProbability, 0.000000000001f, 0.99999999999999f))
-        {
-            mData.classifyThreshold = -log(1.0f / mClassifyProbability - 1.0f);
-            mDirty = true;
-        }
-
-        if(widget.var("Raw Classify Threshold", mData.classifyThreshold))
-        {
-            mClassifyProbability = 1.0f / (1.0f + exp(-mData.classifyThreshold));
-            mDirty = true;
-        }
-    }
 
     uint32_t secondaryDepthMode = (uint32_t)mSecondaryDepthMode;
     if (widget.dropdown("Secondary Depth Mode", kSecondaryDepthModeDropdown, secondaryDepthMode)) {
@@ -564,24 +533,12 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
     if (widget.var("Power Exponent", mData.exponent, 1.0f, 4.0f, 0.1f)) mDirty = true;
 
-    if (mNeuralNet.renderUI(widget))
-        reset = true;
-
-    if (mNeuralNet2.renderUI(widget))
-        reset = true;
-
 
     widget.separator();
-    if (widget.checkbox("Enable Ray Filter", mEnableRayFilter)) reset = true;
     //if(mEnableRayFilter) mpRayFilter->renderUI(widget);
 
     if (widget.checkbox("Trace Out of Screen", mTraceOutOfScreen)) reset = true;
     widget.tooltip("If a sample point is outside of the screen, a ray is traced. Otherwise the closest sample from the border is used.");
-    if (widget.checkbox("Trace Foliage Hits on Foliage Material", mTraceDoubleOnDouble)) reset = true;
-    widget.tooltip("If disabled then no rays will be traced for double sided materials that hit double sided samples");
-    if (widget.checkbox("Foliage Lazy Evaluation", mFoliageLazyEvaluation)) reset = true;
-    widget.tooltip("If enabled, raster samples from doubled sided materials will also be accepted when the hit point is inside the halo area (instead of the const/sphere area)");
-    
 
     if (widget.var("Fade End (Screen Space Radius)", mData.ssRadiusFadeEnd, 0.0f, 100.0f, 1.0f)) mDirty = true;
     widget.tooltip("radius in pixels where the ray tracing result is completely faded and only rasterization remains");

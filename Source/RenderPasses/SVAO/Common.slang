@@ -28,17 +28,9 @@ import Scene.Shading;
 #endif
 
 // area where the halo effect remains constant at 0.0
-#if PREVENT_DARK_HALOS
 #define CONST_RADIUS ((1.0 + gData.thickness) * gData.radius - sphereStart)
-//#define HALO_RADIUS (sphereStart - sphereEnd)
 #define HALO_RADIUS sphereStart
 #define COMBINE_VIS(a,b) min(a,b)
-#else
-#define CONST_RADIUS 0.0
-#define HALO_RADIUS 0.0
-// as long as one sample is 0 (fully occluded), take the first non-zero sample. If both samples are non-zero, take the darkest (closest) occluder
-#define COMBINE_VIS(a,b) (min(a,b) <= 0 ? max(a,b) : min(a,b))
-#endif
 
 #define NUM_DIRECTIONS 8
 // normalized radius for each of the NUM_DIRECTION samples (distributed with radical inverse => see SSAO::setKernel() radius)
@@ -128,9 +120,6 @@ float makeNonZero(float value, float epsilon)
 // this also includes the constant radius, where visibility remains 0
 float calcHaloVisibility(float objectSpaceZ, float sphereStart, float sphereEnd, float pdf)
 {
-    if (!PREVENT_DARK_HALOS)
-        return 0.0;
-    
     return saturate((objectSpaceZ - sphereStart - CONST_RADIUS) / HALO_RADIUS)
         * (sphereStart - sphereEnd) / pdf; // this adjust the visibility to the sampling (hemi-)sphere
 }

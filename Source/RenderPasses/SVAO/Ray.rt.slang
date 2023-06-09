@@ -17,18 +17,6 @@ struct RayData // cannot be compressed to half floats => no diff in rendering ti
     float tSphereStart;
 };
 
-struct RayData2
-{
-    float tFirstFrontFaceInside;
-    int occlusionStack;
-    float tSphereStart;
-};
-
-#ifndef PREVENT_DARK_HALOS
-#define PREVENT_DARK_HALOS 1
-#endif
-
-#if PREVENT_DARK_HALOS
 [shader("anyhit")]
 void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs)
 {
@@ -83,57 +71,6 @@ void closestHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes att
 {
     // is skipped
 }
-#else
-[shader("anyhit")]
-void anyHit(inout RayData2 rayData, BuiltInTriangleIntersectionAttributes attribs)
-{
-    // extract hit properties
-    float t = RayTCurrent();
-
-    bool frontFace = HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE;
-    TriangleHit hit;
-    hit.instanceID = getGeometryInstanceID();
-    hit.primitiveIndex = PrimitiveIndex();
-    hit.barycentrics = attribs.barycentrics;
-    const uint materialID = gScene.getMaterialID(hit.instanceID);
-    const MaterialHeader header = gScene.materials.materialData[materialID].header;
-
-    bool isAlphaTested = header.getAlphaMode() == AlphaMode::Mask;
-
-    if (t < rayData.tSphereStart) // in front of sphere
-    {
-        if (isAlphaTested || header.isDoubleSided()) // ignore alpha tested materials (too thin for occlusion at this distance)
-            IgnoreHit();
-        rayData.occlusionStack += frontFace ? 1 : -1;
-        IgnoreHit(); // continue traversal
-    }
-    else // inside the sphere
-    {         
-        // needs alpha testing?
-        if (isAlphaTested)
-        {
-            const VertexData v = gScene.getVertexData(hit);
-            if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
-                IgnoreHit(); // alpha test failed => ignore this triangle
-        }
-
-        rayData.tFirstFrontFaceInside = min(rayData.tFirstFrontFaceInside, t);
-        return; // commit hit
-    }
-}
-
-[shader("miss")]
-void miss(inout RayData2 rayData)
-{
-}
-
-[shader("closesthit")]
-void closestHit(inout RayData2 rayData, BuiltInTriangleIntersectionAttributes attribs)
-{
-    // is skipped
-}
-#endif
-
 
 [shader("raygeneration")]
 void rayGen()
@@ -144,12 +81,6 @@ void rayGen()
     uint mask = aoMask[svPos] & 0xFF;
     if (mask == 0u)
         return;
-
-    /*{ // dummy sync
-        RayData dummy = { };
-        RayDesc dummyDesc = { };
-        TraceRay(nullAS, RAY_FLAG_NONE, 0, 0, 0, 0, dummyDesc, dummy);
-    }*/
 
     // fetch linear depth a second time
     float linearDepth = gDepthTex.SampleLevel(gTextureSampler, texC, 0);
@@ -179,9 +110,6 @@ void rayGen()
     float3 normalO = float3(dot(normalV, tangent), dot(normalV, bitangent), dot(normalV, normal));
     
     float visibility = 0.0f;
-    
-    bool isDoubleSided = (gMatDoubleSided[UVToPixel(texC)] & MTL_DOUBLE_SIDED) != 0;
-    bool acceptHaloHits = FOLIAGE_LAZY_EVAL && isDoubleSided;
     
     uint i = 0;
     //[loop] while(mask != 0u)
@@ -284,104 +212,55 @@ void rayGen()
             
             float3 sampleDirV = normalize(UVToViewSpace(samplePosUV, 1.0)); // get sample direction in view space
             float initialSamplePosLength = length(initialSamplePosV);
-
-
             
             RayDesc ray;
             ray.Origin = gCamera.data.posW; // offset a little bit in normal direction
             ray.Direction = mul(float3x3(invViewMat), sampleDirV);
 
-            if (PREVENT_DARK_HALOS)
-            {
-                float tSphereStart = (posVLength - sphereStart) * initialSamplePosLength / posVLength;
-                float tSphereEnd = (posVLength - sphereEnd) * initialSamplePosLength / posVLength;
-                float tHaloStart = (posVLength - sphereHeight - CONST_RADIUS - HALO_RADIUS) * initialSamplePosLength / posVLength;
-                float tConstRadiusStart = (posVLength - sphereHeight - CONST_RADIUS) * initialSamplePosLength / posVLength;
-                ray.TMin = max(tHaloStart, 0.0);
-                ray.TMax = tSphereEnd;
+            float tSphereStart = (posVLength - sphereStart) * initialSamplePosLength / posVLength;
+            float tSphereEnd = (posVLength - sphereEnd) * initialSamplePosLength / posVLength;
+            float tHaloStart = (posVLength - sphereHeight - CONST_RADIUS - HALO_RADIUS) * initialSamplePosLength / posVLength;
+            float tConstRadiusStart = (posVLength - sphereHeight - CONST_RADIUS) * initialSamplePosLength / posVLength;
+            ray.TMin = max(tHaloStart, 0.0);
+            ray.TMax = tSphereEnd;
 
-                const float epsilon = gData.radius * 0.01;
-                float objectSpaceZ;
-                if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL) // DEPTH_MODE = SINGLE (or classify)
-                    objectSpaceZ = calcObjectSpaceZ(posV, normal, samplePosUV, gDepthTex);
-                else // if(PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL)
-                    objectSpaceZ = calcObjectSpaceZ(posV, normal, samplePosUV, gDepthTex2);
-                curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
+            const float epsilon = gData.radius * 0.01;
+            float objectSpaceZ;
+            if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL) // DEPTH_MODE = SINGLE (or classify)
+                objectSpaceZ = calcObjectSpaceZ(posV, normal, samplePosUV, gDepthTex);
+            else // if(PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL)
+                objectSpaceZ = calcObjectSpaceZ(posV, normal, samplePosUV, gDepthTex2);
+            curVisibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
 
-                // subtract old visibility from raster (will be replaced with new visibility)
-                visibility -= curVisibility;
+            // subtract old visibility from raster (will be replaced with new visibility)
+            visibility -= curVisibility;
 
-                // include the value of the depth buffer when choosing TMin to save some traversal time
-                if (isInScreen)
-                    ray.TMin = max(ray.TMin, (posVLength - objectSpaceZ) * initialSamplePosLength / posVLength + epsilon);
-                else
-                    curVisibility = 1.0;
+            // include the value of the depth buffer when choosing TMin to save some traversal time
+            if (isInScreen)
+                ray.TMin = max(ray.TMin, (posVLength - objectSpaceZ) * initialSamplePosLength / posVLength + epsilon);
+            else
+                curVisibility = 1.0;
 
-                RayData rayData;
-                rayData.tLastFrontFaceHalo = tHaloStart; // min
-                rayData.tFirstFrontFaceInside = tSphereEnd; // max
-                rayData.tConstRadiusStart = tConstRadiusStart;
-                rayData.tSphereStart = tSphereStart;
-                if (acceptHaloHits)
-                {
-                    // set start to halo start to force collecting the global tmin
-                    rayData.tSphereStart = tHaloStart;
-                    rayData.tConstRadiusStart = tHaloStart;
-                }
+            RayData rayData;
+            rayData.tLastFrontFaceHalo = tHaloStart; // min
+            rayData.tFirstFrontFaceInside = tSphereEnd; // max
+            rayData.tConstRadiusStart = tConstRadiusStart;
+            rayData.tSphereStart = tSphereStart;
                 
-                TraceRay(
-                    gScene.rtAccel,
-                    RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
-                    0xff /* instanceInclusionMask */, 0 /* hitIdx */, 1 /*ray type count*/, 0 /* missIdx */,
-                    ray, rayData
-                );
+            TraceRay(
+                gScene.rtAccel,
+                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
+                0xff /* instanceInclusionMask */, 0 /* hitIdx */, 1 /*ray type count*/, 0 /* missIdx */,
+                ray, rayData
+            );
 
-                // calculate visibility inside and outside of sphere
-                //float sphereVisibility = calcSphereVisibility(posVLength - rayData.tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
-                float sphereVisibility = calcVisibility(posVLength - rayData.tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
-                float haloVisibility = calcHaloVisibility(posVLength - rayData.tLastFrontFaceHalo * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+            // calculate visibility inside and outside of sphere
+            //float sphereVisibility = calcSphereVisibility(posVLength - rayData.tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+            float sphereVisibility = calcVisibility(posVLength - rayData.tFirstFrontFaceInside * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
+            float haloVisibility = calcHaloVisibility(posVLength - rayData.tLastFrontFaceHalo * posVLength / initialSamplePosLength, sphereStart, sphereEnd, pdf);
 
-                float rayVisibility = min(curVisibility, min(sphereVisibility, haloVisibility));
-                curVisibility = lerp(curVisibility, rayVisibility, rayRasterBlend);
-            }
-            else // !PREVENT_DARK_HALOS
-            {
-                float tSphereStart = (posVLength - sphereStart) * initialSamplePosLength / posVLength;
-                float tSphereEnd = (posVLength - sphereEnd) * initialSamplePosLength / posVLength;
-                ray.TMin = 0.0f;
-                ray.TMax = tSphereEnd;
-                
-                if (isInScreen) // start slighlty before the first detected object from the raster pass (start before the object to include it in occlusion mask)
-                {
-                    const float epsilon = gData.radius * 0.01;
-                    //const float epsilon = 0.0;
-                    float objectSpaceZ;
-                    if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL) // single or classify
-                        objectSpaceZ = calcObjectSpaceZ(posV, normal, samplePosUV, gDepthTex);
-                    else if (PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL)
-                        objectSpaceZ = calcObjectSpaceZ(posV, normal, samplePosUV, gDepthTex2);
-                    ray.TMin = max(ray.TMin, (posVLength - objectSpaceZ) * initialSamplePosLength / posVLength - epsilon);
-                }
-
-                RayData2 rayData;
-                rayData.tFirstFrontFaceInside = ray.TMax;
-                rayData.tSphereStart = tSphereStart;
-                rayData.occlusionStack = 0;
-                TraceRay(
-                    gScene.rtAccel,
-                    RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
-                    0xff /* instanceInclusionMask */, 0 /* hitIdx */, 1 /*ray type count*/, 0 /* missIdx */,
-                    ray, rayData
-                );
-
-                // calculate visibility inside and outside of sphere
-                float sphereZ = posVLength - rayData.tFirstFrontFaceInside * posVLength / initialSamplePosLength;
-                curVisibility = calcSphereVisibility(sphereZ, sphereStart, sphereEnd, pdf);
-
-                if (rayData.occlusionStack > 0)
-                    curVisibility = 0.0;
-            }
-            
+            float rayVisibility = min(curVisibility, min(sphereVisibility, haloVisibility));
+            curVisibility = lerp(curVisibility, rayVisibility, rayRasterBlend);
         }
 
         visibility += curVisibility;
@@ -395,5 +274,4 @@ void rayGen()
     visibility += output[svPos];
     visibility = pow(visibility, gData.exponent);
     output[svPos] = visibility;
-    //output[svPos] += visibility;
 }
