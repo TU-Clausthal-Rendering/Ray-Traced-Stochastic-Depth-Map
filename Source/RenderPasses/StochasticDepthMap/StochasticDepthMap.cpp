@@ -207,14 +207,13 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
     auto pDepthIn = renderData[kDepthIn]->asTexture();
     auto psDepths = renderData[ksDepth]->asTexture();
     ref<Texture> pStencilMask;
-    if (renderData[kStencil])
+    if (renderData[kStencil]) pStencilMask = renderData[kStencil]->asTexture();
+    if (!pStencilMask && renderData[kRayMax]) pStencilMask = renderData[kRayMax]->asTexture();
+        
+    if(pStencilMask && !isStencilFormat(mDepthFormat))
     {
-        pStencilMask = renderData[kStencil]->asTexture();
-        if (!isStencilFormat(mDepthFormat))
-        {
-            logWarning("StochasticDepthMap depth format must have stencil to enable writing to stencil");
-            pStencilMask.reset();
-        }
+        logWarning("StochasticDepthMap depth format must have stencil to enable writing to stencil");
+        pStencilMask.reset();
     }
     ref<Texture> pRayMin;
     if (renderData[kRayMin]) pRayMin = renderData[kRayMin]->asTexture();

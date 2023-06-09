@@ -207,6 +207,8 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     auto psDepths = renderData[ksDepth]->asTexture();
     ref<Texture> pStencilMask;
     if (renderData[kStencil]) pStencilMask = renderData[kStencil]->asTexture();
+    if (!pStencilMask && renderData[kRayMax]) pStencilMask = renderData[kRayMax]->asTexture();
+
     ref<Texture> pRayMin;
     if (renderData[kRayMin]) pRayMin = renderData[kRayMin]->asTexture();
     ref<Texture> pRayMax;

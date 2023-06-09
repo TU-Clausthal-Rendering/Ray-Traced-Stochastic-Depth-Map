@@ -34,7 +34,6 @@ namespace
     const std::string kAmbientMap = "ao";
     const std::string kAoStencil = "stencil";
     //const std::string kAoStencil2 = "stencil2";
-    const std::string kAccessStencil = "accessStencil";
     const std::string kGbufferDepth = "gbufferDepth";
     const std::string kDepth = "depth";
     const std::string kDepth2 = "depth2";
@@ -146,7 +145,6 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     reflector.addOutput(kAmbientMap, "Ambient Occlusion (primary)").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::RenderTarget).format(ResourceFormat::R8Unorm);
     reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kAoStencil2, "ping pong for stencil mask").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
-    reflector.addOutput(kAccessStencil, "Stencil Bitmask for secondary depth map accesses").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24);
     reflector.addOutput(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24).bindFlags(ResourceBindFlags::DepthStencil);
 
@@ -206,7 +204,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
     auto pAoMask = renderData[kAoStencil]->asTexture();
     //auto pAoMask2 = renderData[kAoStencil2]->asTexture();
-    auto pAccessStencil = renderData[kAccessStencil]->asTexture();
     auto pInternalStencil = renderData[kInternalStencil]->asTexture();
 
     auto pInternalRayMin = renderData[kInternalRayMin]->asTexture();
@@ -286,10 +283,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mDirty = false;
     }
 
-    auto accessStencilUAV = pAccessStencil->getUAV(0);
-    if (mSecondaryDepthMode == DepthMode::StochasticDepth)
-        pRenderContext->clearUAV(accessStencilUAV.get(), uint4(0u));
-
     mpFbo->attachColorTarget(pAoDst, 0);
     mpFbo->attachColorTarget(pAoMask, 1);
     //mpFbo->attachColorTarget(mEnableRayFilter ? pAoMask2 : pAoMask, 1);
@@ -311,8 +304,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     //mpRasterPass["gDepthAccess"] = pAccessStencil;
     if(mSecondaryDepthMode == DepthMode::StochasticDepth)
     {
-        rasterVars["gDepthAccess"].setUav(accessStencilUAV);
-
         pRenderContext->clearUAV(pInternalRayMin->getUAV().get(), uint4(asuint(std::numeric_limits<float>::max())));
         pRenderContext->clearUAV(pInternalRayMax->getUAV().get(), uint4(0u));
         rasterVars["gRayMinAccess"] = pInternalRayMin;
@@ -368,16 +359,14 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         {
         case StochasticDepthImpl::Raster:
             mpStochasticDepthGraph->setInput("StochasticDepthMap.depthMap", pNonLinearDepth);
-            mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMin", pInternalRayMin);
-            mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMax", pInternalRayMax);
             break;
         case StochasticDepthImpl::Ray:
             mpStochasticDepthGraph->setInput("StochasticDepthMap.linearZ", pDepth);
-            mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMin", pInternalRayMin);
-            mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMax", pInternalRayMax);
             break;
         }
-        mpStochasticDepthGraph->setInput("StochasticDepthMap.stencilMask", pAccessStencil);
+        mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMin", pInternalRayMin);
+        mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMax", pInternalRayMax);
+        //mpStochasticDepthGraph->setInput("StochasticDepthMap.stencilMask", pAccessStencil);
         if(any(lastSize != uint2(pAoDst->getWidth(), pAoDst->getHeight())))
         {
             mpStochasticDepthGraph->onResize(mpFbo.get());

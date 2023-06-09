@@ -10,7 +10,6 @@ struct PSOut
 
 };
 
-RWTexture2D<uint> gDepthAccess; // indicates depth accesses for the secondary pass
 RWTexture2D<uint> gRayMinAccess;
 RWTexture2D<uint> gRayMaxAccess;
 
@@ -71,7 +70,6 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             output.stencil |= 1u << i;
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
-            gDepthAccess[uint2(s.rasterSamplePosUV * gData.resolution)] = 1u;
             InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.posVLength - gData.radius - gData.thickness * gData.radius - s.sphereStart, 0.0)));
             InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
 #endif
