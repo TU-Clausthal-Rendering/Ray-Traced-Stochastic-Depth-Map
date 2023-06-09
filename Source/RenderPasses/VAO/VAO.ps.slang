@@ -464,8 +464,8 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET0
                 // only trace the ray inside the halo area
                 float tSphereStart = (posVLength - sphereStart) * initialSamplePosLength / posVLength;
                 float tSphereEnd = (posVLength - sphereEnd) * initialSamplePosLength / posVLength;
-                float tHaloStart = (posVLength - sphereHeight - CONST_RADIUS - HALO_RADIUS) * initialSamplePosLength / posVLength;
-                float tConstRadiusStart = (posVLength - sphereHeight - CONST_RADIUS) * initialSamplePosLength / posVLength;
+                float tHaloStart = (posVLength - sphereStart - CONST_RADIUS - HALO_RADIUS) * initialSamplePosLength / posVLength;
+                float tConstRadiusStart = (posVLength - sphereStart - CONST_RADIUS) * initialSamplePosLength / posVLength;
                 float tExtendedRadiusStart = (posVLength - 2 * gData.radius) * initialSamplePosLength / posVLength;
                 
                 ray.TMin = 0.0; // include whole range for ML learning
