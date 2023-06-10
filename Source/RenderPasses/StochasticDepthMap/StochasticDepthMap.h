@@ -71,6 +71,7 @@ private:
     float mLastZNear = 0.0f;
     float mLastZFar = 0.0f;
     float mAlpha = 0.2f;
+    bool mUseReservoirSampling = false;
 
     bool mLinearizeDepth = true;
 

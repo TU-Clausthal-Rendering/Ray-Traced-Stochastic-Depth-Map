@@ -31,10 +31,12 @@ namespace
 {
     const std::string kDepthIn = "depthMap";
     const std::string ksDepth = "stochasticDepth";
+    const std::string kInternalReservoirCounter = "internalReservoirCounter";
     const std::string kProgramFile = "RenderPasses/StochasticDepthMap/StochasticDepth.ps.slang";
     const std::string kStencilFile = "RenderPasses/StochasticDepthMap/Stencil.ps.slang";
     const std::string kSampleCount = "SampleCount";
     const std::string kAlpha = "Alpha";
+    const std::string kReservoirSampling = "ReservoirSampling";
     const std::string kCullMode = "CullMode";
     const std::string kLinearize = "linearize";
     const std::string kDepthFormat = "depthFormat";
@@ -153,6 +155,7 @@ ref<StochasticDepthMap> StochasticDepthMap::create(ref<Device> pDevice, const Di
         else if (key == kCullMode) pPass->mCullMode = value;
         else if (key == kLinearize) pPass->mLinearizeDepth = value;
         else if (key == kDepthFormat) pPass->mDepthFormat = value;
+        else if (key == kReservoirSampling) pPass->mUseReservoirSampling = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMap dictionary");
     }
     return pPass;
@@ -166,6 +169,7 @@ Dictionary StochasticDepthMap::getScriptingDictionary()
     d[kCullMode] = mCullMode;
     d[kLinearize] = mLinearizeDepth;
     d[kDepthFormat] = mDepthFormat;
+    d[kReservoirSampling] = mUseReservoirSampling;
     return d;
 }
 
@@ -177,6 +181,8 @@ RenderPassReflection StochasticDepthMap::reflect(const CompileData& compileData)
     reflector.addInput(kRayMin, "min ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addInput(kRayMax, "max ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllDepthViews).format(mDepthFormat).texture2D(0, 0, mSampleCount);
+
+    reflector.addInternal(kInternalReservoirCounter, "reservoir counter").format(ResourceFormat::R32Uint).bindFlags(ResourceBindFlags::AllColorViews);
     return reflector;
 }
 
@@ -220,7 +226,8 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
     ref<Texture> pRayMax;
     if (renderData[kRayMax]) pRayMax = renderData[kRayMax]->asTexture();
 
-
+    ref<Texture> pReservoirCounter = renderData[kInternalReservoirCounter]->asTexture();
+    
     auto pCamera = mpScene->getCamera();
 
     // clear
@@ -237,6 +244,7 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
         auto defines = mpScene->getSceneDefines();
         defines.add("NUM_SAMPLES", std::to_string(mSampleCount));
         defines.add("ALPHA", std::to_string(mAlpha));
+        defines.add("RESERVOIR_SAMPLING", mUseReservoirSampling ? "1" : "0");
         if (mLinearizeDepth) defines.add("LINEARIZE");
         auto pProgram = GraphicsProgram::create(mpDevice, desc, defines);
 
@@ -257,6 +265,7 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
 
     {
         FALCOR_PROFILE(pRenderContext, "Stochastic Depths");
+
         // rasterize non-linear depths
         mpState->setFbo(mpFbo);
         auto var = mpVars->getRootVar();
@@ -265,6 +274,12 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
         var["depthBuffer"] = pDepthIn;
         var["rayMin"] = pRayMin;
         var["rayMax"] = pRayMax;
+
+        if (mUseReservoirSampling)
+        {
+            pRenderContext->clearUAV(pReservoirCounter->getUAV().get(), uint4(0));
+            var["counter"] = pReservoirCounter;
+        }
 
         // set camera data
         float zNear = pCamera->getNearPlane();

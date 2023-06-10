@@ -13,6 +13,8 @@ Texture2D<float> depthBuffer;
 Texture2D<uint> rayMin; // additional texture for a more precise depth range
 Texture2D<uint> rayMax; // contains float values: use asfloat()
 
+RWTexture2D<uint> counter; // for reservoir sampling
+
 cbuffer CameraCB
 {
     float zNear;
@@ -72,7 +74,20 @@ PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
     // #endif
 
     float rng = hash4D(float4(vsOut.posW.xyz, 1.438943289));
+    
+    #if RESERVOIR_SAMPLING
 
+    uint slot = 0;
+    InterlockedAdd(counter[svPos], 1u, slot);
+    if(slot >= NUM_SAMPLES)
+        slot = uint(rng * slot);
+    if(slot >= NUM_SAMPLES) // rejected
+        discard;
+
+    output.SampleMask[0] = 1u << slot;
+    
+    #else
+    
     int R = int(floor(ALPHA * NUM_SAMPLES + rng));
 
     if (R >= NUM_SAMPLES)
@@ -89,9 +104,11 @@ PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
     else
         discard;
 
+    #endif
+    
     #ifdef LINEARIZE
     output.depth = (vsOut.posH.w - zNear) / (zFar - zNear); // linear depth normalizedto [0,1] because a depth target cannot store higher values
     #endif
-
+    
     return output;
 }
