@@ -3,11 +3,18 @@ import Scene.RaytracingInline;
 #include "NeuralNetDefines.slangh"
 #include "NeuralNetDefines2.slangh"
 
+#define DARK_MAP
+#ifdef DARK_MAP
+#define darkmap(x) x
+#else
+#define darkmap(x)
+#endif
+
 struct PSOut
 {
     float ao1 : SV_TARGET0;
     uint stencil : SV_TARGET1;
-
+    darkmap(float aoDark : SV_TARGET2);
 };
 
 RWTexture2D<uint> gRayMinAccess;
@@ -18,6 +25,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     PSOut output;
     output.ao1 = 0.0;
     output.stencil = 0;
+    darkmap(output.aoDark = 0.0);
 
     BasicAOData data;
     if (!data.Init(texC))
@@ -28,10 +36,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 
     float3 color = saturate(gColor.SampleLevel(gTextureSampler, texC, 0).xyz); // for pixel importance
     
-    float visibility = 0.0f;
-
-    uint forceRayMask = 0; // forces rays due to double sided materials
-    
+    float visibility = 0.0f;    
     [unroll] for (uint i = 0; i < NUM_DIRECTIONS; i++)
     {
         SampleAOData s;
@@ -41,6 +46,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         if (isSamePixel(texC, s.rasterSamplePosUV))
         {
             output.ao1 += (s.sphereStart - s.sphereEnd) / s.pdf;
+            darkmap(output.aoDark += (s.sphereStart - s.sphereEnd) / s.pdf);
             continue;
         }
 
@@ -55,17 +61,16 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             s.evalDualVisibility(data);
 
         // always add computed visibility from raster
-        output.ao1 += s.visibility;
-        if (data.denyRays())
-            continue;
-
-        // calc pixel importance
-        float sampleImportance = calcSampleImportance(sampleRadius[i] * gData.radius, gDepthTex.SampleLevel(gTextureSampler, s.rasterSamplePosUV, 0.0), s.sphereStart, s.sphereEnd, s.objectSpaceZ, color);
-        if (sampleImportance <= gData.importanceThreshold)
-            continue;
-        
-        if (s.requireRay || forceRay)
+        output.ao1 += s.visibility;        
+        if (!data.denyRays() && (s.requireRay || forceRay))
         {
+            // calc pixel importance
+            float sampleImportance = calcSampleImportance(sampleRadius[i] * gData.radius, gDepthTex.SampleLevel(gTextureSampler, s.rasterSamplePosUV, 0.0), s.sphereStart, s.sphereEnd, s.objectSpaceZ, color);
+            if (sampleImportance <= gData.importanceThreshold)
+            {
+                continue;
+            }
+            
             // remember that this was a hybrid ray
             output.stencil |= 1u << i;
             
@@ -74,9 +79,14 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
 #endif
         }
+        else
+        {
+            darkmap(output.aoDark += s.visibility);
+        }
     }
 
     output.ao1 *= 2.0 / float(NUM_DIRECTIONS);
+    darkmap(output.aoDark *= 2.0 / float(NUM_DIRECTIONS));
 
     // apply exponent
     if(output.stencil == 0)
