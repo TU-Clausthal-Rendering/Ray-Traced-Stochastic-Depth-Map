@@ -50,10 +50,9 @@ layer_input_dark = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
 # concatenate inputs
 layer_concat = keras.layers.Concatenate(axis=-1)([layer_input_bright, layer_input_dark])
 # conv2d
-layer_conv2d_1 = keras.layers.Conv2D(12, kernel_size=(3, 3), activation='relu', padding='same')(layer_concat)
-#layer_conv2d_2 = keras.layers.Conv2D(1, kernel_size=(3, 3), activation='relu', padding='same')(layer_conv2d_1)
-#layer_conv2d_3 = keras.layers.Conv2D(1, kernel_size=(3, 3), activation='relu', padding='same')(layer_conv2d_1)
-layer_conv2d_3 = keras.layers.Conv2D(1, kernel_size=3, activation='relu', padding='same')(layer_conv2d_1)
+layer_conv2d_1 = keras.layers.Conv2D(16, kernel_size=(3, 3), activation='relu', padding='same')(layer_concat)
+layer_conv2d_2 = keras.layers.Conv2D(4, kernel_size=(3, 3), activation='relu', padding='same')(layer_conv2d_1)
+layer_conv2d_3 = keras.layers.Conv2D(1, kernel_size=3, activation='relu', padding='same')(layer_conv2d_2)
 # clamp layer between layer_input_dark and layer_input_bright
 layer_min = keras.layers.Minimum()([layer_conv2d_3, layer_input_bright])
 layer_minmax = keras.layers.Maximum()([layer_min, layer_input_dark])

@@ -52,16 +52,46 @@ Dictionary ConvolutionalNet::getScriptingDictionary()
 
 RenderPassReflection ConvolutionalNet::reflect(const CompileData& compileData)
 {
-    
     RenderPassReflection reflector;
-    
+    reflector.addInput(kChannel1, "Channel 1").texture2D(0, 0, 1, 1, 16);
+    reflector.addInput(kChannel2, "Channel 2").texture2D(0, 0, 1, 1, 16);
+
+    auto& outField = reflector.addOutput(kOutput, "Output").bindFlags(ResourceBindFlags::AllColorViews).format(ResourceFormat::R8Unorm).texture2D(0, 0, 0, 1, 16);
+    mReady = false;
+
+    auto edge = compileData.connectedResources.getField(kChannel1);
+    if (edge)
+    {
+        auto srcWidth = edge->getWidth();
+        if (srcWidth == 0) srcWidth = compileData.defaultTexDims.x;
+        auto srcHeight = edge->getHeight();
+        if (srcHeight == 0) srcHeight = compileData.defaultTexDims.y;
+        outField.texture2D(srcWidth, srcHeight, 1, 1, 16);
+        mReady = true;
+    }
+
     return reflector;
+}
+
+void ConvolutionalNet::compile(RenderContext* pRenderContext, const CompileData& compileData)
+{
+    if (!mReady) throw std::runtime_error("DeinterleaveTexture::compile - missing incoming reflection information");
+
+    auto edge = compileData.connectedResources.getField(kChannel1);
+    if (!edge) throw std::runtime_error("DeinterleaveTexture::compile - missing input information");
 }
 
 void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    // renderData holds the requested resources
-    // auto& pTexture = renderData.getTexture("src");
+    auto pChannel1 = renderData[kChannel1]->asTexture();
+    auto pChannel2 = renderData[kChannel2]->asTexture();
+    auto pOut = renderData[kOutput]->asTexture();
+
+
+    for(uint slice = 0; slice < 16; ++slice)
+    {
+        
+    }
 }
 
 void ConvolutionalNet::renderUI(Gui::Widgets& widget)
