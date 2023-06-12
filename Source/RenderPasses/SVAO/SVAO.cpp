@@ -61,6 +61,8 @@ namespace
     const std::string kExponent = "exponent";
     const std::string kUseRayPipeline = "rayPipeline";
     const std::string kThickness = "thickness";
+    const std::string kImportanceThreshold = "importanceThreshold";
+    const std::string kTargetTime = "targetTime";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -116,6 +118,8 @@ ref<SVAO> SVAO::create(ref<Device> pDevice, const Dictionary& dict)
         else if (key == kExponent) pPass->mData.exponent = value;
         else if (key == kUseRayPipeline) pPass->mUseRayPipeline = value;
         else if (key == kThickness) pPass->mData.thickness = value;
+        else if (key == kImportanceThreshold) pPass->mData.importanceThreshold = value;
+        else if (key == kTargetTime) pPass->mTargetTimeMs = value;
         else logWarning("Unknown field '" + key + "' in a VAONonInterleaved dictionary");
     }
     return pPass;
@@ -130,6 +134,8 @@ Dictionary SVAO::getScriptingDictionary()
     d[kExponent] = mData.exponent;
     d[kUseRayPipeline] = mUseRayPipeline;
     d[kThickness] = mData.thickness;
+    d[kImportanceThreshold] = mData.importanceThreshold;
+    d[kTargetTime] = mTargetTimeMs;
     return d;
 }
 
