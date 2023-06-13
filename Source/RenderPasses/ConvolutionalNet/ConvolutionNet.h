@@ -32,6 +32,13 @@ struct ConvolutionNet
         UNorm
     };
 
+    enum class Activation
+    {
+        None,
+        ReLU,
+        Clamp,
+    };
+
     struct LayerFormatInfo
     {
         Falcor::ResourceFormat format;
@@ -86,9 +93,10 @@ struct ConvolutionNet
      * \brief 
      * \param layer input layer for which to generate the shadercode
      * \param isArrayInput true if the input is an array texture that contains all channels. False if the input are individual single channel textures
+     * \param activation activation function to apply after the convolution (for clamp, supply a clampMin and clampMax function)
      * \return full shader code
      */
-    std::string generateShaderCode(size_t layer, bool isArrayInput) const
+    std::string generateShaderCode(size_t layer, bool isArrayInput, Activation activation) const
     {
         std::stringstream ss;
 
@@ -106,6 +114,12 @@ struct ConvolutionNet
             {
                 ss << "Texture2D<float> channel" << i << ";\n";
             }
+        }
+
+        if (activation == Activation::Clamp)
+        {
+            ss << "Texture2D<float> clampMin;\n";
+            ss << "Texture2D<float> clampMax;\n";
         }
 
         // output struct
@@ -159,11 +173,21 @@ struct ConvolutionNet
         }
 
         // apply activation function
-        ss << "\t// apply activation function\n";
-        for (int chOut = 0; chOut < k.channelsOut; ++chOut)
+        if(activation == Activation::ReLU)
         {
-            ss << "\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] = max(0.0, o.v" << (chOut / 4) << "[" << (chOut % 4) << "]);\n";
+            for (int chOut = 0; chOut < k.channelsOut; ++chOut)
+            {
+                ss << "\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] = max(0.0, o.v" << (chOut / 4) << "[" << (chOut % 4) << "]);\n";
+            }
         }
+        else if (activation == Activation::Clamp)
+        {
+            for (int chOut = 0; chOut < k.channelsOut; ++chOut)
+            {
+                ss << "\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] = clamp(o.v" << (chOut / 4) << "[" << (chOut % 4) << "], clampMin[xy], clampMax[xy]);\n";
+            }
+        }
+        
 
         ss << "\treturn o;\n";
         ss << "}\n";

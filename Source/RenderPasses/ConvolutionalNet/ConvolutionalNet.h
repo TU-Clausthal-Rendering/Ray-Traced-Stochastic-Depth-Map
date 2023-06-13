@@ -53,6 +53,7 @@ public:
 
 private:
     ref<FullScreenPass> createShader(int layer) const;
+    static std::string getInternalName(int layer, int slize);
 
     bool mReady = false;
     ConvolutionNet mNet;

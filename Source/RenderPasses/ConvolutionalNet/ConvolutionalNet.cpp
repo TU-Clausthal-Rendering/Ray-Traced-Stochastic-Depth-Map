@@ -165,6 +165,11 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
         pass0->getRootVar()["channel0"].setSrv(pChannel1->getSRV(0, 1, slice));
         pass0->getRootVar()["channel1"].setSrv(pChannel2->getSRV(0, 1, slice));
 
+        // set clamp values for last pass
+        auto& passLast = mPasses.back();
+        passLast->getRootVar()["clampMax"].setSrv(pChannel1->getSRV(0, 1, slice));
+        passLast->getRootVar()["clampMin"].setSrv(pChannel2->getSRV(0, 1, slice));
+
         // set output for last layer
         mFbos.back()->attachColorTarget(pOut, 0, 0, slice, 1);
 
@@ -197,7 +202,9 @@ void ConvolutionalNet::renderUI(Gui::Widgets& widget)
 ref<FullScreenPass> ConvolutionalNet::createShader(int layer) const
 {
     Program::Desc desc;
-    auto shaderCode = mNet.generateShaderCode(layer, layer != 0);
+    auto activation = ConvolutionNet::Activation::ReLU;
+    if (layer == mNet.getLayerCount() - 1) activation = ConvolutionNet::Activation::Clamp;
+    auto shaderCode = mNet.generateShaderCode(layer, layer != 0, activation);
     
     std::cout << "Convolutional Shader Code for layer " << layer << std::endl;
     logInfo(shaderCode);
@@ -205,4 +212,9 @@ ref<FullScreenPass> ConvolutionalNet::createShader(int layer) const
     
     desc.addShaderString(shaderCode, "ConvNet").psEntry("main");
     return FullScreenPass::create(mpDevice, desc);
+}
+
+std::string ConvolutionalNet::getInternalName(int layer, int slize)
+{
+    return kInternal + std::to_string(layer) + "_s" + std::to_string(slize);
 }
