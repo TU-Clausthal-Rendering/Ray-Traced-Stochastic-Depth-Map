@@ -26,6 +26,7 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #include "ConvolutionalNet.h"
+#include "../Utils/GuardBand/guardband.h"
 
 namespace
 {
@@ -153,7 +154,10 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
     auto pChannel2 = renderData[kChannel2]->asTexture();
     auto pOut = renderData[kOutput]->asTexture();
 
-
+    auto& dict = renderData.getDictionary();
+    auto guardBand = dict.getValue("guardBand", 0);
+    auto quarterGuardBand = guardBand / 4;
+    uint2 quarterRes = { pOut->getWidth(0), pOut->getHeight(0) };
     for(uint slice = 0; slice < 16; ++slice)
     {
         // set inputs for first layer
@@ -168,14 +172,26 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
         for (int layer = 0; layer < mNet.getLayerCount(); ++layer)
         {
             auto& pass = mPasses.at(layer);
+            setGuardBandScissors(*pass->getState(), quarterRes, quarterGuardBand);
             auto& fbo = mFbos.at(layer);
-            pass->execute(pRenderContext, fbo);
+            pass->execute(pRenderContext, fbo, false);
         }
     }
 }
 
 void ConvolutionalNet::renderUI(Gui::Widgets& widget)
 {
+    const Gui::DropdownList kPrecisionDropdown =
+    {
+            { (uint32_t)ConvolutionNet::Precision::Float, "Float" },
+            { (uint32_t)ConvolutionNet::Precision::Half, "Half" },
+            { (uint32_t)ConvolutionNet::Precision::UNorm, "Unorm" },
+    };
+
+    if (widget.dropdown("Precision", kPrecisionDropdown, (uint32_t&)mPrecision))
+    {
+        requestRecompile();
+    }
 }
 
 ref<FullScreenPass> ConvolutionalNet::createShader(int layer) const

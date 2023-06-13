@@ -7,4 +7,6 @@ target_sources(DeinterleaveTexture PRIVATE
     DeinterleaveMS.slang
 )
 
+target_copy_shaders(DeinterleaveTexture RenderPasses/DeinterleaveTexture)
+
 target_source_group(DeinterleaveTexture "RenderPasses")

@@ -1,7 +1,5 @@
 import Scene.RaytracingInline;
 #include "Common.slang"
-#include "NeuralNetDefines.slangh"
-#include "NeuralNetDefines2.slangh"
 
 #define DARK_MAP
 #ifdef DARK_MAP

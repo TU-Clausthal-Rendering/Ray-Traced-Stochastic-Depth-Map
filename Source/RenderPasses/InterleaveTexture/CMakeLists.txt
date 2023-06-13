@@ -6,4 +6,6 @@ target_sources(InterleaveTexture PRIVATE
     Interleave.slang
 )
 
+target_copy_shaders(InterleaveTexture RenderPasses/InterleaveTexture)
+
 target_source_group(InterleaveTexture "RenderPasses")

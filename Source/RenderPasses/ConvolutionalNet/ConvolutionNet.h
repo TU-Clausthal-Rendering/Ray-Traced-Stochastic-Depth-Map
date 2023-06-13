@@ -126,7 +126,7 @@ struct ConvolutionNet
         }
 
         // loop over kernel xy
-        ss << "\tfloat chIn; // channel input\n";
+        //ss << "\tfloat chIn; // channel input\n";
         for(int kernely = 0; kernely < k.kernelHeight; ++kernely)
         {
             for(int kernelx = 0; kernelx < k.kernelWidth; ++kernelx)
@@ -137,21 +137,23 @@ struct ConvolutionNet
                 // obtain texture
                 for(int chIn = 0; chIn < k.channelsIn; ++chIn)
                 {
+                    ss << "\t{\n";
                     // load into chIn variable
                     if(isArrayInput)
                     {
-                        ss << "\tchIn = channels[int3(xy + int2(" << xOff << "," << yOff << "), " << (chIn / 4) << ")][" << (chIn % 4) << "];\n";
+                        ss << "\t\tfloat chIn = channels[int3(xy + int2(" << xOff << "," << yOff << "), " << (chIn / 4) << ")][" << (chIn % 4) << "];\n";
                     }
                     else
                     {
-                        ss << "\tchIn = channel" << chIn << "[xy + int2(" << xOff << "," << yOff << ")];\n";
+                        ss << "\t\tfloat chIn = channel" << chIn << "[xy + int2(" << xOff << "," << yOff << ")];\n";
                     }
 
                     // multiply with correct kernels
                     for (int chOut = 0; chOut < k.channelsOut; ++chOut)
                     {
-                        ss << "\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn * " << k.get(kernelx, kernely, chIn, chOut) << ";\n";
+                        ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn * " << k.get(kernelx, kernely, chIn, chOut) << ";\n";
                     }
+                    ss << "\t}\n";
                 }
             }
         }
