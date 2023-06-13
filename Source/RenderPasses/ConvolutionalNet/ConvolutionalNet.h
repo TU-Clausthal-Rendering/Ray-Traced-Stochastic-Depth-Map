@@ -53,12 +53,16 @@ public:
 
 private:
     ref<FullScreenPass> createShader(int layer) const;
-    static std::string getInternalName(int layer, int slize);
+    static std::string getInternalName(int layer, int slice);
+    ref<GraphicsVars>& getVars(int layer, int slice);
+    ref<Fbo>& getFbo(int layer, int slice);
 
     bool mReady = false;
     ConvolutionNet mNet;
     ConvolutionNet::Precision mPrecision = ConvolutionNet::Precision::Float;
+    int mSliceCount = 16; // number of array slices
 
     std::vector<ref<Fbo>> mFbos;
     std::vector<ref<FullScreenPass>> mPasses;
+    std::vector<ref<GraphicsVars>> mVars;
 };

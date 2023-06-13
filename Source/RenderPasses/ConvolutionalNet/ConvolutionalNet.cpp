@@ -65,10 +65,10 @@ Dictionary ConvolutionalNet::getScriptingDictionary()
 RenderPassReflection ConvolutionalNet::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
-    reflector.addInput(kChannel1, "Channel 1").texture2D(0, 0, 1, 1, 16);
-    reflector.addInput(kChannel2, "Channel 2").texture2D(0, 0, 1, 1, 16);
+    reflector.addInput(kChannel1, "Channel 1").texture2D(0, 0, 1, 1, mSliceCount);
+    reflector.addInput(kChannel2, "Channel 2").texture2D(0, 0, 1, 1, mSliceCount);
 
-    auto& outField = reflector.addOutput(kOutput, "Output").bindFlags(ResourceBindFlags::AllColorViews).format(ResourceFormat::R8Unorm).texture2D(0, 0, 0, 1, 16);
+    auto& outField = reflector.addOutput(kOutput, "Output").bindFlags(ResourceBindFlags::AllColorViews).format(ResourceFormat::R8Unorm).texture2D(0, 0, 0, 1, mSliceCount);
     mReady = false;
 
     auto edge = compileData.connectedResources.getField(kChannel1);
@@ -84,10 +84,14 @@ RenderPassReflection ConvolutionalNet::reflect(const CompileData& compileData)
         for(int layer = 0; layer < mNet.getLayerCount() - 1; ++layer)
         {
             auto formatInfo = mNet.getMatchingLayerOutputFormat(layer, mPrecision);
-            reflector.addInternal(kInternal + std::to_string(layer), "internal")
-                .format(formatInfo.format)
-                .texture2D(srcWidth, srcHeight, 1, 1, formatInfo.layers)
-                .bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+            for(int slice = 0; slice < mSliceCount; ++slice)
+            {
+                reflector.addInternal(getInternalName(layer, slice), "internal")
+                    .format(formatInfo.format)
+                    .texture2D(srcWidth, srcHeight, 1, 1, formatInfo.layers)
+                    .bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+            }
+            
         }
         
         
@@ -106,82 +110,107 @@ void ConvolutionalNet::compile(RenderContext* pRenderContext, const CompileData&
 
     mFbos.clear();
     mPasses.clear();
+    mVars.clear();
 }
 
 void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
+    auto pChannel1 = renderData[kChannel1]->asTexture();
+    auto pChannel2 = renderData[kChannel2]->asTexture();
+    auto pOut = renderData[kOutput]->asTexture();
+
     // create resource if they do not exist
     if(mPasses.empty())
     {
         mPasses.resize(mNet.getLayerCount());
+        mVars.resize(mNet.getLayerCount() * mSliceCount);
         if (mNet.getLayerCount() == 0) throw std::runtime_error("could not load neural network for data");
 
+        auto& dict = renderData.getDictionary();
+        auto guardBand = dict.getValue("guardBand", 0);
+        auto quarterGuardBand = guardBand / 4;
+        uint2 quarterRes = { pOut->getWidth(0), pOut->getHeight(0) };
+        
         for (int layer = 0; layer < mNet.getLayerCount(); ++layer)
         {
             // create pass
             mPasses[layer] = createShader(layer);
-            // bind input channel texture
-            if(layer > 0)
+            setGuardBandScissors(*mPasses[layer]->getState(), quarterRes, quarterGuardBand);
+
+            // create a shader graphics var for each slice in each layer (they will all be unique)
+            for(int slice = 0; slice < mSliceCount; ++slice)
             {
-                auto tex = renderData[kInternal + std::to_string(layer - 1)]->asTexture();
-                mPasses[layer]->getRootVar()["channels"] = tex;
+                auto& vars = getVars(layer, slice);
+                vars = GraphicsVars::create(mpDevice, mPasses[layer]->getProgram()->getReflector());
+                
+                // bind input channel texture
+                if (layer > 0)
+                {
+                    auto tex = renderData[getInternalName(layer - 1, slice)]->asTexture();
+                    vars->getRootVar()["channels"] = tex;
+                }
             }
+        }
+
+        // set correct input for first layer, and activation for last layer
+        int lastLayer = mNet.getLayerCount() - 1;
+        for (int slice = 0; slice < mSliceCount; ++slice)
+        {
+            // set input data
+            auto& firstVars = getVars(0, slice);
+            firstVars->getRootVar()["channel0"].setSrv(pChannel1->getSRV(0, 1, slice));
+            firstVars->getRootVar()["channel1"].setSrv(pChannel2->getSRV(0, 1, slice));
+
+            // set clamp activation data
+            auto& lastVars = getVars(lastLayer, slice);
+            lastVars->getRootVar()["clampMax"].setSrv(pChannel1->getSRV(0, 1, slice));
+            lastVars->getRootVar()["clampMin"].setSrv(pChannel2->getSRV(0, 1, slice));
         }
             
     }
 
     if(mFbos.empty())
     {
-        mFbos.resize(mNet.getLayerCount());
+        mFbos.resize(mNet.getLayerCount() * mSliceCount);
         for(int layer = 0; layer < mNet.getLayerCount() - 1; ++layer)
         {
-            mFbos[layer] = Fbo::create(mpDevice);
-            auto tex = renderData[kInternal + std::to_string(layer)]->asTexture();
-            auto nOut = mNet.getOutputChannelCount(layer);
-            auto nOutQuarter = (nOut + 3) / 4;
-            for(int chOut = 0; chOut < nOutQuarter; ++chOut)
+            for(int slice = 0; slice < mSliceCount; ++slice)
             {
-                mFbos[layer]->attachColorTarget(tex, chOut, 0, chOut, 1);
+                auto& fbo = getFbo(layer, slice);
+                fbo = Fbo::create(mpDevice);
+                auto tex = renderData[getInternalName(layer, slice)]->asTexture();
+                auto nOut = mNet.getOutputChannelCount(layer);
+                auto nOutQuarter = (nOut + 3) / 4;
+                for (int chOut = 0; chOut < nOutQuarter; ++chOut)
+                {
+                    fbo->attachColorTarget(tex, chOut, 0, chOut, 1);
+                }
             }
+            
         }
 
-        // last layer
-        mFbos.back() = Fbo::create(mpDevice);
-        //mFbos.back()->attachColorTarget(renderData[kOutput]->asTexture(), 0);
+        // set correct fbo output for last layer
+        int lastLayer = mNet.getLayerCount() - 1;
+        for (int slice = 0; slice < mSliceCount; ++slice)
+        {
+            auto& fbo = getFbo(lastLayer, slice);
+            fbo = Fbo::create(mpDevice);
+            fbo->attachColorTarget(pOut, 0, 0, slice, 1);
+        }
     }
 
-    auto pChannel1 = renderData[kChannel1]->asTexture();
-    auto pChannel2 = renderData[kChannel2]->asTexture();
-    auto pOut = renderData[kOutput]->asTexture();
-
-    auto& dict = renderData.getDictionary();
-    auto guardBand = dict.getValue("guardBand", 0);
-    auto quarterGuardBand = guardBand / 4;
-    uint2 quarterRes = { pOut->getWidth(0), pOut->getHeight(0) };
-    for(uint slice = 0; slice < 16; ++slice)
+    // run all layers
+    for (int layer = 0; layer < mNet.getLayerCount(); ++layer)
     {
-        // set inputs for first layer
-        auto& pass0 = mPasses.at(0);
-        pass0->getRootVar()["channel0"].setSrv(pChannel1->getSRV(0, 1, slice));
-        pass0->getRootVar()["channel1"].setSrv(pChannel2->getSRV(0, 1, slice));
-
-        // set clamp values for last pass
-        auto& passLast = mPasses.back();
-        passLast->getRootVar()["clampMax"].setSrv(pChannel1->getSRV(0, 1, slice));
-        passLast->getRootVar()["clampMin"].setSrv(pChannel2->getSRV(0, 1, slice));
-
-        // set output for last layer
-        mFbos.back()->attachColorTarget(pOut, 0, 0, slice, 1);
-
-        // run all layers
-        for (int layer = 0; layer < mNet.getLayerCount(); ++layer)
+        for (int slice = 0; slice < mSliceCount; ++slice)
         {
             auto& pass = mPasses.at(layer);
-            setGuardBandScissors(*pass->getState(), quarterRes, quarterGuardBand);
-            auto& fbo = mFbos.at(layer);
+            pass->setVars(getVars(layer, slice));
+            auto& fbo = getFbo(layer, slice);
             pass->execute(pRenderContext, fbo, false);
         }
     }
+    
 }
 
 void ConvolutionalNet::renderUI(Gui::Widgets& widget)
@@ -214,7 +243,17 @@ ref<FullScreenPass> ConvolutionalNet::createShader(int layer) const
     return FullScreenPass::create(mpDevice, desc);
 }
 
-std::string ConvolutionalNet::getInternalName(int layer, int slize)
+std::string ConvolutionalNet::getInternalName(int layer, int slice)
 {
-    return kInternal + std::to_string(layer) + "_s" + std::to_string(slize);
+    return kInternal + std::to_string(layer) + "_s" + std::to_string(slice);
+}
+
+ref<GraphicsVars>& ConvolutionalNet::getVars(int layer, int slice)
+{
+    return mVars[mNet.getLayerCount() * slice + layer];
+}
+
+ref<Fbo>& ConvolutionalNet::getFbo(int layer, int slice)
+{
+    return mFbos[mNet.getLayerCount() * slice + layer];
 }
