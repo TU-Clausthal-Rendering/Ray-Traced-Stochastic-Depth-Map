@@ -32,6 +32,8 @@ namespace
     const std::string kChannel1 = "bright";
     const std::string kChannel2 = "dark";
 
+    const std::string kInternal = "i";
+
     const std::string kOutput = "out";
 }
 
@@ -43,6 +45,15 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
 ConvolutionalNet::ConvolutionalNet(ref<Device> pDevice, const Dictionary& dict)
     : RenderPass(pDevice)
 {
+    std::filesystem::path resPath;
+    auto found = findFileInDataDirectories("NeuralNet/weight_0.npy", resPath);
+    assert(found);
+    if(!found)
+    {
+        logError("could not find neural net weights");
+    }
+    
+    mNet.load(resPath.parent_path().string() + "/");
 }
 
 Dictionary ConvolutionalNet::getScriptingDictionary()
@@ -67,6 +78,18 @@ RenderPassReflection ConvolutionalNet::reflect(const CompileData& compileData)
         auto srcHeight = edge->getHeight();
         if (srcHeight == 0) srcHeight = compileData.defaultTexDims.y;
         outField.texture2D(srcWidth, srcHeight, 1, 1, 16);
+
+        // add all internal resources
+        for(int layer = 0; layer < mNet.getLayerCount() - 1; ++layer)
+        {
+            auto formatInfo = mNet.getMatchingLayerOutputFormat(layer, mPrecision);
+            reflector.addInternal(kInternal + std::to_string(layer), "internal")
+                .format(formatInfo.format)
+                .texture2D(srcWidth, srcHeight, 1, 1, formatInfo.layers)
+                .bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+        }
+        
+        
         mReady = true;
     }
 
@@ -79,10 +102,53 @@ void ConvolutionalNet::compile(RenderContext* pRenderContext, const CompileData&
 
     auto edge = compileData.connectedResources.getField(kChannel1);
     if (!edge) throw std::runtime_error("DeinterleaveTexture::compile - missing input information");
+
+    mFbos.clear();
+    mPasses.clear();
 }
 
 void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
+    // create resource if they do not exist
+    if(mPasses.empty())
+    {
+        mPasses.resize(mNet.getLayerCount());
+        if (mNet.getLayerCount() == 0) throw std::runtime_error("could not load neural network for data");
+
+        for (int layer = 0; layer < mNet.getLayerCount(); ++layer)
+        {
+            // create pass
+            mPasses[layer] = createShader(layer);
+            // bind input channel texture
+            if(layer > 0)
+            {
+                auto tex = renderData[kInternal + std::to_string(layer - 1)]->asTexture();
+                mPasses[layer]->getRootVar()["channels"] = tex;
+            }
+        }
+            
+    }
+
+    if(mFbos.empty())
+    {
+        mFbos.resize(mNet.getLayerCount());
+        for(int layer = 0; layer < mNet.getLayerCount() - 1; ++layer)
+        {
+            mFbos[layer] = Fbo::create(mpDevice);
+            auto tex = renderData[kInternal + std::to_string(layer)]->asTexture();
+            auto nOut = mNet.getOutputChannelCount(layer);
+            auto nOutQuarter = (nOut + 3) / 4;
+            for(int chOut = 0; chOut < nOutQuarter; ++chOut)
+            {
+                mFbos[layer]->attachColorTarget(tex, chOut, 0, chOut, 1);
+            }
+        }
+
+        // last layer
+        mFbos.back() = Fbo::create(mpDevice);
+        //mFbos.back()->attachColorTarget(renderData[kOutput]->asTexture(), 0);
+    }
+
     auto pChannel1 = renderData[kChannel1]->asTexture();
     auto pChannel2 = renderData[kChannel2]->asTexture();
     auto pOut = renderData[kOutput]->asTexture();
@@ -90,10 +156,37 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
 
     for(uint slice = 0; slice < 16; ++slice)
     {
-        
+        // set inputs for first layer
+        auto& pass0 = mPasses.at(0);
+        pass0->getRootVar()["channel0"].setSrv(pChannel1->getSRV(0, 1, slice));
+        pass0->getRootVar()["channel1"].setSrv(pChannel2->getSRV(0, 1, slice));
+
+        // set output for last layer
+        mFbos.back()->attachColorTarget(pOut, 0, 0, slice, 1);
+
+        // run all layers
+        for (int layer = 0; layer < mNet.getLayerCount(); ++layer)
+        {
+            auto& pass = mPasses.at(layer);
+            auto& fbo = mFbos.at(layer);
+            pass->execute(pRenderContext, fbo);
+        }
     }
 }
 
 void ConvolutionalNet::renderUI(Gui::Widgets& widget)
 {
+}
+
+ref<FullScreenPass> ConvolutionalNet::createShader(int layer) const
+{
+    Program::Desc desc;
+    auto shaderCode = mNet.generateShaderCode(layer, layer != 0);
+    
+    std::cout << "Convolutional Shader Code for layer " << layer << std::endl;
+    logInfo(shaderCode);
+    std::cout << "------------------------------------------------\n";
+    
+    desc.addShaderString(shaderCode, "ConvNet").psEntry("main");
+    return FullScreenPass::create(mpDevice, desc);
 }

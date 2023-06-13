@@ -28,6 +28,8 @@
 #pragma once
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
+#include "ConvolutionNet.h"
+#include "Core/Pass/FullScreenPass.h"
 
 using namespace Falcor;
 
@@ -50,6 +52,12 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
-    bool mReady = false;
+    ref<FullScreenPass> createShader(int layer) const;
 
+    bool mReady = false;
+    ConvolutionNet mNet;
+    ConvolutionNet::Precision mPrecision = ConvolutionNet::Precision::Float;
+
+    std::vector<ref<Fbo>> mFbos;
+    std::vector<ref<FullScreenPass>> mPasses;
 };

@@ -10,7 +10,6 @@ target_sources(SVAO PRIVATE
     SVAORaster2.ps.slang
     Ray.rt.slang
     VAOData.slang
-    ConvolutionNet.h
 )
 
 target_copy_shaders(SVAO RenderPasses/SVAO)

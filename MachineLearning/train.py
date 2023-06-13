@@ -13,6 +13,9 @@ from keras.layers import Conv2D, UpSampling2D
 sample_id = 0
 slice_id = 0
 
+# set current directory as working directory
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 tf.keras.utils.set_random_seed(2) # use same random seed for training
 
 # Load and preprocess input images
