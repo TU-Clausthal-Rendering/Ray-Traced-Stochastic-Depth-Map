@@ -148,26 +148,42 @@ struct ConvolutionNet
                 int xOff = kernelx - k.kernelWidth / 2;
                 int yOff = kernely - k.kernelHeight / 2;
 
-                // obtain texture
-                for(int chIn = 0; chIn < k.channelsIn; ++chIn)
+                if(isArrayInput)
                 {
-                    ss << "\t{\n";
-                    // load into chIn variable
-                    if(isArrayInput)
+                    // obtain texture
+                    for (int chIn4x = 0; chIn4x < k.channelsIn; chIn4x += 4)
                     {
-                        ss << "\t\tfloat chIn = channels[int3(xy + int2(" << xOff << "," << yOff << "), " << (chIn / 4) << ")][" << (chIn % 4) << "];\n";
+                        ss << "\t{\n";
+                        // load 4 channels at once (they are packed tighly in texture)
+                        ss << "\t\tfloat4 chIn = channels[int3(xy + int2(" << xOff << "," << yOff << "), " << (chIn4x / 4) << ")];\n";
+                        
+                        // multiply with correct kernels
+                        for (int chOut = 0; chOut < k.channelsOut; ++chOut)
+                        {
+                            ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn[0] * " << k.get(kernelx, kernely, chIn4x, chOut) << ";\n";
+                            ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn[1] * " << k.get(kernelx, kernely, chIn4x + 1, chOut) << ";\n";
+                            ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn[2] * " << k.get(kernelx, kernely, chIn4x + 2, chOut) << ";\n";
+                            ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn[3] * " << k.get(kernelx, kernely, chIn4x + 3, chOut) << ";\n";
+                            
+                        }
+                        ss << "\t}\n";
                     }
-                    else
+                }
+                else // not array
+                {
+                    // obtain texture
+                    for (int chIn = 0; chIn < k.channelsIn; ++chIn)
                     {
+                        ss << "\t{\n";
                         ss << "\t\tfloat chIn = channel" << chIn << "[xy + int2(" << xOff << "," << yOff << ")];\n";
-                    }
 
-                    // multiply with correct kernels
-                    for (int chOut = 0; chOut < k.channelsOut; ++chOut)
-                    {
-                        ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn * " << k.get(kernelx, kernely, chIn, chOut) << ";\n";
+                        // multiply with correct kernels
+                        for (int chOut = 0; chOut < k.channelsOut; ++chOut)
+                        {
+                            ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn * " << k.get(kernelx, kernely, chIn, chOut) << ";\n";
+                        }
+                        ss << "\t}\n";
                     }
-                    ss << "\t}\n";
                 }
             }
         }
