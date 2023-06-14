@@ -41,6 +41,7 @@
 #include "Utils/Scripting/ScriptBindings.h"
 #include "Core/Pass/FullScreenPass.h"
 #include "NativeFormats.h"
+#include "Utils/Image/npy.h"
 
 // supress some warnings for gli
 #pragma warning( push )
@@ -559,8 +560,94 @@ void Texture::captureToFile(
     // Handle the special case where we have an HDR texture with less then 3 channels.
     FormatType type = getFormatType(mFormat);
     uint32_t channels = getFormatChannelCount(mFormat);
+    uint32_t bytesPerBlock = getFormatBytesPerBlock(mFormat);
     std::vector<uint8_t> textureData;
     ResourceFormat resourceFormat = mFormat;
+
+    if (format == Bitmap::FileFormat::NumpyFile)
+    {
+        //bool allSlices = arraySlice == Resource::kMaxPossible;
+        bool allSlices = true;
+        unsigned long shape[] = { allSlices ? mArraySize : 1, mHeight, mWidth, channels };
+        
+        std::vector<unsigned char> data;
+
+        if(allSlices)
+        {
+            for (uint32_t layer = 0; layer < mArraySize; ++layer)
+            {
+                auto subresourceIndex = getSubresourceIndex(layer, mipLevel);
+                auto srcData = pContext->readTextureSubresource(this, subresourceIndex);
+                // append to data
+                data.insert(data.end(), srcData.begin(), srcData.end());
+            }
+        }
+        else
+        {
+            auto subresourceIndex = getSubresourceIndex(arraySlice, mipLevel);
+            data = pContext->readTextureSubresource(this, subresourceIndex);
+        }
+        
+
+        size_t expectedDataSize = size_t(shape[0]) * size_t(shape[1]) * size_t(shape[2]) * size_t(shape[3]);
+
+        uint32_t bytesPerChannel = bytesPerBlock / channels;
+        if(type == FormatType::Float)
+        {
+            // float formats
+            if (bytesPerChannel != 4) throw std::runtime_error("npy format only supports 32-bit floats");
+            assert(data.size() == expectedDataSize * sizeof(float));
+            if (data.size() != expectedDataSize * sizeof(float)) throw std::runtime_error("npy data size mismatch");
+            npy::SaveArrayAsNumpy(path.string(), false, 4, shape, reinterpret_cast<float*>(data.data()));
+        }
+        else if(type == FormatType::Sint || type == FormatType::Snorm)
+        {
+            // signed integer
+            if (bytesPerChannel == 1)
+            {
+                assert(data.size() == expectedDataSize * sizeof(char));
+                if (data.size() != expectedDataSize * sizeof(char)) throw std::runtime_error("npy data size mismatch");
+                npy::SaveArrayAsNumpy(path.string(), false, 4, shape, reinterpret_cast<char*>(data.data()));
+            }
+            else if (bytesPerChannel == 2)
+            {
+                assert(data.size() == expectedDataSize * sizeof(short));
+                if (data.size() != expectedDataSize * sizeof(short)) throw std::runtime_error("npy data size mismatch");
+                npy::SaveArrayAsNumpy(path.string(), false, 4, shape, reinterpret_cast<short*>(data.data()));
+            }
+            else if (bytesPerChannel == 4)
+            {
+                assert(data.size() == expectedDataSize * sizeof(int));
+                if (data.size() != expectedDataSize * sizeof(int)) throw std::runtime_error("npy data size mismatch");
+                npy::SaveArrayAsNumpy(path.string(), false, 4, shape, reinterpret_cast<int*>(data.data()));
+            }
+            else throw std::runtime_error("npy format only supports 8, 16, and 32-bit integers");
+        }
+        else
+        {
+            // unsigned integer
+            if (bytesPerChannel == 1)
+            {
+                assert(data.size() == expectedDataSize * sizeof(unsigned char));
+                if (data.size() != expectedDataSize * sizeof(unsigned char)) throw std::runtime_error("npy data size mismatch");
+                npy::SaveArrayAsNumpy(path.string(), false, 4, shape, reinterpret_cast<unsigned char*>(data.data()));
+            }
+            else if(bytesPerChannel == 2)
+            {
+                assert(data.size() == expectedDataSize * sizeof(unsigned short));
+                if (data.size() != expectedDataSize * sizeof(unsigned short)) throw std::runtime_error("npy data size mismatch");
+                npy::SaveArrayAsNumpy(path.string(), false, 4, shape, reinterpret_cast<unsigned short*>(data.data()));
+            }
+            else if(bytesPerChannel == 4)
+            {
+                assert(data.size() == expectedDataSize * sizeof(unsigned int));
+                if (data.size() != expectedDataSize * sizeof(unsigned int)) throw std::runtime_error("npy data size mismatch");
+                npy::SaveArrayAsNumpy(path.string(), false, 4, shape, reinterpret_cast<unsigned int*>(data.data()));
+            }
+            else throw std::runtime_error("npy format only supports 8, 16, and 32-bit integers");
+        }
+        return;
+    }
 
     if (type == FormatType::Float && channels < 3)
     {

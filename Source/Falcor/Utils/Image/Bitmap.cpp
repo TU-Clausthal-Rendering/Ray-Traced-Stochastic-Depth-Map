@@ -398,6 +398,7 @@ Bitmap::FileFormat Bitmap::getFormatFromFileExtension(const std::string& ext)
         /* PfmFile */ "pfm",
         /* ExrFile */ "exr",
         /* DdsFile */ "dds",
+        "npy",
     };
 
     for (size_t i = 0; i < std::size(kExtensions); i++)
@@ -439,6 +440,7 @@ FileDialogFilterVec Bitmap::getFileDialogFilters(ResourceFormat format)
 
     // DDS can store all formats
     filters.push_back({"dds", "DirectDraw Surface"});
+    filters.push_back({ "npy", "Numpy array" });
 
     // List of formats we can only load from
     if (format == ResourceFormat::Unknown)

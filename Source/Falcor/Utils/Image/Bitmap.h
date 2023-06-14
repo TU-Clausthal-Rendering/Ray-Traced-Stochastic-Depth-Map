@@ -60,6 +60,7 @@ public:
         ExrFile,  //< EXR file for floating point HDR images with 16-bit float per channel
         DdsFile,  //< DDS file for storing GPU resource formats, including block compressed formats
                   //< See ImageIO. TODO: Remove(?) Bitmap IO implementation when ImageIO supports other formats
+        NumpyFile, //< Python numpy file (integer or float)
     };
 
     using UniquePtr = std::unique_ptr<Bitmap>;

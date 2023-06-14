@@ -597,6 +597,7 @@ target_sources(Falcor PRIVATE
     Utils/Image/TextureAnalyzer.h
     Utils/Image/TextureManager.cpp
     Utils/Image/TextureManager.h
+    Utils/Image/npy.h
 
     Utils/Math/AABB.cpp
     Utils/Math/AABB.h
