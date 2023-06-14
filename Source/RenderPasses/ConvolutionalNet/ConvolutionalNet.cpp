@@ -32,6 +32,8 @@ namespace
 {
     const std::string kChannel1 = "bright";
     const std::string kChannel2 = "dark";
+    const std::string kChannel3 = "importance";
+    const std::string kChannel4 = "depth";
 
     const std::string kInternal = "i";
 
@@ -67,6 +69,8 @@ RenderPassReflection ConvolutionalNet::reflect(const CompileData& compileData)
     RenderPassReflection reflector;
     reflector.addInput(kChannel1, "Channel 1").texture2D(0, 0, 1, 1, mSliceCount);
     reflector.addInput(kChannel2, "Channel 2").texture2D(0, 0, 1, 1, mSliceCount);
+    reflector.addInput(kChannel3, "Channel 3").texture2D(0, 0, 1, 1, mSliceCount);
+    reflector.addInput(kChannel4, "Channel 4").texture2D(0, 0, 1, 1, mSliceCount);
 
     auto& outField = reflector.addOutput(kOutput, "Output").bindFlags(ResourceBindFlags::AllColorViews).format(ResourceFormat::R8Unorm).texture2D(0, 0, 0, 1, mSliceCount);
     mReady = false;
@@ -117,6 +121,8 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
 {
     auto pChannel1 = renderData[kChannel1]->asTexture();
     auto pChannel2 = renderData[kChannel2]->asTexture();
+    auto pChannel3 = renderData[kChannel3]->asTexture();
+    auto pChannel4 = renderData[kChannel4]->asTexture();
     auto pOut = renderData[kOutput]->asTexture();
 
     // create resource if they do not exist
@@ -160,6 +166,8 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
             auto& firstVars = getVars(0, slice);
             firstVars->getRootVar()["channel0"].setSrv(pChannel1->getSRV(0, 1, slice));
             firstVars->getRootVar()["channel1"].setSrv(pChannel2->getSRV(0, 1, slice));
+            firstVars->getRootVar()["channel2"].setSrv(pChannel3->getSRV(0, 1, slice));
+            firstVars->getRootVar()["channel3"].setSrv(pChannel4->getSRV(0, 1, slice));
 
             // set clamp activation data
             auto& lastVars = getVars(lastLayer, slice);
