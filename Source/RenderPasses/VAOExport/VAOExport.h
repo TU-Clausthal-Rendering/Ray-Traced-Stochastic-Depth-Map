@@ -50,7 +50,7 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
-    std::string getExportName(const std::string& type, const std::string& extension, uint slice);
+    std::string getExportName(const std::string& type, const std::string& extension);
 
     const static uint mArraySize = 16;
     bool mSave = false;

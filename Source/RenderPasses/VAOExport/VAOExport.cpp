@@ -73,14 +73,11 @@ void VAOExport::execute(RenderContext* pRenderContext, const RenderData& renderD
 
     if(mSave)
     {
-        for(uint slice = 0; slice < mArraySize; ++slice)
-        {
-            pRefTex->captureToFile(0, slice, getExportName("ref", ".png", slice), Bitmap::FileFormat::PngFile);
-            pBrightTex->captureToFile(0, slice, getExportName("bright", ".png", slice), Bitmap::FileFormat::PngFile);
-            pDarkTex->captureToFile(0, slice, getExportName("dark", ".png", slice), Bitmap::FileFormat::PngFile);
-            pDepthTex->captureToFile(0, slice, getExportName("depth", ".exr", slice), Bitmap::FileFormat::ExrFile);
-            pDepthInvTex->captureToFile(0, slice, getExportName("invDepth", ".exr", slice), Bitmap::FileFormat::ExrFile);
-        }
+        pRefTex->captureToFile(0, 0, getExportName("ref", ".npy"), Bitmap::FileFormat::NumpyFile);
+        pBrightTex->captureToFile(0, 0, getExportName("bright", ".npy"), Bitmap::FileFormat::NumpyFile);
+        pDarkTex->captureToFile(0, 0, getExportName("dark", ".npy"), Bitmap::FileFormat::NumpyFile);
+        pDepthTex->captureToFile(0, 0, getExportName("depth", ".npy"), Bitmap::FileFormat::NumpyFile);
+        pDepthInvTex->captureToFile(0, 0, getExportName("invDepth", ".npy"), Bitmap::FileFormat::NumpyFile);
 
         mExportIndex++;
         mSave = false;
@@ -94,7 +91,7 @@ void VAOExport::renderUI(Gui::Widgets& widget)
     if (widget.button("Save")) mSave = true;
 }
 
-std::string VAOExport::getExportName(const std::string& type, const std::string& extension, uint slice)
+std::string VAOExport::getExportName(const std::string& type, const std::string& extension)
 {
-    return mExportFolder + type + "_" + std::to_string(mExportIndex) + "_s" + std::to_string(slice) + extension;
+    return mExportFolder + type + "_" + std::to_string(mExportIndex) + extension;
 }

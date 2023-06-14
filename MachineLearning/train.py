@@ -11,7 +11,6 @@ from keras.models import Sequential
 from keras.layers import Conv2D, UpSampling2D
 
 sample_id = 0
-slice_id = 0
 
 # set current directory as working directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -19,12 +18,12 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 tf.keras.utils.set_random_seed(2) # use same random seed for training
 
 # Load and preprocess input images
-image_bright = np.array(Image.open(f'{dataPath}bright_{sample_id}_s{slice_id}.png').convert('L'))
-image_dark = np.array(Image.open(f'{dataPath}dark_{sample_id}_s{slice_id}.png').convert('L'))
-image_ref = np.array(Image.open(f'{dataPath}ref_{sample_id}_s{slice_id}.png').convert('L'))
+image_bright = np.load(f'{dataPath}bright_{sample_id}.npy')[0]
+image_dark = np.load(f'{dataPath}dark_{sample_id}.npy')[0]
+image_ref = np.load(f'{dataPath}ref_{sample_id}.npy')[0]
 
 # load depths
-image_depth = np.array(Image.open(f'{dataPath}depth_{sample_id}_s{slice_id}.exr').convert('L'))
+#image_depth = np.array(Image.open(f'{dataPath}depth_{sample_id}_s{slice_id}.exr').convert('L'))
 
 img_shape = image_bright.shape
 print("image shape: ", img_shape)
@@ -33,11 +32,6 @@ print("image shape: ", img_shape)
 image_bright = image_bright.astype(np.float32) / 255.0
 image_dark = image_dark.astype(np.float32) / 255.0
 image_ref = image_ref.astype(np.float32) / 255.0
-
-# create an extra dimension for the channel
-image_bright = np.expand_dims(image_bright, axis=2)
-image_dark = np.expand_dims(image_dark, axis=2)
-image_ref = np.expand_dims(image_ref, axis=2)
 
 # Preprocess images and expand dimensions
 #input_data = np.expand_dims(np.concatenate((image_bright, image_dark), axis=2), axis=0)
