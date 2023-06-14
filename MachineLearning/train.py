@@ -23,6 +23,9 @@ image_bright = np.array(Image.open(f'{dataPath}bright_{sample_id}_s{slice_id}.pn
 image_dark = np.array(Image.open(f'{dataPath}dark_{sample_id}_s{slice_id}.png').convert('L'))
 image_ref = np.array(Image.open(f'{dataPath}ref_{sample_id}_s{slice_id}.png').convert('L'))
 
+# load depths
+image_depth = np.array(Image.open(f'{dataPath}depth_{sample_id}_s{slice_id}.exr').convert('L'))
+
 img_shape = image_bright.shape
 print("image shape: ", img_shape)
 
@@ -54,8 +57,8 @@ layer_input_dark = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
 layer_concat = keras.layers.Concatenate(axis=-1)([layer_input_bright, layer_input_dark])
 # conv2d
 layer_conv2d_1 = keras.layers.Conv2D(16, kernel_size=(3, 3), activation='relu', padding='same')(layer_concat)
-#layer_conv2d_2 = keras.layers.Conv2D(4, kernel_size=(3, 3), activation='relu', padding='same')(layer_conv2d_1)
-layer_conv2d_3 = keras.layers.Conv2D(1, kernel_size=3, activation='relu', padding='same')(layer_conv2d_1)
+layer_conv2d_2 = keras.layers.Conv2D(4, kernel_size=(3, 3), activation='relu', padding='same')(layer_conv2d_1)
+layer_conv2d_3 = keras.layers.Conv2D(1, kernel_size=3, activation='relu', padding='same')(layer_conv2d_2)
 # clamp layer between layer_input_dark and layer_input_bright
 layer_min = keras.layers.Minimum()([layer_conv2d_3, layer_input_bright])
 layer_minmax = keras.layers.Maximum()([layer_min, layer_input_dark])

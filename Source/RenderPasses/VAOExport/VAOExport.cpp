@@ -33,6 +33,7 @@ namespace
     const std::string kBright = "bright";
     const std::string kDark = "dark";
     const std::string kDepth = "depth";
+    const std::string kDepthInv = "invDepth"; // inverse depth (1/z)
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -57,6 +58,7 @@ RenderPassReflection VAOExport::reflect(const CompileData& compileData)
     reflector.addInput(kBright, "bright").texture2D(0, 0, 1, 1, mArraySize);
     reflector.addInput(kDark, "dark").texture2D(0, 0, 1, 1, mArraySize);
     reflector.addInput(kDepth, "depth").texture2D(0, 0, 1, 1, mArraySize);
+    reflector.addInput(kDepthInv, "non-linear z").texture2D(0, 0, 1, 1, mArraySize);
     reflector.addOutput("dummy", "dummy");
     return reflector;
 }
@@ -67,6 +69,7 @@ void VAOExport::execute(RenderContext* pRenderContext, const RenderData& renderD
     auto pBrightTex = renderData[kBright]->asTexture();
     auto pDarkTex = renderData[kDark]->asTexture();
     auto pDepthTex = renderData[kDepth]->asTexture();
+    auto pDepthInvTex = renderData[kDepthInv]->asTexture();
 
     if(mSave)
     {
@@ -76,6 +79,7 @@ void VAOExport::execute(RenderContext* pRenderContext, const RenderData& renderD
             pBrightTex->captureToFile(0, slice, getExportName("bright", ".png", slice), Bitmap::FileFormat::PngFile);
             pDarkTex->captureToFile(0, slice, getExportName("dark", ".png", slice), Bitmap::FileFormat::PngFile);
             pDepthTex->captureToFile(0, slice, getExportName("depth", ".exr", slice), Bitmap::FileFormat::ExrFile);
+            pDepthInvTex->captureToFile(0, slice, getExportName("invDepth", ".exr", slice), Bitmap::FileFormat::ExrFile);
         }
 
         mExportIndex++;
