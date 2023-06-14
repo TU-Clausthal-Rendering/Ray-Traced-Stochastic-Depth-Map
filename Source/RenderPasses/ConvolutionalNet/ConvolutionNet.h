@@ -141,22 +141,26 @@ struct ConvolutionNet
 
         // loop over kernel xy
         //ss << "\tfloat chIn; // channel input\n";
-        for(int kernely = 0; kernely < k.kernelHeight; ++kernely)
-        {
-            for(int kernelx = 0; kernelx < k.kernelWidth; ++kernelx)
-            {
-                int xOff = kernelx - k.kernelWidth / 2;
-                int yOff = kernely - k.kernelHeight / 2;
+        int numInputLayers = k.channelsIn;
+        if (isArrayInput) numInputLayers = (k.channelsIn + 3) / 4;
 
-                if(isArrayInput)
+        for(int channelInLayer = 0; channelInLayer < numInputLayers; ++channelInLayer)
+        {
+            for (int kernely = 0; kernely < k.kernelHeight; ++kernely)
+            {
+                for (int kernelx = 0; kernelx < k.kernelWidth; ++kernelx)
                 {
-                    // obtain texture
-                    for (int chIn4x = 0; chIn4x < k.channelsIn; chIn4x += 4)
+                    int xOff = kernelx - k.kernelWidth / 2;
+                    int yOff = kernely - k.kernelHeight / 2;
+
+                    if (isArrayInput)
                     {
+                        int chIn4x = channelInLayer * 4;
+                        // obtain texture
                         ss << "\t{\n";
                         // load 4 channels at once (they are packed tighly in texture)
-                        ss << "\t\tfloat4 chIn = channels[int3(xy + int2(" << xOff << "," << yOff << "), " << (chIn4x / 4) << ")];\n";
-                        
+                        ss << "\t\tfloat4 chIn = channels[int3(xy + int2(" << xOff << "," << yOff << "), " << channelInLayer << ")];\n";
+
                         // multiply with correct kernels
                         for (int chOut = 0; chOut < k.channelsOut; ++chOut)
                         {
@@ -164,30 +168,29 @@ struct ConvolutionNet
                             ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn[1] * " << k.get(kernelx, kernely, chIn4x + 1, chOut) << ";\n";
                             ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn[2] * " << k.get(kernelx, kernely, chIn4x + 2, chOut) << ";\n";
                             ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn[3] * " << k.get(kernelx, kernely, chIn4x + 3, chOut) << ";\n";
-                            
+
                         }
                         ss << "\t}\n";
                     }
-                }
-                else // not array
-                {
-                    // obtain texture
-                    for (int chIn = 0; chIn < k.channelsIn; ++chIn)
+                    else // not array
                     {
+                        // obtain texture
                         ss << "\t{\n";
-                        ss << "\t\tfloat chIn = channel" << chIn << "[xy + int2(" << xOff << "," << yOff << ")];\n";
+                        ss << "\t\tfloat chIn = channel" << channelInLayer << "[xy + int2(" << xOff << "," << yOff << ")];\n";
 
                         // multiply with correct kernels
                         for (int chOut = 0; chOut < k.channelsOut; ++chOut)
                         {
-                            ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn * " << k.get(kernelx, kernely, chIn, chOut) << ";\n";
+                            ss << "\t\to.v" << (chOut / 4) << "[" << (chOut % 4) << "] += chIn * " << k.get(kernelx, kernely, channelInLayer, chOut) << ";\n";
                         }
                         ss << "\t}\n";
                     }
                 }
             }
+
         }
 
+        
         // apply activation function
         if(activation == Activation::ReLU)
         {
