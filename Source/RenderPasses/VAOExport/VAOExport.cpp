@@ -71,6 +71,18 @@ void VAOExport::execute(RenderContext* pRenderContext, const RenderData& renderD
     auto pDepthTex = renderData[kDepth]->asTexture();
     auto pDepthInvTex = renderData[kDepthInv]->asTexture();
 
+    if(mExportOnCameraChange && mpScene)
+    {
+        auto cam = mpScene->getCamera();
+        auto pos = cam->getPosition();
+
+        if (any(pos != mLastCameraPos))
+        {
+            mLastCameraPos = pos;
+            mSave = true;
+        }
+    }
+
     if(mSave)
     {
         pRefTex->captureToFile(0, 0, getExportName("ref", ".npy"), Bitmap::FileFormat::NumpyFile);
@@ -89,6 +101,13 @@ void VAOExport::renderUI(Gui::Widgets& widget)
     widget.textbox("Export Directory", mExportFolder);
     widget.var("Number", mExportIndex);
     if (widget.button("Save")) mSave = true;
+
+    widget.checkbox("Update on Camera Change", mExportOnCameraChange);
+}
+
+void VAOExport::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
+{
+    mpScene = pScene;
 }
 
 std::string VAOExport::getExportName(const std::string& type, const std::string& extension)

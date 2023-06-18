@@ -25,8 +25,8 @@ def process_sample(sample_id, model : keras.models.Model):
     # Load and preprocess input images
     image_bright = np.load(f'{dataPath}bright_{sample_id}.npy')
     image_dark = np.load(f'{dataPath}dark_{sample_id}.npy')
-    #image_depth = np.load(f'{dataPath}depth_{sample_id}.npy')
-    image_invDepth = np.load(f'{dataPath}invDepth_{sample_id}.npy')
+    image_depth = np.load(f'{dataPath}depth_{sample_id}.npy')
+    #image_invDepth = np.load(f'{dataPath}invDepth_{sample_id}.npy')
 
     # arrays have uint values 0 - 255. Convert to floats 0.0 - 1.0
     image_bright = image_bright.astype(np.float32) / 255.0
@@ -37,7 +37,7 @@ def process_sample(sample_id, model : keras.models.Model):
     # Preprocess images and expand dimensions
     #input_data = np.expand_dims(np.concatenate((image_bright, image_dark), axis=2), axis=0)
     #input_data = [np.expand_dims(image_bright, axis=0), np.expand_dims(image_dark, axis=0), np.expand_dims(image_importance, axis=0), np.expand_dims(image_invDepth, axis=0)]
-    input_data = [image_bright, image_dark, image_importance, image_invDepth]
+    input_data = [image_bright, image_dark, image_importance, image_depth]
 
     #model.fit(input_data, target_data, batch_size=16, epochs=1)
     output_data = model.predict(input_data)
@@ -46,8 +46,8 @@ def process_sample(sample_id, model : keras.models.Model):
 
     return True
 
-sample_id = 0
-process_sample(sample_id, model)
+#sample_id = 0
+#process_sample(sample_id, model)
 
 
 # output model weights

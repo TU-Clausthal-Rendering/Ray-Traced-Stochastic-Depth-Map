@@ -1,3 +1,4 @@
 *.npy
 *.png
 /model.h5
+/*.h5

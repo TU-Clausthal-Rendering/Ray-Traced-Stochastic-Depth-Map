@@ -31,14 +31,21 @@
 
 using namespace Falcor;
 
-class VAOExport : public RenderPass
+struct PathPoint
 {
+    float3 pos;
+    float3 dir;
+};
+
+class PathRecorder : public RenderPass
+{
+
 public:
-    FALCOR_PLUGIN_CLASS(VAOExport, "VAOExport", "Machine Learning Exporter");
+    FALCOR_PLUGIN_CLASS(PathRecorder, "PathRecorder", "Insert pass description here.");
 
-    static ref<VAOExport> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<VAOExport>(pDevice, dict); }
+    static ref<PathRecorder> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<PathRecorder>(pDevice, dict); }
 
-    VAOExport(ref<Device> pDevice, const Dictionary& dict);
+    PathRecorder(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
@@ -49,17 +56,19 @@ public:
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
+    // loads path points from the default location (Source/Mogwai/path.npy in the build folder)
+    static std::vector<PathPoint> loadPathPoints();
 private:
-    std::string getExportName(const std::string& type, const std::string& extension);
-
     ref<Scene> mpScene;
 
-    const static uint mArraySize = 16;
-    bool mSave = false;
+    PathPoint createFromCamera();
 
-    std::string mExportFolder = "D:/VAO/";
-    uint mExportIndex = 0;
-    bool mExportOnCameraChange = false;
+    std::vector<PathPoint> mPoints;
+    bool mRandomDirection = false;
+    bool mSaveNext = false;
+    bool mAutoRecord = false;
+    float mAutoRecordDistance = 10.0f;
+    float3 mLastAutoRecordPoint = float3(0.0f);
 
-    float3 mLastCameraPos = float3(0, 0, 0);
+    int mPreviewPointIndex = -1;
 };
