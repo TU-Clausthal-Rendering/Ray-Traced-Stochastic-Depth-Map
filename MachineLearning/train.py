@@ -79,15 +79,38 @@ def build_network():
         outputs=layer_conv2d_3 # use unclamped output for training
     )
 
+    layer1_model = keras.models.Model(
+        inputs=[layer_input_bright, layer_input_dark, layer_input_importance, layer_input_depth],
+        outputs=layer_conv2d_1
+    )
+
+    layer2_model = keras.models.Model(
+        inputs=[layer_input_bright, layer_input_dark, layer_input_importance, layer_input_depth],
+        outputs=layer_conv2d_2
+    )
+
     # Compile the model
-    eval_model.compile(optimizer='nadam', loss='mean_squared_error')
-    train_model.compile(optimizer='nadam', loss='mean_squared_error')
+    #models = [eval_model, train_model, layer1_model, layer2_model]
+    models = {
+        'eval': eval_model,
+        'train': train_model,
+        'layer1': layer1_model,
+        'layer2': layer2_model
+    }
 
-    return (train_model, eval_model)
+    for model in models.values():
+        model.compile(optimizer='nadam', loss='mean_squared_error')
+
+    return models
 
 
-train_model, eval_model = build_network()
-process_sample(train_model, 100)
+models = build_network()
 
+#process_sample(models['train'], 200)
 # save the model
-eval_model.save('model.h5')
+# load existing model and overwrite weights
+existing_model = keras.models.load_model('model_autosave.h5')
+models['train'].set_weights(existing_model.get_weights()) # this should overwrite the weights of the other models as well
+
+for name, model in models.items():
+    model.save(f'model_{name}.h5')
