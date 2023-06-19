@@ -25,8 +25,8 @@ def process_sample(model : keras.models.Model, epochs):
     image_bright = np.load(f'{dataPath}bright_.npy')
     image_dark = np.load(f'{dataPath}dark_.npy')
     image_ref = np.load(f'{dataPath}ref_.npy')
-    #image_depth = np.load(f'{dataPath}depth_.npy')
-    image_invDepth = np.load(f'{dataPath}invDepth_.npy')
+    image_depth = np.load(f'{dataPath}depth_.npy')
+    #image_invDepth = np.load(f'{dataPath}invDepth_.npy')
 
     # arrays have uint values 0 - 255. Convert to floats 0.0 - 1.0
     image_bright = image_bright.astype(np.float32) / 255.0
@@ -36,7 +36,7 @@ def process_sample(model : keras.models.Model, epochs):
     #image_importance = np.zeros(image_bright.shape, dtype=np.float32) # importance = 0
 
     # Preprocess images and expand dimensions
-    input_data = [image_bright, image_dark, image_importance, image_invDepth]
+    input_data = [image_bright, image_dark, image_importance, image_depth]
     #target_data = np.expand_dims(image_ref, axis=0)
     target_data = image_ref
 
@@ -80,13 +80,14 @@ def build_network():
     )
 
     # Compile the model
+    eval_model.compile(optimizer='nadam', loss='mean_squared_error')
     train_model.compile(optimizer='nadam', loss='mean_squared_error')
 
     return (train_model, eval_model)
 
 
 train_model, eval_model = build_network()
-process_sample(train_model, 10)
+process_sample(train_model, 100)
 
 # save the model
 eval_model.save('model.h5')

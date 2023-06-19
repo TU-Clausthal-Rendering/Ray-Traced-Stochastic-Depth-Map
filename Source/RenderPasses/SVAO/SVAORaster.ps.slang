@@ -89,6 +89,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     // apply exponent
     if(output.stencil == 0)
         output.ao1 = pow(output.ao1, gData.exponent);
+    darkmap(output.aoDark = pow(output.aoDark, gData.exponent));
     
     return output;
 }
