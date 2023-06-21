@@ -1,6 +1,6 @@
 # config
 dataPath = 'D:/VAO/valid_'
-modelName = 'train'
+modelName = 'depth'
 sample_id = 0
 slice_id = 0
 
@@ -12,12 +12,13 @@ from tensorflow import keras
 import tensorflow as tf
 from keras.models import Sequential
 from keras.layers import Conv2D, UpSampling2D
+from shared import *
 
 # set current directory as working directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # load the model
-model = keras.models.load_model(f'model_{modelName}.h5')
+model = keras.models.load_model(f'model_{modelName}.h5', custom_objects={'RelativeDepthLayer': RelativeDepthLayer})
 
 # returns true if sample was processed, false if sample was not processed because it does not exist
 def process_sample(model : keras.models.Model):
