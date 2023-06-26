@@ -52,15 +52,17 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
-    ref<FullScreenPass> createShader(int layer) const;
+    ref<FullScreenPass> createShader(int layer, int slice) const;
     static std::string getInternalName(int layer, int slice);
     ref<GraphicsVars>& getVars(int layer, int slice);
+    ref<FullScreenPass>& getPass(int layer, int slice);
     ref<Fbo>& getFbo(int layer, int slice);
 
     bool mReady = false;
-    ConvolutionNet mNet;
+    std::vector<ConvolutionNet> mNets;
     ConvolutionNet::Precision mPrecision = ConvolutionNet::Precision::Float;
     int mSliceCount = 16; // number of array slices
+    int mLayerCount = 0;
 
     std::vector<ref<Fbo>> mFbos;
     std::vector<ref<FullScreenPass>> mPasses;

@@ -56,7 +56,15 @@ ConvolutionalNet::ConvolutionalNet(ref<Device> pDevice, const Dictionary& dict)
         logError("could not find neural net weights");
     }
     
-    mNet.load(resPath.parent_path().string() + "/");
+    //mNet.load(resPath.parent_path().string() + "/");
+    mNets.resize(mSliceCount);
+    for(int slice = 0; slice < mSliceCount; ++slice)
+    {
+        mNets[slice].load(resPath.parent_path().string() + "/" + std::to_string(slice) + "_");
+        if (slice > 0) if (mNets[slice].getLayerCount() != mNets[0].getLayerCount())
+            throw std::runtime_error("mismatching layer count in neural nets");
+    }
+    mLayerCount = mNets[0].getLayerCount();
 }
 
 Dictionary ConvolutionalNet::getScriptingDictionary()
@@ -85,9 +93,9 @@ RenderPassReflection ConvolutionalNet::reflect(const CompileData& compileData)
         outField.texture2D(srcWidth, srcHeight, 1, 1, 16);
 
         // add all internal resources
-        for(int layer = 0; layer < mNet.getLayerCount() - 1; ++layer)
+        for(int layer = 0; layer < mNets[0].getLayerCount() - 1; ++layer)
         {
-            auto formatInfo = mNet.getMatchingLayerOutputFormat(layer, mPrecision);
+            auto formatInfo = mNets[0].getMatchingLayerOutputFormat(layer, mPrecision);
             for(int slice = 0; slice < mSliceCount; ++slice)
             {
                 reflector.addInternal(getInternalName(layer, slice), "internal")
@@ -128,26 +136,27 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
     // create resource if they do not exist
     if(mPasses.empty())
     {
-        mPasses.resize(mNet.getLayerCount());
-        mVars.resize(mNet.getLayerCount() * mSliceCount);
-        if (mNet.getLayerCount() == 0) throw std::runtime_error("could not load neural network for data");
+        mPasses.resize(mLayerCount * mSliceCount);
+        mVars.resize(mLayerCount * mSliceCount);
+        if (mLayerCount == 0) throw std::runtime_error("could not load neural network for data");
 
         auto& dict = renderData.getDictionary();
         auto guardBand = dict.getValue("guardBand", 0);
         auto quarterGuardBand = guardBand / 4;
         uint2 quarterRes = { pOut->getWidth(0), pOut->getHeight(0) };
         
-        for (int layer = 0; layer < mNet.getLayerCount(); ++layer)
+        for (int layer = 0; layer < mLayerCount; ++layer)
         {
-            // create pass
-            mPasses[layer] = createShader(layer);
-            setGuardBandScissors(*mPasses[layer]->getState(), quarterRes, quarterGuardBand);
-
             // create a shader graphics var for each slice in each layer (they will all be unique)
             for(int slice = 0; slice < mSliceCount; ++slice)
             {
+                // create pass
+                auto& pass = getPass(layer, slice);
+                pass = createShader(layer, slice);
+                setGuardBandScissors(*pass->getState(), quarterRes, quarterGuardBand);
+
                 auto& vars = getVars(layer, slice);
-                vars = GraphicsVars::create(mpDevice, mPasses[layer]->getProgram()->getReflector());
+                vars = GraphicsVars::create(mpDevice, pass->getProgram()->getReflector());
                 
                 // bind input channel texture
                 if (layer > 0)
@@ -159,7 +168,7 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
         }
 
         // set correct input for first layer, and activation for last layer
-        int lastLayer = mNet.getLayerCount() - 1;
+        int lastLayer = mLayerCount - 1;
         for (int slice = 0; slice < mSliceCount; ++slice)
         {
             // set input data
@@ -179,15 +188,15 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
 
     if(mFbos.empty())
     {
-        mFbos.resize(mNet.getLayerCount() * mSliceCount);
-        for(int layer = 0; layer < mNet.getLayerCount() - 1; ++layer)
+        mFbos.resize(mLayerCount * mSliceCount);
+        for(int layer = 0; layer < mLayerCount - 1; ++layer)
         {
             for(int slice = 0; slice < mSliceCount; ++slice)
             {
                 auto& fbo = getFbo(layer, slice);
                 fbo = Fbo::create(mpDevice);
                 auto tex = renderData[getInternalName(layer, slice)]->asTexture();
-                auto nOut = mNet.getOutputChannelCount(layer);
+                auto nOut = mNets[slice].getOutputChannelCount(layer);
                 auto nOutQuarter = (nOut + 3) / 4;
                 for (int chOut = 0; chOut < nOutQuarter; ++chOut)
                 {
@@ -198,7 +207,7 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
         }
 
         // set correct fbo output for last layer
-        int lastLayer = mNet.getLayerCount() - 1;
+        int lastLayer = mLayerCount - 1;
         for (int slice = 0; slice < mSliceCount; ++slice)
         {
             auto& fbo = getFbo(lastLayer, slice);
@@ -208,11 +217,11 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
     }
 
     // run all layers
-    for (int layer = 0; layer < mNet.getLayerCount(); ++layer)
+    for (int layer = 0; layer < mNets[0].getLayerCount(); ++layer)
     {
         for (int slice = 0; slice < mSliceCount; ++slice)
         {
-            auto& pass = mPasses.at(layer);
+            auto& pass = getPass(layer, slice);
             pass->setVars(getVars(layer, slice));
             auto& fbo = getFbo(layer, slice);
             pass->execute(pRenderContext, fbo, false);
@@ -236,16 +245,16 @@ void ConvolutionalNet::renderUI(Gui::Widgets& widget)
     }
 }
 
-ref<FullScreenPass> ConvolutionalNet::createShader(int layer) const
+ref<FullScreenPass> ConvolutionalNet::createShader(int layer, int slice) const
 {
     Program::Desc desc;
     auto activation = ConvolutionNet::Activation::ReLU;
-    if (layer == mNet.getLayerCount() - 1) activation = ConvolutionNet::Activation::Clamp;
-    auto shaderCode = mNet.generateShaderCode(layer, layer != 0, activation);
+    if (layer == mNets[slice].getLayerCount() - 1) activation = ConvolutionNet::Activation::Clamp;
+    auto shaderCode = mNets[slice].generateShaderCode(layer, layer != 0, activation);
     
-    std::cout << "Convolutional Shader Code for layer " << layer << std::endl;
-    logInfo(shaderCode);
-    std::cout << "------------------------------------------------\n";
+    //std::cout << "Convolutional Shader Code for layer " << layer << std::endl;
+    //logInfo(shaderCode);
+    //std::cout << "------------------------------------------------\n";
     
     desc.addShaderString(shaderCode, "ConvNet").psEntry("main");
     return FullScreenPass::create(mpDevice, desc);
@@ -258,10 +267,15 @@ std::string ConvolutionalNet::getInternalName(int layer, int slice)
 
 ref<GraphicsVars>& ConvolutionalNet::getVars(int layer, int slice)
 {
-    return mVars[mNet.getLayerCount() * slice + layer];
+    return mVars[mNets[slice].getLayerCount() * slice + layer];
+}
+
+ref<FullScreenPass>& ConvolutionalNet::getPass(int layer, int slice)
+{
+    return mPasses[mNets[slice].getLayerCount() * slice + layer];
 }
 
 ref<Fbo>& ConvolutionalNet::getFbo(int layer, int slice)
 {
-    return mFbos[mNet.getLayerCount() * slice + layer];
+    return mFbos[mNets[slice].getLayerCount() * slice + layer];
 }

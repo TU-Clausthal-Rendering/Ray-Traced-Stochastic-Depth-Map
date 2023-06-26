@@ -1,8 +1,7 @@
 # config
 dataPath = 'D:/VAO/valid_'
-modelName = 'depth'
+modelName = 'eval'
 sample_id = 0
-slice_id = 0
 
 # imports
 import os
@@ -17,15 +16,11 @@ from shared import *
 # set current directory as working directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-# load the model
-model = keras.models.load_model(f'model_{modelName}.h5', custom_objects={'RelativeDepthLayer': RelativeDepthLayer})
-
 # returns true if sample was processed, false if sample was not processed because it does not exist
-def process_sample(model : keras.models.Model):
+def process_sample(model : keras.models.Model, slice):
     # check if f'{dataPath}bright_{sample_id}.npy' exists
     if not os.path.isfile(f'{dataPath}bright_{sample_id}.npy'):
-        print("File not found!")
-        return False
+        raise Exception(f'{dataPath}bright_{sample_id}.npy does not exist')
 
     # Load and preprocess input images
     image_bright = np.load(f'{dataPath}bright_{sample_id}.npy')
@@ -44,13 +39,21 @@ def process_sample(model : keras.models.Model):
     #input_data = [np.expand_dims(image_bright, axis=0), np.expand_dims(image_dark, axis=0), np.expand_dims(image_importance, axis=0), np.expand_dims(image_invDepth, axis=0)]
     input_data = [image_bright, image_dark, image_importance, image_depth]
 
-    output_data = model.predict(input_data)[slice_id]
+    output_data = model.predict(input_data)[slice]
     # put channels into first dimension to force them as array
     output_data = np.swapaxes(output_data, 1, 2)
     output_data = np.swapaxes(output_data, 0, 1)
 
-    np.save(f'output_{modelName}_{sample_id}_s{slice_id}.npy', output_data)
+    #np.save(f'output_{modelName}_{sample_id}_s{slice_id}.npy', output_data)
 
-    return True
+    return output_data
 
-process_sample(model)
+slices = []
+for slice in range(16):
+    # load the model
+    model = keras.models.load_model(f'model{slice}_{modelName}.h5', custom_objects={'RelativeDepthLayer': RelativeDepthLayer})
+    slices.append(process_sample(model, slice))
+
+# combine the slices
+output_data = np.concatenate(slices, axis=0)
+np.save(f'output_{modelName}_{sample_id}.npy', output_data)
