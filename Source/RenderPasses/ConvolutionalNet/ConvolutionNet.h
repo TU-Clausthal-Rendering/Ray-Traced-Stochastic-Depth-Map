@@ -15,13 +15,17 @@ struct ConvolutionNet
 
         float get(int kx, int ky, int chIn, int chOut) const
         {
+            assert(kx < kernelWidth);
+            assert(ky < kernelHeight);
+            if (chIn >= channelsIn) return 0.0f;
+            if (chOut >= channelsOut) return 0.0f;
             int index = chOut + chIn * channelsOut + ky * channelsOut * channelsIn + kx * channelsOut * channelsIn * kernelWidth;
-            return data.at(index);
+            return data[index];
         }
 
         float getBias(int chOut) const
         {
-            return data.at(chOut);
+            return data[chOut];
         }
     };
 
@@ -70,17 +74,17 @@ struct ConvolutionNet
 
             npy::LoadArrayFromNumpy<float>(kernelFilename, shape, kernels[l].data);
             assert(shape.size() == 4);
-            kernels[l].kernelHeight = shape.at(0);
-            kernels[l].kernelWidth = shape.at(1);
-            kernels[l].channelsIn = shape.at(2);
-            kernels[l].channelsOut = shape.at(3);
+            kernels[l].kernelHeight = shape[0];
+            kernels[l].kernelWidth = shape[1];
+            kernels[l].channelsIn = shape[2];
+            kernels[l].channelsOut = shape[3];
             // load biases
 
             npy::LoadArrayFromNumpy<float>(biasFilename, shape, biases[l].data);
             biases[l].kernelHeight = 1;
             biases[l].kernelWidth = 1;
             biases[l].channelsIn = 1;
-            biases[l].channelsOut = shape.at(0);
+            biases[l].channelsOut = shape[0];
 
             ++l;
         }
@@ -100,8 +104,8 @@ struct ConvolutionNet
     {
         std::stringstream ss;
 
-        const auto& k = kernels.at(layer);
-        const auto& b = biases.at(layer);
+        const auto& k = kernels[layer];
+        const auto& b = biases[layer];
 
         // input data
         if(isArrayInput)
@@ -244,8 +248,8 @@ struct ConvolutionNet
     }
 
     int getLayerCount() const { return int(kernels.size()); }
-    int getOutputChannelCount(int layer) const { return kernels.at(layer).channelsOut; }
-    int getInputChannelCount(int layer) const { return kernels.at(layer).channelsIn; }
+    int getOutputChannelCount(int layer) const { return kernels[layer].channelsOut; }
+    int getInputChannelCount(int layer) const { return kernels[layer].channelsIn; }
     
     std::vector<Matrix> kernels;
     std::vector<Matrix> biases;

@@ -57,10 +57,9 @@ DirectML::DirectML(ref<Device> pDevice, const Dictionary& dict)
     pRawDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &d3d12Options, sizeof(d3d12Options));
 
     Microsoft::WRL::ComPtr<IDMLDevice> dmlDevice;
-    auto hr = DMLCreateDevice1(
+    /*auto hr = DMLCreateDevice(
         pRawDevice,
         dmlCreateDeviceFlags,
-        DML_FEATURE_LEVEL_2_0,
         IID_PPV_ARGS(dmlDevice.GetAddressOf()));
     assert(SUCCEEDED(hr));
     if(FAILED(hr))
@@ -70,7 +69,7 @@ DirectML::DirectML(ref<Device> pDevice, const Dictionary& dict)
     else
     {
         logInfo("Created the IDMLDevice (DirectML)");
-    }
+    }*/
 }
 
 Dictionary DirectML::getScriptingDictionary()
