@@ -14,7 +14,7 @@ from keras.layers import Conv2D, UpSampling2D
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
-def write_weights(filename, model):
+def write_weights_and_bias(filename, model):
     weights = model.get_weights()
     for i in range(len(weights)):
         type = "weight"
@@ -24,6 +24,11 @@ def write_weights(filename, model):
         # save as numpy array
         np.save(f'{filename}{type}_{i//2}.npy', weights[i])
 
+def write_weights(filename, model):
+    weights = model.get_weights()
+    for i in range(len(weights)):
+        np.save(f'{filename}weight_{i}.npy', weights[i])
+
 # load the model
 #model = keras.models.load_model('model_eval8_2_relu.h5')
 #write_weights('', model)
@@ -31,3 +36,4 @@ def write_weights(filename, model):
 for slice in range(16):
     model = keras.models.load_model(f'model{slice}_eval.h5')
     write_weights(f'{slice}_', model)
+    #write_weights_and_bias(f'{slice}_', model)

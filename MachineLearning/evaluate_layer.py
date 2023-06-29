@@ -1,6 +1,7 @@
 # config
 dataPath = 'D:/VAO/valid_'
-modelName = 'eval'
+modelName = 'layer2'
+#modelName = 'eval8_2_relu'
 sample_id = 0
 
 # imports
@@ -49,9 +50,10 @@ def process_sample(model : keras.models.Model, slice):
     return output_data
 
 slices = []
+#model = keras.models.load_model(f'model_{modelName}.h5')
 for slice in range(16):
     # load the model
-    model = keras.models.load_model(f'model{slice}_{modelName}.h5', custom_objects={'RelativeDepthLayer': RelativeDepthLayer})
+    model = keras.models.load_model(f'model{slice}_{modelName}.h5')
     slices.append(process_sample(model, slice))
 
 # combine the slices
