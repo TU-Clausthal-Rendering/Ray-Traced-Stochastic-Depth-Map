@@ -64,6 +64,8 @@ private:
     int mSliceCount = 16; // number of array slices
     int mLayerCount = 0;
 
+    bool mClampOutput = true;
+
     std::vector<ref<Fbo>> mFbos;
     std::vector<ref<FullScreenPass>> mPasses;
     std::vector<ref<GraphicsVars>> mVars;

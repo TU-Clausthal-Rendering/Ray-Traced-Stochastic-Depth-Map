@@ -98,7 +98,7 @@ RenderPassReflection ConvolutionalNet::reflect(const CompileData& compileData)
             auto formatInfo = mNets[0].getMatchingLayerOutputFormat(layer, mPrecision);
             for(int slice = 0; slice < mSliceCount; ++slice)
             {
-                reflector.addInternal(getInternalName(layer, slice), "internal")
+                reflector.addOutput(getInternalName(layer, slice), "internal")
                     .format(formatInfo.format)
                     .texture2D(srcWidth, srcHeight, 1, 1, formatInfo.layers)
                     .bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
@@ -178,10 +178,13 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
             firstVars->getRootVar()["channel2"].setSrv(pChannel3->getSRV(0, 1, slice));
             firstVars->getRootVar()["channel3"].setSrv(pChannel4->getSRV(0, 1, slice));
 
-            // set clamp activation data
-            auto& lastVars = getVars(lastLayer, slice);
-            lastVars->getRootVar()["clampMax"].setSrv(pChannel1->getSRV(0, 1, slice));
-            lastVars->getRootVar()["clampMin"].setSrv(pChannel2->getSRV(0, 1, slice));
+            if(mClampOutput)
+            {
+                // set clamp activation data
+                auto& lastVars = getVars(lastLayer, slice);
+                lastVars->getRootVar()["clampMax"].setSrv(pChannel1->getSRV(0, 1, slice));
+                lastVars->getRootVar()["clampMin"].setSrv(pChannel2->getSRV(0, 1, slice));
+            }
         }
             
     }
@@ -243,13 +246,22 @@ void ConvolutionalNet::renderUI(Gui::Widgets& widget)
     {
         requestRecompile();
     }
+
+    if(widget.checkbox("Clamp Output", mClampOutput))
+    {
+        requestRecompile();
+    }
 }
 
 ref<FullScreenPass> ConvolutionalNet::createShader(int layer, int slice) const
 {
     Program::Desc desc;
     auto activation = ConvolutionNet::Activation::ReLU;
-    if (layer == mNets[slice].getLayerCount() - 1) activation = ConvolutionNet::Activation::Clamp;
+    if (layer == mNets[slice].getLayerCount() - 1)
+    {
+        if(mClampOutput) activation = ConvolutionNet::Activation::Clamp;
+        else activation = ConvolutionNet::Activation::None;
+    }
     auto shaderCode = mNets[slice].generateShaderCode(layer, layer != 0, activation);
     
     //std::cout << "Convolutional Shader Code for layer " << layer << std::endl;

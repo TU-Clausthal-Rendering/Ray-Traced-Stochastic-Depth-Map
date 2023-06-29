@@ -66,7 +66,7 @@ struct ConvolutionNet
             ss << baseFilename << "bias_" << l << ".npy";
             auto biasFilename = ss.str();
 
-            if (!std::filesystem::exists(kernelFilename) || !std::filesystem::exists(biasFilename))
+            if (!std::filesystem::exists(kernelFilename))
                 break;
 
             kernels.resize(l + 1);
@@ -80,11 +80,23 @@ struct ConvolutionNet
             kernels[l].channelsOut = shape[3];
             // load biases
 
-            npy::LoadArrayFromNumpy<float>(biasFilename, shape, biases[l].data);
-            biases[l].kernelHeight = 1;
-            biases[l].kernelWidth = 1;
-            biases[l].channelsIn = 1;
-            biases[l].channelsOut = shape[0];
+            if(std::filesystem::exists(biasFilename))
+            {
+                npy::LoadArrayFromNumpy<float>(biasFilename, shape, biases[l].data);
+                biases[l].kernelHeight = 1;
+                biases[l].kernelWidth = 1;
+                biases[l].channelsIn = 1;
+                biases[l].channelsOut = shape[0];
+            }
+            else
+            {
+                // create zero bias array if bias does not exist
+                biases[l].kernelHeight = 1;
+                biases[l].kernelWidth = 1;
+                biases[l].channelsIn = 1;
+                biases[l].channelsOut = kernels[l].channelsOut;
+                biases[l].data.resize(biases[l].channelsOut);
+            }
 
             ++l;
         }
