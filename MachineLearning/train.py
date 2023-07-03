@@ -14,37 +14,11 @@ from keras.layers import Conv2D, UpSampling2D
 # set current directory as working directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-class AoLoss(keras.losses.Loss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.loss = keras.losses.MeanSquaredError()
-
-    @tf.function
-    def call(self, y_true, y_pred):
-        y_ref = y_true[:, :, :, :, 0]
-        y_max_error = y_true[:, :, :, :, 1]
-
-        # multiply with max error
-        y_ref = tf.math.multiply(y_ref, y_max_error)
-        y_pred = tf.math.multiply(y_pred, y_max_error)
-        
-        y_diff = tf.math.subtract(y_ref, y_pred)
-        # multiply with 2.0 if y_diff is positive
-        y_diff = tf.where(y_diff > 0, y_diff * 2, y_diff)
-        
-        return tf.math.square(y_diff) # return squared error
-    
-    def get_config(self):
-        config = super().get_config()
-        return config
-
 # returns true if sample was processed, false if sample was not processed because it does not exist
 def process_sample(models, epochs, slice):
     # check if f'{dataPath}bright_{sample_id}.npy' exists
     if not os.path.isfile(f'{dataPath}bright_.npy'):
         return False
-
-    tf.keras.utils.set_random_seed(3) # use same random seed for training
 
     # Load and preprocess input images
     image_bright = np.load(f'{dataPath}bright_s{slice}.npy')
@@ -79,6 +53,9 @@ def process_sample(models, epochs, slice):
     return True
 
 def build_network(prev_model = None):
+
+    tf.keras.utils.set_random_seed(3) # use same random seed for training
+
     # determine size of convolutional network
     img_shape = np.load(f'{dataPath}bright_.npy').shape[1:]
     print("image shape: ", img_shape)
@@ -90,6 +67,7 @@ def build_network(prev_model = None):
     #regularizer = keras.regularizers.l2(0.01)
     ortho_reg = keras.regularizers.OrthogonalRegularizer(factor=1e-4)
     l12regularizer = keras.regularizers.L1L2(l1=1e-7, l2=1e-5)
+    bias_constraint = keras.constraints.MinMaxNorm(min_value=0.0, max_value=0.0, rate=1.0, axis=0)
 
     # two inputs
     layer_input_bright = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
@@ -99,9 +77,9 @@ def build_network(prev_model = None):
     # concatenate inputs
     layer_concat = keras.layers.Concatenate(axis=-1)([layer_input_bright, layer_input_dark, layer_input_importance, layer_input_depth])
     # conv2d
-    layer_conv2d_1 = keras.layers.Conv2D(8, kernel_size=3, activation=activation, kernel_initializer=kernel_initializer, kernel_regularizer=l12regularizer, padding='same', use_bias=False)(layer_concat)
-    layer_conv2d_2 = keras.layers.Conv2D(2, kernel_size=3, activation=activation, kernel_initializer=kernel_initializer, kernel_regularizer=l12regularizer, padding='same', use_bias=False)(layer_conv2d_1)
-    layer_conv2d_3 = keras.layers.Conv2D(1, kernel_size=3, activation='linear', kernel_initializer=kernel_initializer, kernel_regularizer=l12regularizer, padding='same', use_bias=False)(layer_conv2d_2)
+    layer_conv2d_1 = keras.layers.Conv2D(4, kernel_size=3, activation=activation, kernel_initializer=kernel_initializer, kernel_regularizer=l12regularizer, padding='same', use_bias=True)(layer_concat)
+    layer_conv2d_2 = keras.layers.Conv2D(4, kernel_size=(9, 1), activation=activation, kernel_initializer=kernel_initializer, kernel_regularizer=l12regularizer, padding='same', use_bias=True)(layer_conv2d_1)
+    layer_conv2d_3 = keras.layers.Conv2D(1, kernel_size=(1, 9), activation='linear', kernel_initializer=kernel_initializer, kernel_regularizer=l12regularizer, padding='same', use_bias=True)(layer_conv2d_2)
     # clamp layer between layer_input_dark and layer_input_bright
     layer_min = keras.layers.Minimum()([layer_conv2d_3, layer_input_bright])
     layer_minmax = keras.layers.Maximum()([layer_min, layer_input_dark])
@@ -169,7 +147,7 @@ for slice in range(16):
     print("=================> slice: ", slice)
     #models = build_network(prev_model)
     models = build_network()
-    process_sample(models, 32, slice)
+    process_sample(models, 16, slice)
     prev_model = models
 
 # save the model

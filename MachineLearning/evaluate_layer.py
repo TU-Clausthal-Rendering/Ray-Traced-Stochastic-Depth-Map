@@ -1,7 +1,10 @@
 # config
 dataPath = 'D:/VAO/valid_'
-modelName = 'layer2'
+#modelNames = ['layer1', 'layer2', 'layer3', 'eval']
+modelNames = ['weighted_x', 'weighted_y', 'weights_x', 'weights_y', 'eval']
 #modelName = 'eval8_2_relu'
+isSliced = True
+num_slices = 1 # 16
 sample_id = 0
 
 # imports
@@ -49,13 +52,20 @@ def process_sample(model : keras.models.Model, slice):
 
     return output_data
 
-slices = []
-#model = keras.models.load_model(f'model_{modelName}.h5')
-for slice in range(16):
-    # load the model
-    model = keras.models.load_model(f'model{slice}_{modelName}.h5')
-    slices.append(process_sample(model, slice))
+custom_objects={'RelativeDepthLayer': RelativeDepthLayer, 'WeightedSumLayer': WeightedSumLayer}
 
-# combine the slices
-output_data = np.concatenate(slices, axis=0)
-np.save(f'output_{modelName}_{sample_id}.npy', output_data)
+for modelName in modelNames:
+
+    slices = []
+    model = None
+    if not isSliced:
+        model = keras.models.load_model(f'model_{modelName}.h5', custom_objects=custom_objects)
+    for slice in range(num_slices):
+        if isSliced:
+            model = keras.models.load_model(f'model{slice}_{modelName}.h5', custom_objects=custom_objects)
+
+        slices.append(process_sample(model, slice))
+
+    # combine the slices
+    output_data = np.concatenate(slices, axis=0)
+    np.save(f'output_{modelName}_{sample_id}.npy', output_data)

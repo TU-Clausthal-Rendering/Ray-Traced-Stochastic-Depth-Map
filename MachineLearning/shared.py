@@ -24,3 +24,41 @@ class RelativeDepthLayer(keras.layers.Layer):
     def get_config(self):
         config = super(RelativeDepthLayer, self).get_config()
         return config
+
+class WeightedSumLayer(keras.layers.Layer):
+    def __init__(self, name=None, **kwargs):
+        super(WeightedSumLayer, self).__init__(name=name)
+
+    def call(self, inputs):
+        v, w = inputs
+        weighted_sum = tf.reduce_sum(v * w, axis=-1)
+        sum_w = tf.reduce_sum(w, axis=-1)
+        #output = weighted_sum
+        output = weighted_sum / (sum_w + 1e-8)
+        output = tf.expand_dims(output, axis=-1)
+        return output
+    
+
+class AoLoss(keras.losses.Loss):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.loss = keras.losses.MeanSquaredError()
+
+    @tf.function
+    def call(self, y_true, y_pred):
+        y_ref = y_true[:, :, :, :, 0]
+        y_max_error = y_true[:, :, :, :, 1]
+
+        # multiply with max error
+        y_ref = tf.math.multiply(y_ref, y_max_error)
+        y_pred = tf.math.multiply(y_pred, y_max_error)
+        
+        y_diff = tf.math.subtract(y_ref, y_pred)
+        # multiply with 2.0 if y_diff is positive
+        y_diff = tf.where(y_diff > 0, y_diff * 2, y_diff)
+        
+        return tf.math.square(y_diff) # return squared error
+    
+    def get_config(self):
+        config = super().get_config()
+        return config
