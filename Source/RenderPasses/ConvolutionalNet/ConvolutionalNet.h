@@ -66,6 +66,8 @@ private:
 
     bool mClampOutput = true;
 
+    bool mExportLayers = false;
+
     std::vector<ref<Fbo>> mFbos;
     std::vector<ref<FullScreenPass>> mPasses;
     std::vector<ref<GraphicsVars>> mVars;

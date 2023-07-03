@@ -49,18 +49,18 @@ ConvolutionalNet::ConvolutionalNet(ref<Device> pDevice, const Dictionary& dict)
     : RenderPass(pDevice)
 {
     std::filesystem::path resPath;
-    auto found = findFileInDataDirectories("NeuralNet/weight_0.npy", resPath);
+    auto found = findFileInDataDirectories("NeuralNet", resPath);
     assert(found);
     if(!found)
     {
-        logError("could not find neural net weights");
+        logError("could not find neural net data path");
     }
     
-    //mNet.load(resPath.parent_path().string() + "/");
+    //mNet.load(resPath.string() + "/");
     mNets.resize(mSliceCount);
     for(int slice = 0; slice < mSliceCount; ++slice)
     {
-        mNets[slice].load(resPath.parent_path().string() + "/" + std::to_string(slice) + "_");
+        mNets[slice].load(resPath.string() + "/" + std::to_string(slice) + "_");
         if (slice > 0) if (mNets[slice].getLayerCount() != mNets[0].getLayerCount())
             throw std::runtime_error("mismatching layer count in neural nets");
     }
@@ -80,7 +80,10 @@ RenderPassReflection ConvolutionalNet::reflect(const CompileData& compileData)
     reflector.addInput(kChannel3, "Channel 3").texture2D(0, 0, 1, 1, mSliceCount);
     reflector.addInput(kChannel4, "Channel 4").texture2D(0, 0, 1, 1, mSliceCount);
 
-    auto& outField = reflector.addOutput(kOutput, "Output").bindFlags(ResourceBindFlags::AllColorViews).format(ResourceFormat::R8Unorm).texture2D(0, 0, 0, 1, mSliceCount);
+    auto& outField = reflector.addOutput(kOutput, "Output").bindFlags(ResourceBindFlags::AllColorViews)
+        //.format(ResourceFormat::R8Unorm)
+        .format(ResourceFormat::R32Float)
+        .texture2D(0, 0, 0, 1, mSliceCount);
     mReady = false;
 
     auto edge = compileData.connectedResources.getField(kChannel1);
@@ -230,7 +233,19 @@ void ConvolutionalNet::execute(RenderContext* pRenderContext, const RenderData& 
             pass->execute(pRenderContext, fbo, false);
         }
     }
-    
+
+    if(mExportLayers)
+    {
+        for (int layer = 0; layer < mNets[0].getLayerCount() - 1; ++layer)
+        {
+            for (int slice = 0; slice < mSliceCount; ++slice)
+            {
+                auto tex = renderData[getInternalName(layer, slice)]->asTexture();
+                tex->captureToFile(0, 0, getInternalName(layer, slice) + ".npy", Bitmap::FileFormat::NumpyFile);
+            }
+        }
+        mExportLayers = false;
+    }
 }
 
 void ConvolutionalNet::renderUI(Gui::Widgets& widget)
@@ -250,6 +265,11 @@ void ConvolutionalNet::renderUI(Gui::Widgets& widget)
     if(widget.checkbox("Clamp Output", mClampOutput))
     {
         requestRecompile();
+    }
+
+    if(widget.button("Debug Export Layers"))
+    {
+        mExportLayers = true;
     }
 }
 
