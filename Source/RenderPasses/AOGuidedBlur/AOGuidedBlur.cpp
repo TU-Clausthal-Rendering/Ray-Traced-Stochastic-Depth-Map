@@ -26,37 +26,159 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #include "AOGuidedBlur.h"
+#include "../Utils/GuardBand/guardband.h"
+
+namespace
+{
+    const char kShaderPath[] = "RenderPasses/AOGuidedBlur/AOGuidedBlur.ps.slang";
+
+    const std::string kBright = "bright";
+    const std::string kDark = "dark";
+    const std::string kImportance = "importance";
+    const std::string kDepth = "linear depth";
+    const std::string kPingPong = "pingpong";
+
+    const std::string kOutput = "color";
+}
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
     registry.registerClass<RenderPass, AOGuidedBlur>();
 }
 
+ref<AOGuidedBlur> AOGuidedBlur::create(ref<Device> pDevice, const Dictionary& dict)
+{
+    auto pPass = make_ref<AOGuidedBlur>(pDevice, dict);
+    for (const auto& [key, value] : dict)
+    {
+        logWarning("Unknown field '" + key + "' in a AOGuidedBlur dictionary");
+    }
+    return pPass;
+}
+
 AOGuidedBlur::AOGuidedBlur(ref<Device> pDevice, const Dictionary& dict)
     : RenderPass(pDevice)
 {
+    mpFbo = Fbo::create(mpDevice);
+    Sampler::Desc samplerDesc;
+    samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
+    mpSampler = Sampler::create(mpDevice, samplerDesc);
 }
 
 Dictionary AOGuidedBlur::getScriptingDictionary()
 {
-    return Dictionary();
+    Dictionary dict;
+    return dict;
 }
 
 RenderPassReflection AOGuidedBlur::reflect(const CompileData& compileData)
 {
-    // Define the required resources here
     RenderPassReflection reflector;
-    //reflector.addOutput("dst");
-    //reflector.addInput("src");
+    mReady = false;
+    
+    auto& colorField = reflector.addInput(kBright, "bright ao (will be overwritten)").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget).texture2D(0,0,1,1,0);
+    reflector.addInput(kDark, "dark ao").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0, 0, 1, 1, 0);
+    reflector.addInput(kDepth, "linear depth").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0,0,1,1,0);
+    reflector.addInput(kImportance, "importance map").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0,0,1,1,0);
+    auto& pingpongField = reflector.addInternal(kPingPong, "temporal result after first blur").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+    auto& outputField = reflector.addOutput(kOutput, "blurred ao").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+
+    // set correct input format and dimensions of the ping pong buffer
+    auto edge = compileData.connectedResources.getField(kBright);
+    if (edge)
+    {
+        const auto inputFormat = edge->getFormat();
+        const auto srcWidth = edge->getWidth();
+        const auto srcHeight = edge->getHeight();
+        const auto srcArraySize = edge->getArraySize();
+
+        mLastFormat = inputFormat;
+        colorField.format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
+        pingpongField.format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
+        outputField.format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
+
+        mReady = true;
+    }
+    else colorField.format(mLastFormat);
+
     return reflector;
+}
+
+void AOGuidedBlur::compile(RenderContext* pRenderContext, const CompileData& compileData)
+{
+    if (!mReady) throw std::runtime_error("CrossBilateralBlur::compile - missing incoming reflection information");
+
+    Program::DefineList defines;
+    defines.add("KERNEL_RADIUS", std::to_string(mKernelRadius));
+
+    mpBlur = FullScreenPass::create(mpDevice, kShaderPath, defines);
+
+    mpBlur->getRootVar()["gSampler"] = mpSampler;
 }
 
 void AOGuidedBlur::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    // renderData holds the requested resources
-    // auto& pTexture = renderData.getTexture("src");
+    auto pBright = renderData[kBright]->asTexture();
+    auto pDark = renderData[kDark]->asTexture();
+    auto pPingPong = renderData[kPingPong]->asTexture();
+    auto pDepth = renderData[kDepth]->asTexture();
+    auto pImportance = renderData[kImportance]->asTexture();
+
+    auto pOutput = renderData[kOutput]->asTexture();
+
+    assert(pBright->getFormat() == pPingPong->getFormat());
+    assert(pBright->getFormat() == pOutput->getFormat());
+
+    if (!mEnabled)
+    {
+        // blit input to output
+        for (uint slice = 0; slice < pBright->getArraySize(); ++slice)
+        {
+            pRenderContext->blit(pBright->getSRV(0, 1, slice, 1), pOutput->getRTV(0, slice, 1));
+        }
+        return;
+    }
+
+    auto vars = mpBlur->getRootVar();
+
+
+    auto& dict = renderData.getDictionary();
+    auto guardBand = dict.getValue("guardBand", 0);
+    if(pBright->getArraySize() > 1)
+    {
+        guardBand = guardBand / int(std::sqrt((double)pBright->getArraySize()) + 0.5);
+    }
+    uint2 renderRes = { pBright->getWidth(), pBright->getHeight() };
+    setGuardBandScissors(*mpBlur->getState(), renderRes, guardBand);
+    // set scissor cb (is shared between both shaders)
+    vars["ScissorCB"]["uvMin"] = dict.getValue("guardBand.uvMin", float2(0.0f));
+    vars["ScissorCB"]["uvMax"] = dict.getValue("guardBand.uvMax", float2(1.0f));
+
+    for(uint slice = 0; slice < pBright->getArraySize(); ++slice)
+    {
+        vars["gDepthTex"].setSrv(pDepth->getSRV(0, 1, slice, 1));
+        vars["gImportanceTex"].setSrv(pImportance->getSRV(0, 1, slice, 1));
+        vars["gBrightTex"].setSrv(pBright->getSRV(0, 1, slice, 1));
+        vars["gDarkTex"].setSrv(pDark->getSRV(0, 1, slice, 1));
+
+        // blur in x
+        vars["gSrcTex"].setSrv(pBright->getSRV(0, 1, slice, 1));
+        mpFbo->attachColorTarget(pPingPong, 0, 0, slice, 1);
+        vars["Direction"]["dir"] = float2(1.0f, 0.0f);
+        mpBlur->execute(pRenderContext, mpFbo, false);
+
+        // blur in y
+        vars["gSrcTex"].setSrv(pPingPong->getSRV(0, 1, slice, 1));
+        mpFbo->attachColorTarget(pOutput, 0, 0, slice, 1);
+        vars["Direction"]["dir"] = float2(0.0f, 1.0f);
+        mpBlur->execute(pRenderContext, mpFbo, false);
+    }
 }
 
 void AOGuidedBlur::renderUI(Gui::Widgets& widget)
 {
+    widget.checkbox("Enabled", mEnabled);
+    if (!mEnabled) return;
+
+    if (widget.var("Kernel Radius", mKernelRadius, uint32_t(1), uint32_t(20))) requestRecompile();
 }

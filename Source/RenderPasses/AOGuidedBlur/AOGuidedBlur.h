@@ -27,6 +27,7 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
+#include "Core/Pass/FullScreenPass.h"
 #include "RenderGraph/RenderPass.h"
 
 using namespace Falcor;
@@ -36,13 +37,13 @@ class AOGuidedBlur : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(AOGuidedBlur, "AOGuidedBlur", "Insert pass description here.");
 
-    static ref<AOGuidedBlur> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<AOGuidedBlur>(pDevice, dict); }
+    static ref<AOGuidedBlur> create(ref<Device> pDevice, const Dictionary& dict);
 
     AOGuidedBlur(ref<Device> pDevice, const Dictionary& dict);
 
     virtual Dictionary getScriptingDictionary() override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
-    virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {}
+    virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
     virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override {}
@@ -50,4 +51,14 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
+
+    ref<Fbo> mpFbo;
+    ref<Sampler> mpSampler;
+    bool mEnabled = true;
+    uint32_t mKernelRadius = 4;
+
+    bool mReady = false;
+
+    ref<FullScreenPass> mpBlur;
+    ResourceFormat mLastFormat = ResourceFormat::RGBA32Float;
 };

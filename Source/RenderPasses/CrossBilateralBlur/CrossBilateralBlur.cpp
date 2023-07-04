@@ -35,7 +35,6 @@ namespace
     const std::string kColor = "color";
     const std::string kDepth = "linear depth";
     const std::string kPingPong = "pingpong";
-    const std::string kGuardBand = "guardBand";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
