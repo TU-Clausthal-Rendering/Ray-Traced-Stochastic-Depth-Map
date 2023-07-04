@@ -62,3 +62,77 @@ class AoLoss(keras.losses.Loss):
     def get_config(self):
         config = super().get_config()
         return config
+
+
+
+class GaussianActivation(keras.layers.Layer):
+    def __init__(self, variance_initializer='ones', **kwargs):
+        super(GaussianActivation, self).__init__(**kwargs)
+        self.variance_initializer = tf.keras.initializers.get(variance_initializer)
+
+    def build(self, input_shape):
+        self.variance = self.add_weight(
+            shape=(1,),
+            initializer=self.variance_initializer,
+            name='variance',
+            trainable=True
+        )
+        super(GaussianActivation, self).build(input_shape)
+
+    def call(self, inputs):
+        exponent = -tf.square(inputs) / (2 * self.variance)
+        activation = tf.exp(exponent)
+        return activation
+
+    def get_config(self):
+        config = super(GaussianActivation, self).get_config()
+        config.update({
+            'variance_initializer': tf.keras.initializers.serialize(self.variance_initializer),
+        })
+        return config
+    
+    @classmethod
+    def from_config(cls, config):
+        variance_initializer = tf.keras.initializers.deserialize(config.pop('variance_initializer'))
+        instance = cls(variance_initializer=variance_initializer, **config)
+        return instance
+
+class NeighborExpansionLayer(keras.layers.Layer):
+    def __init__(self, radius, dimension, **kwargs):
+        super(NeighborExpansionLayer, self).__init__(**kwargs)
+        self.radius = radius
+        self.dimension = dimension
+
+    @tf.function
+    def call(self, inputs):
+        # pad the dimension that will be expanded/shifted
+        paddings = None
+        if self.dimension == 1:
+            paddings = tf.constant([[0, 0], [self.radius, self.radius], [0, 0], [0, 0]])
+        elif self.dimension == 2:
+            paddings = tf.constant([[0, 0], [0, 0], [self.radius, self.radius], [0, 0]])
+        else:
+            raise ValueError("Invalid dimension. Use 1 for height or 2 for width.")
+
+        padded_inputs = tf.pad(inputs, paddings, mode='CONSTANT') # CONSTANT = pad with 0s
+
+        expanded_channels = []
+        for r in range(-self.radius, self.radius + 1):
+            shifted_inputs = tf.roll(padded_inputs, shift=-r, axis=self.dimension)
+            if self.dimension == 1:
+                expanded_channels.append(shifted_inputs[:, self.radius:-self.radius, :, :])
+            elif self.dimension == 2:
+                expanded_channels.append(shifted_inputs[:, :, self.radius:-self.radius, :])
+
+        expanded_tensor = tf.concat(expanded_channels, axis=-1)
+        return expanded_tensor
+
+
+def get_custom_objects():
+    return {
+        'RelativeDepthLayer': RelativeDepthLayer,
+        'WeightedSumLayer': WeightedSumLayer,
+        'AoLoss': AoLoss,
+        'GaussianActivation': GaussianActivation,
+        'NeighborExpansionLayer': NeighborExpansionLayer
+    }

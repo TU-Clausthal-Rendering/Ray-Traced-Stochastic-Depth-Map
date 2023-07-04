@@ -114,10 +114,10 @@ def build_network():
     pick_bright_layer_x = pick_bright_conv_x(tf.keras.layers.Average()([layer_input_bright, layer_input_dark]))
 
     train_weights_conv_x = keras.layers.Conv2D(kernel_size, kernel_size=1, activation='sigmoid', padding='same', kernel_initializer='zeros', bias_initializer='zeros')
-    train_weights_layer_x = train_weights_conv_x(keras.layers.Concatenate(axis=-1)([pick_depth_layer_x, pick_importance_layer_x]))
+    train_weights_layer_x = train_weights_conv_x(keras.layers.Concatenate(axis=-1)([relative_depth_layer_x, pick_importance_layer_x]))
 
     train_weights_conv_y = keras.layers.Conv2D(kernel_size, kernel_size=1, activation='sigmoid', padding='same', kernel_initializer='zeros', bias_initializer='zeros')
-    train_weights_layer_y = train_weights_conv_y(keras.layers.Concatenate(axis=-1)([pick_depth_layer_y, pick_importance_layer_y]))
+    train_weights_layer_y = train_weights_conv_y(keras.layers.Concatenate(axis=-1)([relative_depth_layer_y, pick_importance_layer_y]))
 
     weights_x_model = keras.models.Model(
         inputs=[layer_input_bright, layer_input_dark, layer_input_importance, layer_input_depth],
