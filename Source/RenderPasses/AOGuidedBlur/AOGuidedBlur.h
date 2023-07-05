@@ -56,6 +56,7 @@ private:
     ref<Sampler> mpSampler;
     bool mEnabled = true;
     uint32_t mKernelRadius = 4;
+    bool mClampResults = true;
 
     bool mReady = false;
 

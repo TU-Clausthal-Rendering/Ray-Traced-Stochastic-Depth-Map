@@ -73,11 +73,15 @@ float main(BlurPSIn pIn) : SV_TARGET
     for (int it = 0; it <= KERNEL_RADIUS * 2; ++it)
     {
         // calculate weights
-        float spatialWeight = 1.0;
+        //float spatialWeight = 1.0;
+        float spatialWeight = kernel(KERNEL_RADIUS - it, 10.0);
         //float importanceWeight = kernel(getImportance(uv), 0.028);
         float importanceWeight = 1.0 - getImportance(uv);
+        //float importanceWeight = 1.0;
         float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float depthWeight = kernel(relativeDepth, 0.001);
+        //float depthWeight = kernel(relativeDepth, 0.1);
+        //float depthWeight = 1.0;
 
         // update sum
         float w = spatialWeight * importanceWeight * depthWeight;
@@ -87,10 +91,13 @@ float main(BlurPSIn pIn) : SV_TARGET
         uv += uvStep;
     }
     
-    pixelSum /= weightSum;
+    pixelSum /= max(weightSum, 1e-4);
+    if(weightSum < 1e-4)
+        pixelSum = getColor(pIn.texC); // fallback color when weight is too small
     
     // clamp between bright and dark image
-    pixelSum = clamp(pixelSum, getDark(pIn.texC), getBright(pIn.texC));
+    if (CLAMP_RESULTS)
+        pixelSum = clamp(pixelSum, getDark(pIn.texC), getBright(pIn.texC));
     
     return pixelSum;
 }

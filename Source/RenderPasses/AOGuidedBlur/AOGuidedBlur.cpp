@@ -39,6 +39,9 @@ namespace
     const std::string kPingPong = "pingpong";
 
     const std::string kOutput = "color";
+
+    const std::string kKernelRadius = "kernelRadius";
+    const std::string kClampResults = "clampResults";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -51,7 +54,9 @@ ref<AOGuidedBlur> AOGuidedBlur::create(ref<Device> pDevice, const Dictionary& di
     auto pPass = make_ref<AOGuidedBlur>(pDevice, dict);
     for (const auto& [key, value] : dict)
     {
-        logWarning("Unknown field '" + key + "' in a AOGuidedBlur dictionary");
+        if (key == kKernelRadius) pPass->mKernelRadius = value;
+        else if (key == kClampResults) pPass->mClampResults = value;
+        else logWarning("Unknown field '" + key + "' in a dictionary passed to AOGuidedBlur::create().");
     }
     return pPass;
 }
@@ -68,6 +73,8 @@ AOGuidedBlur::AOGuidedBlur(ref<Device> pDevice, const Dictionary& dict)
 Dictionary AOGuidedBlur::getScriptingDictionary()
 {
     Dictionary dict;
+    dict[kKernelRadius] = mKernelRadius;
+    dict[kClampResults] = mClampResults;
     return dict;
 }
 
@@ -108,6 +115,7 @@ void AOGuidedBlur::compile(RenderContext* pRenderContext, const CompileData& com
 
     Program::DefineList defines;
     defines.add("KERNEL_RADIUS", std::to_string(mKernelRadius));
+    defines.add("CLAMP_RESULTS", mClampResults ? "1" : "0");
 
     mpBlur = FullScreenPass::create(mpDevice, kShaderPath, defines);
 
@@ -179,4 +187,5 @@ void AOGuidedBlur::renderUI(Gui::Widgets& widget)
     if (!mEnabled) return;
 
     if (widget.var("Kernel Radius", mKernelRadius, uint32_t(1), uint32_t(20))) requestRecompile();
+    if (widget.checkbox("Clamp Results", mClampResults)) requestRecompile();
 }
