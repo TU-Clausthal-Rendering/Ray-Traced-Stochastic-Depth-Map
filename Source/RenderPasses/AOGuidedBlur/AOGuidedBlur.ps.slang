@@ -32,11 +32,6 @@ float kernel(float offset, float variance)
     return exp(-0.5 * offset * offset / variance);
 }
 
-float getImportance(float2 uv)
-{
-    return gImportanceTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
-}
-
 float getDepth(float2 uv)
 {
     return gDepthTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
@@ -57,6 +52,12 @@ float getDark(float2 uv)
     return gDarkTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
 }
 
+float getImportance(float2 uv)
+{
+    return max(getBright(uv) - getDark(uv), 0.001);
+    //return gImportanceTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
+}
+
 float main(BlurPSIn pIn) : SV_TARGET
 {
     float pixelSum = 0.0;
@@ -73,9 +74,10 @@ float main(BlurPSIn pIn) : SV_TARGET
     {
         // calculate weights
         float spatialWeight = 1.0;
-        float importanceWeight = getImportance(uv);
+        //float importanceWeight = kernel(getImportance(uv), 0.028);
+        float importanceWeight = 1.0 - getImportance(uv);
         float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
-        float depthWeight = kernel(relativeDepth, 0.00001);
+        float depthWeight = kernel(relativeDepth, 0.001);
 
         // update sum
         float w = spatialWeight * importanceWeight * depthWeight;

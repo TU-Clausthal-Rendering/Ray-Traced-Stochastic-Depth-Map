@@ -5,7 +5,7 @@ modelNames = [ 'weighted_x', 'weighted_y', 'eval']
 #modelName = 'eval8_2_relu'
 isSliced = False
 num_slices = 1 # 16
-sample_id = 0
+sample_id = 2
 
 # imports
 import os
@@ -35,8 +35,8 @@ def process_sample(model : keras.models.Model, slice):
     # arrays have uint values 0 - 255. Convert to floats 0.0 - 1.0
     image_bright = image_bright.astype(np.float32) / 255.0
     image_dark = image_dark.astype(np.float32) / 255.0
-    #image_importance = np.ones(image_bright.shape, dtype=np.float32) - (image_bright - image_dark) # importance = bright - dark
-    image_importance = np.maximum(image_bright - image_dark, 0.001)
+    image_importance = np.ones(image_bright.shape, dtype=np.float32) - np.maximum(image_bright - image_dark, 0.001) # importance = bright - dark
+    #image_importance = np.maximum(image_bright - image_dark, 0.001)
     #image_importance = np.zeros(image_bright.shape, dtype=np.float32) # importance = 0
 
     # Preprocess images and expand dimensions

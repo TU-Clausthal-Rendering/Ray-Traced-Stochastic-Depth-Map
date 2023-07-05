@@ -65,6 +65,7 @@ class AoLoss(keras.losses.Loss):
 
 
 
+
 class GaussianActivation(keras.layers.Layer):
     def __init__(self, variance_initializer='ones', **kwargs):
         super(GaussianActivation, self).__init__(**kwargs)
