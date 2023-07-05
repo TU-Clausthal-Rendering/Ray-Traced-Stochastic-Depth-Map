@@ -34,8 +34,8 @@ namespace
 
     const std::string kBright = "bright";
     const std::string kDark = "dark";
-    const std::string kImportance = "importance";
-    const std::string kDepth = "linear depth";
+    //const std::string kImportance = "importance";
+    const std::string kDepth = "lineardepth";
     const std::string kPingPong = "pingpong";
 
     const std::string kOutput = "color";
@@ -76,12 +76,12 @@ RenderPassReflection AOGuidedBlur::reflect(const CompileData& compileData)
     RenderPassReflection reflector;
     mReady = false;
     
-    auto& colorField = reflector.addInput(kBright, "bright ao (will be overwritten)").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget).texture2D(0,0,1,1,0);
+    reflector.addInput(kBright, "bright ao (will be overwritten)").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget).texture2D(0,0,1,1,0);
     reflector.addInput(kDark, "dark ao").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0, 0, 1, 1, 0);
     reflector.addInput(kDepth, "linear depth").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0,0,1,1,0);
-    reflector.addInput(kImportance, "importance map").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0,0,1,1,0);
-    auto& pingpongField = reflector.addInternal(kPingPong, "temporal result after first blur").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
-    auto& outputField = reflector.addOutput(kOutput, "blurred ao").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+    //reflector.addInput(kImportance, "importance map").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0,0,1,1,0);
+    reflector.addInternal(kPingPong, "temporal result after first blur").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+    reflector.addOutput(kOutput, "blurred ao").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
 
     // set correct input format and dimensions of the ping pong buffer
     auto edge = compileData.connectedResources.getField(kBright);
@@ -93,13 +93,11 @@ RenderPassReflection AOGuidedBlur::reflect(const CompileData& compileData)
         const auto srcArraySize = edge->getArraySize();
 
         mLastFormat = inputFormat;
-        colorField.format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
-        pingpongField.format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
-        outputField.format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
+        reflector.addInternal(kPingPong, "").format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
+        reflector.addOutput(kOutput, "").format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
 
         mReady = true;
     }
-    else colorField.format(mLastFormat);
 
     return reflector;
 }
@@ -122,7 +120,7 @@ void AOGuidedBlur::execute(RenderContext* pRenderContext, const RenderData& rend
     auto pDark = renderData[kDark]->asTexture();
     auto pPingPong = renderData[kPingPong]->asTexture();
     auto pDepth = renderData[kDepth]->asTexture();
-    auto pImportance = renderData[kImportance]->asTexture();
+    //auto pImportance = renderData[kImportance]->asTexture();
 
     auto pOutput = renderData[kOutput]->asTexture();
 
@@ -157,7 +155,7 @@ void AOGuidedBlur::execute(RenderContext* pRenderContext, const RenderData& rend
     for(uint slice = 0; slice < pBright->getArraySize(); ++slice)
     {
         vars["gDepthTex"].setSrv(pDepth->getSRV(0, 1, slice, 1));
-        vars["gImportanceTex"].setSrv(pImportance->getSRV(0, 1, slice, 1));
+        //vars["gImportanceTex"].setSrv(pImportance->getSRV(0, 1, slice, 1));
         vars["gBrightTex"].setSrv(pBright->getSRV(0, 1, slice, 1));
         vars["gDarkTex"].setSrv(pDark->getSRV(0, 1, slice, 1));
 

@@ -1,6 +1,6 @@
 Texture2D<float> gSrcTex;
 Texture2D<float> gDepthTex;
-Texture2D<float> gImportanceTex;
+//Texture2D<float> gImportanceTex;
 
 Texture2D<float> gBrightTex;
 Texture2D<float> gDarkTex;
