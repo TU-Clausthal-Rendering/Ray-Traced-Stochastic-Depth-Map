@@ -46,7 +46,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, TemporalAO>();
 }
 
-TemporalAO::TemporalAO(ref<Device> pDevice, const Dictionary& dict)
+TemporalAO::TemporalAO(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     mpPass = FullScreenPass::create(mpDevice, kShaderFilename);
@@ -71,9 +71,9 @@ TemporalAO::TemporalAO(ref<Device> pDevice, const Dictionary& dict)
     // TODO set sampler
 }
 
-Dictionary TemporalAO::getScriptingDictionary()
+Properties TemporalAO::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection TemporalAO::reflect(const CompileData& compileData)

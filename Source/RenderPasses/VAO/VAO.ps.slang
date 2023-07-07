@@ -392,7 +392,7 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET0
             // material info about sample
             uint4 mtlData = gMaterialData[UVToPixel(rasterSamplePosUV)];
             MaterialHeader matHeader;
-            matHeader.packedData = mtlData.yz; // x = id, yz = packed data
+            matHeader.packedData.xy = mtlData.yz; // x = id, yz = packed data
             
             if (isInvalid)
             {

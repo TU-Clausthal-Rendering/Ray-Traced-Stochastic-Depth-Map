@@ -40,16 +40,16 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, InterleaveTexture>();
 }
 
-InterleaveTexture::InterleaveTexture(ref<Device> pDevice, const Dictionary& dict)
+InterleaveTexture::InterleaveTexture(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     mpFbo = Fbo::create(mpDevice);
     mpPass = FullScreenPass::create(mpDevice, kProgram);
 }
 
-Dictionary InterleaveTexture::getScriptingDictionary()
+Properties InterleaveTexture::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection InterleaveTexture::reflect(const CompileData& compileData)

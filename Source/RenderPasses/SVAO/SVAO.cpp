@@ -107,7 +107,7 @@ SVAO::SVAO(ref<Device> pDevice) : RenderPass(std::move(pDevice))
     mpStencilFbo = Fbo::create(mpDevice);
 }
 
-ref<SVAO> SVAO::create(ref<Device> pDevice, const Dictionary& dict)
+ref<SVAO> SVAO::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<SVAO>(std::move(pDevice));
     for (const auto& [key, value] : dict)
@@ -125,9 +125,9 @@ ref<SVAO> SVAO::create(ref<Device> pDevice, const Dictionary& dict)
     return pPass;
 }
 
-Dictionary SVAO::getScriptingDictionary()
+Properties SVAO::getProperties() const
 {
-    Dictionary d;
+    Properties d;
     d[kRadius] = mData.radius;
     d[kPrimaryDepthMode] = mPrimaryDepthMode;
     d[kSecondaryDepthMode] = mSecondaryDepthMode;
@@ -173,7 +173,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     mpRayProgram.reset();
 
     // create stochastic depth graph
-    Dictionary sdDict;
+    Properties sdDict;
     sdDict["SampleCount"] = mStochSamples;
     sdDict["CullMode"] = RasterizerState::CullMode::Back;
     mpStochasticDepthGraph = RenderGraph::create(mpDevice, "Stochastic Depth");
@@ -232,7 +232,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         std::filesystem::path resPath;
         auto foundShader = findFileInShaderDirectories("RenderPasses/SVAO/SVAORaster.ps.slang", resPath);
 
-        Program::DefineList defines;
+        DefineList defines;
         defines.add("PRIMARY_DEPTH_MODE", std::to_string(uint32_t(mPrimaryDepthMode)));
         defines.add("SECONDARY_DEPTH_MODE", std::to_string(uint32_t(mSecondaryDepthMode)));
         defines.add("MSAA_SAMPLES", std::to_string(mStochSamples)); // TODO update this from gui

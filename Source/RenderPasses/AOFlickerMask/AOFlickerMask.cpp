@@ -41,16 +41,16 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, AOFlickerMask>();
 }
 
-AOFlickerMask::AOFlickerMask(ref<Device> pDevice, const Dictionary& dict)
+AOFlickerMask::AOFlickerMask(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     mpPass = FullScreenPass::create(mpDevice, kShaderFile);
     mpFbo = Fbo::create(mpDevice);
 }
 
-Dictionary AOFlickerMask::getScriptingDictionary()
+Properties AOFlickerMask::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection AOFlickerMask::reflect(const CompileData& compileData)

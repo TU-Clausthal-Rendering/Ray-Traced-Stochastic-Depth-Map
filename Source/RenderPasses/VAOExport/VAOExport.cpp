@@ -41,14 +41,14 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, VAOExport>();
 }
 
-VAOExport::VAOExport(ref<Device> pDevice, const Dictionary& dict)
+VAOExport::VAOExport(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
 }
 
-Dictionary VAOExport::getScriptingDictionary()
+Properties VAOExport::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection VAOExport::reflect(const CompileData& compileData)

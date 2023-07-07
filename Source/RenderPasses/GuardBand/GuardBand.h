@@ -36,11 +36,11 @@ class GuardBand : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(GuardBand, "GuardBand", "Sets a global guardBand variable in the dictionary");
 
-    static ref<GuardBand> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<GuardBand>(pDevice, dict); }
+    static ref<GuardBand> create(ref<Device> pDevice, const Properties& dict) { return make_ref<GuardBand>(pDevice, dict); }
 
-    GuardBand(ref<Device> pDevice, const Dictionary& dict);
+    GuardBand(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {}
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;

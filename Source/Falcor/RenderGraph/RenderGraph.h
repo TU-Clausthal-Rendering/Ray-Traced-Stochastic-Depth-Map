@@ -51,6 +51,7 @@ namespace Falcor
  */
 class FALCOR_API RenderGraph : public Object
 {
+    FALCOR_OBJECT(RenderGraph)
 public:
     static const FileDialogFilterVec kFileExtensionFilters;
     static constexpr uint32_t kInvalidIndex = -1;
@@ -89,10 +90,10 @@ public:
      * Create and add a new render pass. The name has to be unique, otherwise nullptr is returned.
      * @param[in] passName Render pass name in graph.
      * @param[in] passType Render pass type.
-     * @param[in] dict Render pass options.
+     * @param[in] props Render pass properties.
      * @return The new render pass.
      */
-    ref<RenderPass> createPass(const std::string& passName, const std::string& passType, const Dictionary& dict);
+    ref<RenderPass> createPass(const std::string& passName, const std::string& passType, const Properties& props);
 
     /**
      * Add a render pass. The name has to be unique, otherwise the call will be ignored.
@@ -114,12 +115,7 @@ public:
     /**
      * Update render pass using the specified dictionary. This function recreates the pass in place.
      */
-    void updatePass(const std::string& passName, const Dictionary& dict);
-
-    /**
-     * Update render pass using the specified dictionary. This function calls the pass' applySettings method.
-     */
-    void applyPassSettings(const std::string& passName, const Dictionary& dict);
+    void updatePass(const std::string& passName, const Properties& props);
 
     /**
      * Insert an edge from a render pass' output to a different render pass input.
@@ -341,12 +337,8 @@ private:
         bool operator!=(const GraphOut& other) const { return !(*this == other); }
     };
 
-    RenderPass* getRenderPassAndNamePair(
-        const bool input,
-        const std::string& fullname,
-        const std::string& errorPrefix,
-        std::pair<std::string, std::string>& nameAndField
-    ) const;
+    RenderPass* getRenderPassAndNamePair(const bool input, const std::string& fullname, std::pair<std::string, std::string>& nameAndField)
+        const;
 
     uint32_t getEdge(const std::string& src, const std::string& dst);
 
@@ -376,7 +368,7 @@ private:
     std::unordered_map<uint32_t, NodeData> mNodeData; ///< Map from node ID to render pass name and ptr.
     std::vector<GraphOut> mOutputs; ///< Array of all outputs marked as graph outputs. GRAPH_TODO should this be an unordered set?
 
-    InternalDictionary mPassesDictionary;            ///< Dictionary used to communicate between passes.
+    InternalDictionary mPassesDictionary;            ///< Properties used to communicate between passes.
     std::unique_ptr<RenderGraphExe> mpExe;           ///< Helper for allocating resources and executing the graph.
     RenderGraphCompiler::Dependencies mCompilerDeps; ///< Data needed by the graph compiler.
     bool mRecompile = false; ///< Set to true to trigger a recompilation after any graph changes (topology/scene/size/passes/etc.)

@@ -32,15 +32,15 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, GuardBand>();
 }
 
-GuardBand::GuardBand(ref<Device> pDevice, const Dictionary& dict)
+GuardBand::GuardBand(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     mGuardBand = dict.get("guardBand", mGuardBand);
 }
 
-Dictionary GuardBand::getScriptingDictionary()
+Properties GuardBand::getProperties() const
 {
-    Dictionary d;
+    Properties d;
     d["guardBand"] = mGuardBand;
     return d;
 }

@@ -47,7 +47,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, VarianceMap>();
 }
 
-VarianceMap::VarianceMap(ref<Device> pDevice, const Dictionary& dict)
+VarianceMap::VarianceMap(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     for (const auto& [key, value] : dict)
@@ -72,9 +72,9 @@ VarianceMap::VarianceMap(ref<Device> pDevice, const Dictionary& dict)
     mpMipPass->getRootVar()["S"] = linearSampler;
 }
 
-Dictionary VarianceMap::getScriptingDictionary()
+Properties VarianceMap::getProperties() const
 {
-    Dictionary dict;
+    Properties dict;
     dict[kMipLevels] = mMipLevels;
     return dict;
 }

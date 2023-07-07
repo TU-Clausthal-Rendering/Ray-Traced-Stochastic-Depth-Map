@@ -39,12 +39,12 @@ public:
 
     /** Create a new render pass object.
         \param[in] pDevice GPU device.
-        \param[in] dict Dictionary of serialized parameters.
+        \param[in] dict Properties of serialized parameters.
         \return A new object, or an exception is thrown if creation failed.
     */
-    static ref<RayShadow> create(ref<Device> pDevice, const Dictionary& dict);
+    static ref<RayShadow> create(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {};
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;

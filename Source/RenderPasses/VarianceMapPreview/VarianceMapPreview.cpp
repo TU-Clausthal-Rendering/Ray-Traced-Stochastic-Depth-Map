@@ -52,7 +52,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     ScriptBindings::registerBinding(regModules);
 }
 
-VarianceMapPreview::VarianceMapPreview(ref<Device> pDevice, const Dictionary& dict)
+VarianceMapPreview::VarianceMapPreview(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     mpFbo = Fbo::create(pDevice);
@@ -63,9 +63,9 @@ VarianceMapPreview::VarianceMapPreview(ref<Device> pDevice, const Dictionary& di
     mpPass->getRootVar()["S"] = Sampler::create(pDevice, samplerDesc);
 }
 
-Dictionary VarianceMapPreview::getScriptingDictionary()
+Properties VarianceMapPreview::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection VarianceMapPreview::reflect(const CompileData& compileData)

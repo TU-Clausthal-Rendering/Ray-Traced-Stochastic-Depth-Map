@@ -42,7 +42,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, BinaryDilation>();
 }
 
-BinaryDilation::BinaryDilation(ref<Device> pDevice, const Dictionary& dict)
+BinaryDilation::BinaryDilation(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     for (const auto& [key, value] : dict)
@@ -51,15 +51,15 @@ BinaryDilation::BinaryDilation(ref<Device> pDevice, const Dictionary& dict)
         else logWarning("Unknown field `" + key + "` in a BinaryDilation dictionary");
     }
 
-    Program::DefineList defines;
+    DefineList defines;
     defines["OP"] = mOp;
     mpPass = FullScreenPass::create(mpDevice, kShaderFile, defines);
     mpFbo = Fbo::create(mpDevice);
 }
 
-Dictionary BinaryDilation::getScriptingDictionary()
+Properties BinaryDilation::getProperties() const
 {
-    Dictionary dict;
+    Properties dict;
     dict[kOp] = mOp;
     return dict;
 }

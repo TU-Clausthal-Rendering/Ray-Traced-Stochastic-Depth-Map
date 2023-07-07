@@ -34,14 +34,14 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, PathRecorder>();
 }
 
-PathRecorder::PathRecorder(ref<Device> pDevice, const Dictionary& dict)
+PathRecorder::PathRecorder(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
 }
 
-Dictionary PathRecorder::getScriptingDictionary()
+Properties PathRecorder::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection PathRecorder::reflect(const CompileData& compileData)

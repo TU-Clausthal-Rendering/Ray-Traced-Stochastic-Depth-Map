@@ -41,7 +41,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, DirectML>();
 }
 
-DirectML::DirectML(ref<Device> pDevice, const Dictionary& dict)
+DirectML::DirectML(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     DML_CREATE_DEVICE_FLAGS dmlCreateDeviceFlags = DML_CREATE_DEVICE_FLAG_NONE;
@@ -72,9 +72,9 @@ DirectML::DirectML(ref<Device> pDevice, const Dictionary& dict)
     }*/
 }
 
-Dictionary DirectML::getScriptingDictionary()
+Properties DirectML::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection DirectML::reflect(const CompileData& compileData)

@@ -41,7 +41,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, DeinterleaveTexture>();
 }
 
-DeinterleaveTexture::DeinterleaveTexture(ref<Device> pDevice, const Dictionary& dict)
+DeinterleaveTexture::DeinterleaveTexture(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice),
     mMaxRenderTargetCount(Fbo::getMaxColorTargetCount())
 {
@@ -53,9 +53,9 @@ DeinterleaveTexture::DeinterleaveTexture(ref<Device> pDevice, const Dictionary& 
     mpPassMS = FullScreenPass::create(mpDevice, kProgramMS);
 }
 
-Dictionary DeinterleaveTexture::getScriptingDictionary()
+Properties DeinterleaveTexture::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 inline ResourceFormat depthToRendertargetFormat(ResourceFormat format)

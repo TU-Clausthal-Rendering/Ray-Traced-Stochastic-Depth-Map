@@ -39,11 +39,11 @@ class TAA : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(TAA, "TAA", "Temporal Anti-Aliasing.");
 
-    static ref<TAA> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<TAA>(pDevice, dict); }
+    static ref<TAA> create(ref<Device> pDevice, const Properties& props) { return make_ref<TAA>(pDevice, props); }
 
-    TAA(ref<Device> pDevice, const Dictionary& dict);
+    TAA(ref<Device> pDevice, const Properties& props);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
@@ -56,7 +56,7 @@ public:
     bool getAntiFlicker() { return mControls.antiFlicker; }
 
 private:
-    ref<Texture> allocatePrevFrameTexture(const ref<Texture>& original, ref<Texture> prev) const;
+    void allocatePrevColor(const Texture* pColorOut);
 
     ref<FullScreenPass> mpPass;
     ref<Fbo> mpFbo;
@@ -67,9 +67,7 @@ private:
         float alpha = 0.1f;
         float colorBoxSigma = 1.0f;
         bool antiFlicker = true;
-        bool useDepthBuffer = false;
     } mControls;
 
     ref<Texture> mpPrevColor;
-    ref<Texture> mpPrevDepth;
 };

@@ -47,15 +47,15 @@ RayShadow::RayShadow(ref<Device> pDevice) : RenderPass(std::move(pDevice))
     mpFbo = Fbo::create(mpDevice);
 }
 
-ref<RayShadow> RayShadow::create(ref<Device> pDevice, const Dictionary& dict)
+ref<RayShadow> RayShadow::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<RayShadow>(std::move(pDevice));
     return pPass;
 }
 
-Dictionary RayShadow::getScriptingDictionary()
+Properties RayShadow::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection RayShadow::reflect(const CompileData& compileData)
@@ -95,7 +95,7 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
         desc.addShaderLibrary(kRasterShader).psEntry("main");
         desc.addTypeConformances(mpScene->getTypeConformances());
         desc.setShaderModel("6_5");
-        Program::DefineList defines;
+        DefineList defines;
         defines.add(mpScene->getSceneDefines());
         mpPass = FullScreenPass::create(mpDevice, desc, defines);
     }

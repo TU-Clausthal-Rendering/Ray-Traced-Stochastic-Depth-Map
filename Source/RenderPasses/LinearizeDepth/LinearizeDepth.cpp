@@ -51,7 +51,7 @@ LinearizeDepth::LinearizeDepth(ref<Device> pDevice) : RenderPass(std::move(pDevi
     mpFbo = Fbo::create(mpDevice);
 }
 
-ref<LinearizeDepth> LinearizeDepth::create(ref<Device> pDevice, const Dictionary& dict)
+ref<LinearizeDepth> LinearizeDepth::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<LinearizeDepth>(std::move(pDevice));
     for (const auto& [key, value] : dict)
@@ -62,9 +62,9 @@ ref<LinearizeDepth> LinearizeDepth::create(ref<Device> pDevice, const Dictionary
     return pPass;
 }
 
-Dictionary LinearizeDepth::getScriptingDictionary()
+Properties LinearizeDepth::getProperties() const
 {
-    Dictionary d;
+    Properties d;
     d[kDepthFormat] = mDepthFormat;
     return d;
 }

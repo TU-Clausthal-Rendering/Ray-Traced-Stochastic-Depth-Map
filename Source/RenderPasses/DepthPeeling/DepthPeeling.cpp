@@ -50,7 +50,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, DepthPeeling>();
 }
 
-ref<DepthPeeling> DepthPeeling::create(ref<Device> pDevice, const Dictionary& dict)
+ref<DepthPeeling> DepthPeeling::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<DepthPeeling>(std::move(pDevice));
     for (const auto& [key, value] : dict)
@@ -69,9 +69,9 @@ DepthPeeling::DepthPeeling(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 }
 
 
-Dictionary DepthPeeling::getScriptingDictionary()
+Properties DepthPeeling::getProperties() const
 {
-    Dictionary d;
+    Properties d;
     d[kCullMode] = mCullMode;
     d[kDepthFormat] = mDepthFormat;
     return d;

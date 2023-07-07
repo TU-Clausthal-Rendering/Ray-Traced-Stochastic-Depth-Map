@@ -37,11 +37,11 @@ class BinaryDilation : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(BinaryDilation, "BinaryDilation", "Insert pass description here.");
 
-    static ref<BinaryDilation> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<BinaryDilation>(pDevice, dict); }
+    static ref<BinaryDilation> create(ref<Device> pDevice, const Properties& dict) { return make_ref<BinaryDilation>(pDevice, dict); }
 
-    BinaryDilation(ref<Device> pDevice, const Dictionary& dict);
+    BinaryDilation(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {}
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;

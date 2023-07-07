@@ -47,7 +47,7 @@ mFormat(ResourceFormat::RGBA32Float)
     mpFbo = Fbo::create(mpDevice);
 }
 
-ref<ImageEquation> ImageEquation::create(ref<Device> pDevice, const Dictionary& dict)
+ref<ImageEquation> ImageEquation::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<ImageEquation>(std::move(pDevice));
     for (const auto& [key, value] : dict)
@@ -59,9 +59,9 @@ ref<ImageEquation> ImageEquation::create(ref<Device> pDevice, const Dictionary& 
     return pPass;
 }
 
-Dictionary ImageEquation::getScriptingDictionary()
+Properties ImageEquation::getProperties() const
 {
-    Dictionary dict;
+    Properties dict;
     dict[kFormula] = mFormula;
     dict[kFormat] = mFormat;
     return dict;
@@ -86,7 +86,7 @@ void ImageEquation::execute(RenderContext* pRenderContext, const RenderData& ren
 
         try
         {
-            Program::DefineList defines; // = mpScene->getSceneDefines();
+            DefineList defines; // = mpScene->getSceneDefines();
             defines.add("FORMULA", mFormula);
             mpPass = FullScreenPass::create(mpDevice, kShaderFilename, defines);
             Sampler::Desc samplerDesc;

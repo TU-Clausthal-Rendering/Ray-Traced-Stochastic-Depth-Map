@@ -56,7 +56,7 @@ ForwardLighting::ForwardLighting(ref<Device> pDevice) : RenderPass(std::move(pDe
     mpState->setDepthStencilState(mpDsNoDepthWrite);
 }
 
-ref<ForwardLighting> ForwardLighting::create(ref<Device> pDevice, const Dictionary& dict)
+ref<ForwardLighting> ForwardLighting::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<ForwardLighting>(std::move(pDevice));
     for (const auto& [key, value] : dict)
@@ -68,9 +68,9 @@ ref<ForwardLighting> ForwardLighting::create(ref<Device> pDevice, const Dictiona
     return pPass;
 }
 
-Dictionary ForwardLighting::getScriptingDictionary()
+Properties ForwardLighting::getProperties() const
 {
-    Dictionary d;
+    Properties d;
     d[kEnvMapIntensity] = mEnvMapIntensity;
     d[kAmbientIntensity] = mAmbientIntensity;
     return d;

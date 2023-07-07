@@ -25,14 +25,14 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
-import Utils.Color.ColorHelpers;
+import Utils.Color.
+ColorHelpers;
 
 cbuffer PerFrameCB
 {
     float gAlpha;
     float gColorBoxSigma;
     bool gAntiFlicker;
-    bool gUseDepth;
 };
 
 Texture2D gTexColor;
@@ -40,37 +40,6 @@ Texture2D gTexMotionVec;
 Texture2D gTexPrevColor;
 SamplerState gSampler;
 
-Texture2D<float> gDepth;
-Texture2D<float> gPrevDepth;
-
-float RelativeDepth(float reference, float value)
-{
-    return abs(1.0 - value / reference);
-}
-
-float3 bilinearSampleWithDepthWeights(Texture2D colorTex, Texture2D<float> depthTex, float2 samplePos, float2 texDim, float depthRef)
-{
-    int2 p00 = floor(samplePos - 0.5); // top left pixel
-    //float2 w = samplePos - float2(p00) - 0.5; // weight for x and y interpolation
-    return colorTex.SampleLevel(gSampler, samplePos / texDim, 0.0).rgb;
-    // fetch colors and depths
-    float3 c00 = colorTex[p00].rgb;
-    float3 c10 = colorTex[p00 + int2(1, 0)].rgb;
-    float3 c01 = colorTex[p00 + int2(0, 1)].rgb;
-    float3 c11 = colorTex[p00 + int2(1, 1)].rgb;
-
-    float d00 = depthTex[p00];
-    float d10 = depthTex[p00 + int2(1, 0)];
-    float d01 = depthTex[p00 + int2(0, 1)];
-    float d11 = depthTex[p00 + int2(1, 1)];
-
-
-    return
-    c00 * saturate((depthRef - d10) / (d00 - d10)) * saturate((depthRef - d01) / (d00 - d01)) +
-    c10 * saturate((depthRef - d00) / (d10 - d00)) * saturate((depthRef - d11) / (d10 - d11)) +
-    c01 * saturate((depthRef - d11) / (d01 - d11)) * saturate((depthRef - d00) / (d01 - d00)) +
-    c11 * saturate((depthRef - d01) / (d11 - d01)) * saturate((depthRef - d10) / (d11 - d10));
-}
 
 // Catmull-Rom filtering code from http://vec3.ca/bicubic-filtering-in-fewer-taps/
 float3 bicubicSampleCatmullRom(Texture2D tex, SamplerState samp, float2 samplePos, float2 texDim)
@@ -93,27 +62,29 @@ float3 bicubicSampleCatmullRom(Texture2D tex, SamplerState samp, float2 samplePo
     float2 tc3 = (tc + 2.f) * invTextureSize;
 
     float3 result =
-        tex.SampleLevel(samp, float2(tc0.x,  tc0.y), 0.f).rgb  * (w0.x  * w0.y) +
-        tex.SampleLevel(samp, float2(tc0.x,  tc12.y), 0.f).rgb * (w0.x  * w12.y) +
-        tex.SampleLevel(samp, float2(tc0.x,  tc3.y), 0.f).rgb  * (w0.x  * w3.y) +
-        tex.SampleLevel(samp, float2(tc12.x, tc0.y), 0.f).rgb  * (w12.x * w0.y) +
+        tex.SampleLevel(samp, float2(tc0.x, tc0.y), 0.f).rgb * (w0.x * w0.y) +
+        tex.SampleLevel(samp, float2(tc0.x, tc12.y), 0.f).rgb * (w0.x * w12.y) +
+        tex.SampleLevel(samp, float2(tc0.x, tc3.y), 0.f).rgb * (w0.x * w3.y) +
+        tex.SampleLevel(samp, float2(tc12.x, tc0.y), 0.f).rgb * (w12.x * w0.y) +
         tex.SampleLevel(samp, float2(tc12.x, tc12.y), 0.f).rgb * (w12.x * w12.y) +
-        tex.SampleLevel(samp, float2(tc12.x, tc3.y), 0.f).rgb  * (w12.x * w3.y) +
-        tex.SampleLevel(samp, float2(tc3.x,  tc0.y), 0.f).rgb  * (w3.x  * w0.y) +
-        tex.SampleLevel(samp, float2(tc3.x,  tc12.y), 0.f).rgb * (w3.x  * w12.y) +
-        tex.SampleLevel(samp, float2(tc3.x,  tc3.y), 0.f).rgb  * (w3.x  * w3.y);
+        tex.SampleLevel(samp, float2(tc12.x, tc3.y), 0.f).rgb * (w12.x * w3.y) +
+        tex.SampleLevel(samp, float2(tc3.x, tc0.y), 0.f).rgb * (w3.x * w0.y) +
+        tex.SampleLevel(samp, float2(tc3.x, tc12.y), 0.f).rgb * (w3.x * w12.y) +
+        tex.SampleLevel(samp, float2(tc3.x, tc3.y), 0.f).rgb * (w3.x * w3.y);
 
     return result;
 }
 
 
-
 float4 main(float2 texC : TEXCOORD) : SV_TARGET0
 {
-    const int2 offset[8] = { int2(-1, -1), int2(-1,  1),
-                              int2( 1, -1), int2( 1,  1),
-                              int2( 1,  0), int2( 0, -1),
-                              int2( 0,  1), int2(-1,  0), };
+    const int2 offset[8] =
+    {
+        int2(-1, -1), int2(-1, 1),
+                              int2(1, -1), int2(1, 1),
+                              int2(1, 0), int2(0, -1),
+                              int2(0, 1), int2(-1, 0),
+    };
 
     uint2 texDim;
     uint levels;
@@ -126,7 +97,6 @@ float4 main(float2 texC : TEXCOORD) : SV_TARGET0
     // Details here: http://www.gdcvault.com/play/1023521/From-the-Lab-Bench-Real
     // and here: http://cwyman.org/papers/siga16_gazeTrackedFoveatedRendering.pdf
     float3 color = gTexColor.Load(int3(ipos, 0)).rgb;
-    float depth = gDepth[ipos];
     color = RGBToYCgCo(color);
     float3 colorAvg = color;
     float3 colorVar = color * color;
@@ -147,10 +117,8 @@ float4 main(float2 texC : TEXCOORD) : SV_TARGET0
     float3 colorMin = colorAvg - gColorBoxSigma * sigma;
     float3 colorMax = colorAvg + gColorBoxSigma * sigma;
 
-
+    // Find the longest motion vector
     float2 motion = gTexMotionVec.Load(int3(ipos, 0)).xy;
-
-    // Find the longest motion vector    
     [unroll]
     for (int a = 0; a < 8; a++)
     {
@@ -158,16 +126,8 @@ float4 main(float2 texC : TEXCOORD) : SV_TARGET0
         motion = dot(m, m) > dot(motion, motion) ? m : motion;
     }
 
-    /*float prevDepth = gPrevDepth[int2((texC + motion) * texDim)];
-    if (gUseDepth && RelativeDepth(depth, prevDepth) > 0.1)
-        return float4(YCgCoToRGB(color), 1.0); // depth differs too much
-    */
     // Use motion vector to fetch previous frame color (history)
-    float3 history;
-    if(gUseDepth)
-        history = bilinearSampleWithDepthWeights(gTexPrevColor, gPrevDepth, (texC + motion) * texDim, texDim, depth);
-    else
-        history = bicubicSampleCatmullRom(gTexPrevColor, gSampler, (texC + motion) * texDim, texDim);
+    float3 history = bicubicSampleCatmullRom(gTexPrevColor, gSampler, (texC + motion) * texDim, texDim);
 
     history = RGBToYCgCo(history);
 

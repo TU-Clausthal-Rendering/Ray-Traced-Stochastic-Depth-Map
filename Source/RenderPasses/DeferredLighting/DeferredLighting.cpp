@@ -48,15 +48,15 @@ DeferredLighting::DeferredLighting(ref<Device> pDevice) : RenderPass(std::move(p
     mpFbo = Fbo::create(mpDevice);
 }
 
-ref<DeferredLighting> DeferredLighting::create(ref<Device> pDevice, const Dictionary& dict)
+ref<DeferredLighting> DeferredLighting::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<DeferredLighting>(std::move(pDevice));
     return pPass;
 }
 
-Dictionary DeferredLighting::getScriptingDictionary()
+Properties DeferredLighting::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection DeferredLighting::reflect(const CompileData& compileData)
@@ -114,7 +114,7 @@ void DeferredLighting::setScene(RenderContext* pRenderContext, const ref<Scene>&
         desc.addShaderLibrary(kShaderFilename).psEntry("main");
         desc.addTypeConformances(mpScene->getTypeConformances());
         desc.setShaderModel("6_5");
-        Program::DefineList defines;
+        DefineList defines;
         defines.add(mpScene->getSceneDefines());
         mpPass = FullScreenPass::create(mpDevice, desc, defines);
     }

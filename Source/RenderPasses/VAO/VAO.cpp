@@ -123,7 +123,7 @@ VAO::VAO(ref<Device> pDevice) : RenderPass(std::move(pDevice))
     mpAOFbo = Fbo::create(mpDevice);
 }
 
-ref<VAO> VAO::create(ref<Device> pDevice, const Dictionary& dict)
+ref<VAO> VAO::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<VAO>(std::move(pDevice));
     for (const auto& [key, value] : dict)
@@ -140,9 +140,9 @@ ref<VAO> VAO::create(ref<Device> pDevice, const Dictionary& dict)
     return pPass;
 }
 
-Dictionary VAO::getScriptingDictionary()
+Properties VAO::getProperties() const
 {
-    Dictionary dict;
+    Properties dict;
     dict[kEnabled] = mEnabled;
     dict[kKernelSize] = mKernelSize;
     dict[kRadius] = mData.radius;
@@ -245,7 +245,7 @@ void VAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             desc.addTypeConformances(mpScene->getTypeConformances());
             desc.setShaderModel("6_5");
             // program defines
-            Program::DefineList defines;
+            DefineList defines;
             defines.add(mpScene->getSceneDefines());
             defines.add("DEPTH_MODE", std::to_string(uint32_t(mDepthMode)));
             defines.add("KERNEL_SIZE", std::to_string(mKernelSize));

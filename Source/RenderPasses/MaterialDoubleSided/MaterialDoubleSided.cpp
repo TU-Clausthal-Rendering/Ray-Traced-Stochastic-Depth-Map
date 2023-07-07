@@ -45,15 +45,15 @@ MaterialDoubleSided::MaterialDoubleSided(ref<Device> pDevice) : RenderPass(std::
     mpFbo = Fbo::create(mpDevice);
 }
 
-ref<MaterialDoubleSided> MaterialDoubleSided::create(ref<Device> pDevice, const Dictionary& dict)
+ref<MaterialDoubleSided> MaterialDoubleSided::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<MaterialDoubleSided>(std::move(pDevice));
     return pPass;
 }
 
-Dictionary MaterialDoubleSided::getScriptingDictionary()
+Properties MaterialDoubleSided::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection MaterialDoubleSided::reflect(const CompileData& compileData)

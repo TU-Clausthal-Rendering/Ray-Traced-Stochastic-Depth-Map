@@ -45,7 +45,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, ConvolutionalNet>();
 }
 
-ConvolutionalNet::ConvolutionalNet(ref<Device> pDevice, const Dictionary& dict)
+ConvolutionalNet::ConvolutionalNet(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     std::filesystem::path resPath;
@@ -67,9 +67,9 @@ ConvolutionalNet::ConvolutionalNet(ref<Device> pDevice, const Dictionary& dict)
     mLayerCount = mNets[0].getLayerCount();
 }
 
-Dictionary ConvolutionalNet::getScriptingDictionary()
+Properties ConvolutionalNet::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection ConvolutionalNet::reflect(const CompileData& compileData)

@@ -50,7 +50,7 @@ CrossBilateralBlur::CrossBilateralBlur(ref<Device> pDevice) : RenderPass(std::mo
     mpSampler = Sampler::create(mpDevice, samplerDesc);
 }
 
-ref<CrossBilateralBlur> CrossBilateralBlur::create(ref<Device> pDevice, const Dictionary& dict)
+ref<CrossBilateralBlur> CrossBilateralBlur::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<CrossBilateralBlur>(std::move(pDevice));
     for (const auto& [key, value] : dict)
@@ -60,9 +60,9 @@ ref<CrossBilateralBlur> CrossBilateralBlur::create(ref<Device> pDevice, const Di
     return pPass;
 }
 
-Dictionary CrossBilateralBlur::getScriptingDictionary()
+Properties CrossBilateralBlur::getProperties() const
 {
-    Dictionary dict;
+    Properties dict;
     return dict;
 }
 
@@ -99,7 +99,7 @@ void CrossBilateralBlur::compile(RenderContext* pRenderContext, const CompileDat
 {
     if(!mReady) throw std::runtime_error("CrossBilateralBlur::compile - missing incoming reflection information");
 
-    Program::DefineList defines;
+    DefineList defines;
     defines.add("KERNEL_RADIUS", std::to_string(mKernelRadius));
 
     mpBlur = FullScreenPass::create(mpDevice, kShaderPath, defines);

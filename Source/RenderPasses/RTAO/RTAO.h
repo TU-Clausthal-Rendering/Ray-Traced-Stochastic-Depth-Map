@@ -37,11 +37,11 @@ class RTAO : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(RTAO, "RTAO", "Ray Traced AO (noisy)");
 
-    static ref<RTAO> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<RTAO>(pDevice, dict); }
+    static ref<RTAO> create(ref<Device> pDevice, const Properties& dict) { return make_ref<RTAO>(pDevice, dict); }
 
-    RTAO(ref<Device> pDevice, const Dictionary& dict);
+    RTAO(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;

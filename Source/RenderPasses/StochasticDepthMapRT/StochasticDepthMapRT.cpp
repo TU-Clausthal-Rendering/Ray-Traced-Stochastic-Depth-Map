@@ -146,7 +146,7 @@ StochasticDepthMapRT::StochasticDepthMapRT(ref<Device> pDevice) : RenderPass(std
     mpStencilPass->getState()->setDepthStencilState(DepthStencilState::create(dsdesc));
 }
 
-ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, const Dictionary& dict)
+ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<StochasticDepthMapRT>(std::move(pDevice));
     for (const auto& [key, value] : dict)
@@ -161,9 +161,9 @@ ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, cons
     return pPass;
 }
 
-Dictionary StochasticDepthMapRT::getScriptingDictionary()
+Properties StochasticDepthMapRT::getProperties() const
 {
-    Dictionary d;
+    Properties d;
     d[kSampleCount] = mSampleCount;
     d[kCullMode] = mCullMode;
     d[kDepthFormat] = mDepthFormat;

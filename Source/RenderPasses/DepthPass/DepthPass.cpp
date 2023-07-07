@@ -55,7 +55,7 @@ DepthPass::DepthPass(ref<Device> pDevice) : RenderPass(std::move(pDevice))
     mpFbo = Fbo::create(mpDevice);
 }
 
-ref<DepthPass> DepthPass::create(ref<Device> pDevice, const Dictionary& dict)
+ref<DepthPass> DepthPass::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<DepthPass>(std::move(pDevice));
     for (const auto& [key, value] : dict)
@@ -82,9 +82,9 @@ DepthPass& DepthPass::setDepthBufferFormat(ResourceFormat format)
     return *this;
 }
 
-Dictionary DepthPass::getScriptingDictionary()
+Properties DepthPass::getProperties() const
 {
-    Dictionary d;
+    Properties d;
     d[kDepthFormat] = mDepthFormat;
     d[kUseAlphaTest] = mUseAlphaTest;
     d[kCullMode] = mCullMode;

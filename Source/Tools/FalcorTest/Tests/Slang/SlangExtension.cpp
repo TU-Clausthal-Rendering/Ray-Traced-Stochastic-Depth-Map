@@ -25,29 +25,26 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
-#pragma once
-#include "Falcor.h"
-#include "Core/SampleApp.h"
 #include "Testing/UnitTest.h"
 
-using namespace Falcor;
-
-class FalcorTest : public SampleApp
+namespace Falcor
 {
-public:
-    struct Options
+GPU_TEST(Slang_Extension)
+{
+    ref<Device> pDevice = ctx.getDevice();
+
+    Program::Desc desc;
+    desc.addShaderLibrary("Tests/Slang/SlangExtension.cs.slang").csEntry("main");
+    ctx.createProgram(desc, DefineList());
+    ctx.allocateStructuredBuffer("result", 6);
+
+    // Run program.
+    ctx.runProgram(1, 1, 1);
+
+    std::vector<uint32_t> result = ctx.readBuffer<uint32_t>("result");
+    for (uint32_t i = 0; i < 6; i++)
     {
-        UnitTestCategoryFlags categoryFlags = UnitTestCategoryFlags::All;
-        std::string filter;
-        std::filesystem::path xmlReportPath;
-        uint32_t repeat = 1;
-    };
-
-    FalcorTest(const SampleAppConfig& config, const Options& options);
-    ~FalcorTest();
-
-    void onFrameRender(RenderContext* pRenderContext, const ref<Fbo>& pTargetFbo) override;
-
-private:
-    Options mOptions;
-};
+        EXPECT_EQ(result[i], 2u);
+    }
+}
+} // namespace Falcor

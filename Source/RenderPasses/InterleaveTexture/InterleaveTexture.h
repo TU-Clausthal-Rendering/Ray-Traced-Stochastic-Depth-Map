@@ -37,11 +37,11 @@ class InterleaveTexture : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(InterleaveTexture, "InterleaveTexture", "Interleaves a 4x4 Texture2DArray back into a Texture2D");
 
-    static ref<InterleaveTexture> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<InterleaveTexture>(pDevice, dict); }
+    static ref<InterleaveTexture> create(ref<Device> pDevice, const Properties& dict) { return make_ref<InterleaveTexture>(pDevice, dict); }
 
-    InterleaveTexture(ref<Device> pDevice, const Dictionary& dict);
+    InterleaveTexture(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;

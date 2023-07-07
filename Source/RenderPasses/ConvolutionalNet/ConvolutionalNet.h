@@ -38,11 +38,11 @@ class ConvolutionalNet : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(ConvolutionalNet, "ConvolutionalNet", "Convolution Net for SVAO");
 
-    static ref<ConvolutionalNet> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<ConvolutionalNet>(pDevice, dict); }
+    static ref<ConvolutionalNet> create(ref<Device> pDevice, const Properties& dict) { return make_ref<ConvolutionalNet>(pDevice, dict); }
 
-    ConvolutionalNet(ref<Device> pDevice, const Dictionary& dict);
+    ConvolutionalNet(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;

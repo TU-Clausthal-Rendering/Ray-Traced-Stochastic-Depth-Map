@@ -48,7 +48,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, RTAO>();
 }
 
-RTAO::RTAO(ref<Device> pDevice, const Dictionary& dict)
+RTAO::RTAO(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     mpSamplesTex = genSamplesTexture(5312);
@@ -56,9 +56,9 @@ RTAO::RTAO(ref<Device> pDevice, const Dictionary& dict)
     FALCOR_ASSERT(mpSampleGenerator);
 }
 
-Dictionary RTAO::getScriptingDictionary()
+Properties RTAO::getProperties() const
 {
-    return Dictionary();
+    return Properties();
 }
 
 RenderPassReflection RTAO::reflect(const CompileData& compileData)
@@ -94,7 +94,7 @@ void RTAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
     if (!mRayProgram)
     {
-        Program::DefineList defines;
+        DefineList defines;
         defines.add(mpScene->getSceneDefines());
         defines.add(mpSampleGenerator->getDefines());
 

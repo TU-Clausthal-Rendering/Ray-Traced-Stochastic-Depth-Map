@@ -49,7 +49,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
     registry.registerClass<RenderPass, AOGuidedBlur>();
 }
 
-ref<AOGuidedBlur> AOGuidedBlur::create(ref<Device> pDevice, const Dictionary& dict)
+ref<AOGuidedBlur> AOGuidedBlur::create(ref<Device> pDevice, const Properties& dict)
 {
     auto pPass = make_ref<AOGuidedBlur>(pDevice, dict);
     for (const auto& [key, value] : dict)
@@ -61,7 +61,7 @@ ref<AOGuidedBlur> AOGuidedBlur::create(ref<Device> pDevice, const Dictionary& di
     return pPass;
 }
 
-AOGuidedBlur::AOGuidedBlur(ref<Device> pDevice, const Dictionary& dict)
+AOGuidedBlur::AOGuidedBlur(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     mpFbo = Fbo::create(mpDevice);
@@ -70,9 +70,9 @@ AOGuidedBlur::AOGuidedBlur(ref<Device> pDevice, const Dictionary& dict)
     mpSampler = Sampler::create(mpDevice, samplerDesc);
 }
 
-Dictionary AOGuidedBlur::getScriptingDictionary()
+Properties AOGuidedBlur::getProperties() const
 {
-    Dictionary dict;
+    Properties dict;
     dict[kKernelRadius] = mKernelRadius;
     dict[kClampResults] = mClampResults;
     return dict;
@@ -113,7 +113,7 @@ void AOGuidedBlur::compile(RenderContext* pRenderContext, const CompileData& com
 {
     if (!mReady) throw std::runtime_error("CrossBilateralBlur::compile - missing incoming reflection information");
 
-    Program::DefineList defines;
+    DefineList defines;
     defines.add("KERNEL_RADIUS", std::to_string(mKernelRadius));
     defines.add("CLAMP_RESULTS", mClampResults ? "1" : "0");
 

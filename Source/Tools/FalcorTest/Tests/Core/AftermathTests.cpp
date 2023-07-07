@@ -25,22 +25,35 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
-#include "Common.h"
-#include "Utils/Scripting/ScriptBindings.h"
+#include "Testing/UnitTest.h"
 
 namespace Falcor
 {
-FALCOR_SCRIPT_BINDING(ComparisonFunc)
+#if FALCOR_HAS_AFTERMATH
+GPU_TEST(AftermathCatchTDR)
 {
-    pybind11::enum_<ComparisonFunc> comparisonFunc(m, "ComparisonFunc");
-    comparisonFunc.value("Disabled", ComparisonFunc::Disabled);
-    comparisonFunc.value("LessEqual", ComparisonFunc::LessEqual);
-    comparisonFunc.value("GreaterEqual", ComparisonFunc::GreaterEqual);
-    comparisonFunc.value("Less", ComparisonFunc::Less);
-    comparisonFunc.value("Greater", ComparisonFunc::Greater);
-    comparisonFunc.value("Equal", ComparisonFunc::Equal);
-    comparisonFunc.value("NotEqual", ComparisonFunc::NotEqual);
-    comparisonFunc.value("Always", ComparisonFunc::Always);
-    comparisonFunc.value("Never", ComparisonFunc::Never);
+    ref<Device> pDevice = ctx.getDevice();
+
+    if (!pDevice->getAftermathContext())
+        ctx.skip("Aftermath is not enabled");
+
+    ctx.createProgram("Tests/Core/AftermathTests.cs.slang", "main");
+
+    std::vector<uint32_t> data(1024, 1);
+    ctx.allocateStructuredBuffer("result", 1024, data.data());
+
+    ctx.getRenderContext()->addAftermathMarker("before");
+
+    // This should force a TDR (timeout detection & recovery).
+    ctx.runProgram(32 * 1024, 1024);
+
+    ctx.getRenderContext()->addAftermathMarker("after");
+
+    pDevice->flushAndSync();
+
+    // At this point we have lost the device, so submitting another dispatch should terminate the application.
+    ctx.runProgram(1024, 1024);
 }
+#endif
+
 } // namespace Falcor

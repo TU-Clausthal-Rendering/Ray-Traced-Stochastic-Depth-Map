@@ -48,14 +48,26 @@ public:
         Triangle
     };
 
+    FALCOR_ENUM_INFO(
+        SampleDistribution,
+        {
+            { SampleDistribution::Random, "Random" },
+            { SampleDistribution::VanDerCorput, "Van der Corput" },
+            { SampleDistribution::Poisson, "Poisson" },
+            { SampleDistribution::Triangle, "Triangle" }
+        }
+    );
+
+
+
     /** Create a new render pass object.
         \param[in] pDevice GPU device.
-        \param[in] dict Dictionary of serialized parameters.
+        \param[in] dict Properties of serialized parameters.
         \return A new object, or an exception is thrown if creation failed.
     */
-    static ref<VAO> create(ref<Device> pDevice, const Dictionary& dict);
+    static ref<VAO> create(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
@@ -101,3 +113,5 @@ inline void VAO::saveDepths()
 {
     mSaveDepths = true;
 }
+
+FALCOR_ENUM_REGISTER(VAO::SampleDistribution);

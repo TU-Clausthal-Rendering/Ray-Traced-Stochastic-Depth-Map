@@ -37,11 +37,11 @@ class VarianceMap : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(VarianceMap, "VarianceMap", "Creates a variance map (x, x*x) for depth or normal maps");
 
-    static ref<VarianceMap> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<VarianceMap>(pDevice, dict); }
+    static ref<VarianceMap> create(ref<Device> pDevice, const Properties& dict) { return make_ref<VarianceMap>(pDevice, dict); }
 
-    VarianceMap(ref<Device> pDevice, const Dictionary& dict);
+    VarianceMap(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {}
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;

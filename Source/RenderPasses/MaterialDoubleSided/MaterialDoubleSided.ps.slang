@@ -6,7 +6,7 @@ uint main(float2 uv : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
 {
     uint4 mtlData = gMtlData[int2(svPos.xy)];
     MaterialHeader matHeader;
-    matHeader.packedData = mtlData.yz;
+    matHeader.packedData.xy = mtlData.yz;
 
     return matHeader.isDoubleSided() ? 1 : 0;
 }

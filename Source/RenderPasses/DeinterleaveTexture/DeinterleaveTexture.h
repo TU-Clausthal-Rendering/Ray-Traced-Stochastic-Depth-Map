@@ -37,11 +37,11 @@ class DeinterleaveTexture : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(DeinterleaveTexture, "DeinterleaveTexture", "Converts a texture 2d into a 4x4 deinterleaved texture array");
 
-    static ref<DeinterleaveTexture> create(ref<Device> pDevice, const Dictionary& dict) { return make_ref<DeinterleaveTexture>(pDevice, dict); }
+    static ref<DeinterleaveTexture> create(ref<Device> pDevice, const Properties& dict) { return make_ref<DeinterleaveTexture>(pDevice, dict); }
 
-    DeinterleaveTexture(ref<Device> pDevice, const Dictionary& dict);
+    DeinterleaveTexture(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;

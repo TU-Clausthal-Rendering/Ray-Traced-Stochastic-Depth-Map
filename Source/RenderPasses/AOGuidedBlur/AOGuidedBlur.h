@@ -37,11 +37,11 @@ class AOGuidedBlur : public RenderPass
 public:
     FALCOR_PLUGIN_CLASS(AOGuidedBlur, "AOGuidedBlur", "Insert pass description here.");
 
-    static ref<AOGuidedBlur> create(ref<Device> pDevice, const Dictionary& dict);
+    static ref<AOGuidedBlur> create(ref<Device> pDevice, const Properties& dict);
 
-    AOGuidedBlur(ref<Device> pDevice, const Dictionary& dict);
+    AOGuidedBlur(ref<Device> pDevice, const Properties& dict);
 
-    virtual Dictionary getScriptingDictionary() override;
+    virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
