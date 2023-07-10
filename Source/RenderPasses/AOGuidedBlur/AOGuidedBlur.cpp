@@ -42,6 +42,7 @@ namespace
 
     const std::string kKernelRadius = "kernelRadius";
     const std::string kClampResults = "clampResults";
+    const std::string kEnhanceContrast = "enhanceContrast";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -56,7 +57,8 @@ ref<AOGuidedBlur> AOGuidedBlur::create(ref<Device> pDevice, const Properties& di
     {
         if (key == kKernelRadius) pPass->mKernelRadius = value;
         else if (key == kClampResults) pPass->mClampResults = value;
-        else logWarning("Unknown field '" + key + "' in a dictionary passed to AOGuidedBlur::create().");
+        else if (key == kEnhanceContrast) pPass->mEnhanceContrast = value;
+        else logWarning("Unknown field '" + key + "' in a AOGuidedBlur dictionary");
     }
     return pPass;
 }
@@ -75,6 +77,7 @@ Properties AOGuidedBlur::getProperties() const
     Properties dict;
     dict[kKernelRadius] = mKernelRadius;
     dict[kClampResults] = mClampResults;
+    dict[kEnhanceContrast] = mEnhanceContrast;
     return dict;
 }
 
@@ -116,6 +119,7 @@ void AOGuidedBlur::compile(RenderContext* pRenderContext, const CompileData& com
     DefineList defines;
     defines.add("KERNEL_RADIUS", std::to_string(mKernelRadius));
     defines.add("CLAMP_RESULTS", mClampResults ? "1" : "0");
+    defines.add("ENHANCE_CONTRAST", mEnhanceContrast ? "1" : "0");
 
     mpBlur = FullScreenPass::create(mpDevice, kShaderPath, defines);
 
@@ -186,6 +190,16 @@ void AOGuidedBlur::renderUI(Gui::Widgets& widget)
     widget.checkbox("Enabled", mEnabled);
     if (!mEnabled) return;
 
-    if (widget.var("Kernel Radius", mKernelRadius, uint32_t(1), uint32_t(20))) requestRecompile();
-    if (widget.checkbox("Clamp Results", mClampResults)) requestRecompile();
+    if (widget.var("Kernel Radius", mKernelRadius, uint32_t(1), uint32_t(20))) updateShaderDefines();
+    if (widget.checkbox("Clamp Results", mClampResults)) updateShaderDefines();
+    if (widget.checkbox("Enhance Contrast", mEnhanceContrast)) updateShaderDefines();
+}
+
+void AOGuidedBlur::updateShaderDefines()
+{
+    if (!mpBlur) return;
+
+    mpBlur->getProgram()->addDefine("CLAMP_RESULTS", mClampResults ? "1" : "0");
+    mpBlur->getProgram()->addDefine("ENHANCE_CONTRAST", mEnhanceContrast ? "1" : "0");
+    mpBlur->getProgram()->addDefine("KERNEL_RADIUS", std::to_string(mKernelRadius));
 }

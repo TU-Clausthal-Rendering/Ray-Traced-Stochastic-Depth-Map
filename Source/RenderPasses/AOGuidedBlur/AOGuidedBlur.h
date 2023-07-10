@@ -51,12 +51,14 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
 private:
+    void updateShaderDefines();
 
     ref<Fbo> mpFbo;
     ref<Sampler> mpSampler;
     bool mEnabled = true;
     uint32_t mKernelRadius = 4;
     bool mClampResults = true;
+    bool mEnhanceContrast = true;
 
     bool mReady = false;
 

@@ -58,6 +58,31 @@ float getImportance(float2 uv)
     //return gImportanceTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
 }
 
+// returns the local average via wave intrinsics
+float LocalAverage(float v)
+{
+    return 0.25 * (QuadReadLaneAt(v, 0) + QuadReadLaneAt(v, 1) + QuadReadLaneAt(v, 2) + QuadReadLaneAt(v, 3));
+}
+
+float WeightedLocalAverage(float v, float4 w)
+{
+    return w[0] * QuadReadLaneAt(v, 0) + w[1] * QuadReadLaneAt(v, 1) + w[2] * QuadReadLaneAt(v, 2) + w[3] * QuadReadLaneAt(v, 3);
+}
+
+float4 LocalDepthWeights(float localDepth)
+{
+    float4 w;
+    [unroll]
+    for (uint i = 0; i < 4; ++i)
+    {
+        w[i] = saturate(abs(QuadReadLaneAt(localDepth, i) / localDepth - 1.0)); // weight in [0, 1] with 0 = equal
+        //w[i] = 1.0 - w[i];
+        w[i] = kernel(w[i], 0.001);
+    }
+    // normalize
+    return w / (w.x + w.y + w.z + w.w);
+}
+
 float main(BlurPSIn pIn) : SV_TARGET
 {
     float pixelSum = 0.0;
@@ -95,9 +120,35 @@ float main(BlurPSIn pIn) : SV_TARGET
     if(weightSum < 1e-4)
         pixelSum = getColor(pIn.texC); // fallback color when weight is too small
     
-    // clamp between bright and dark image
-    if (CLAMP_RESULTS)
-        pixelSum = clamp(pixelSum, getDark(pIn.texC), getBright(pIn.texC));
+    //if (CLAMP_RESULTS) pixelSum = clamp(pixelSum, getDark(pIn.texC), getBright(pIn.texC));
+
+    if(dir.y != 0) // last iteration
+    {
+        if (ENHANCE_CONTRAST)
+        {
+            // contrast enhancement
+            float c = pixelSum;
+            float4 w = LocalDepthWeights(localDepth);
+            //w = 0.25;
+            float cAvg = WeightedLocalAverage(c, w);
+
+            float cBright = getBright(pIn.texC);
+            float cBrightAvg = WeightedLocalAverage(cBright, w);
+            float brightDev = cBright - cBrightAvg;
+
+            float cDark = getDark(pIn.texC);
+            float cDarkAvg = WeightedLocalAverage(cDark, w);
+            float darkDev = cDark - cDarkAvg;
+
+            //pixelSum = cAvg + brightDev;
+            pixelSum = cAvg + min(brightDev, 0.0) * 2.0;
+            //pixelSum = cAvg + min(brightDev, darkDev);
+        }
+        
+        // clamp between bright and dark image
+        if (CLAMP_RESULTS)
+            pixelSum = clamp(pixelSum, getDark(pIn.texC), getBright(pIn.texC));
+    }
     
     return pixelSum;
 }
