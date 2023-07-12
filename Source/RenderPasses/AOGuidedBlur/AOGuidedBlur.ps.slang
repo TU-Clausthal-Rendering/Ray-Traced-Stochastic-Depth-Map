@@ -139,10 +139,11 @@ float main(BlurPSIn pIn) : SV_TARGET
             float cDark = getDark(pIn.texC);
             float cDarkAvg = WeightedLocalAverage(cDark, w);
             float darkDev = cDark - cDarkAvg;
-
+            
             //pixelSum = cAvg + brightDev;
-            pixelSum = cAvg + min(brightDev, 0.0) * 2.0;
+            //pixelSum = cAvg + min(brightDev, 0.0) * 2.0;
             //pixelSum = cAvg + min(brightDev, darkDev);
+            pixelSum = cAvg + min(brightDev, 0.0) * 2.0 / (1.0 - getImportance(pIn.texC));
         }
         
         // clamp between bright and dark image
