@@ -1,9 +1,8 @@
-Texture2D<float> gSrcTex;
+Texture2D<float2> gSrcTex;
 Texture2D<float> gDepthTex;
 //Texture2D<float> gImportanceTex;
 
-Texture2D<float> gBrightTex;
-Texture2D<float> gDarkTex;
+Texture2D<float2> gBrightDarkTex;
 
 SamplerState gSampler;
 
@@ -25,6 +24,9 @@ cbuffer Direction
     float2 dir;
 }
 
+#define BRIGHT(v) (v.x)
+#define DARK(v) (v.y)
+
 // Simple Gauss-Kernel. Normalization is not included and must be
 // done by dividing through the weight sum.
 float kernel(float offset, float variance)
@@ -37,25 +39,14 @@ float getDepth(float2 uv)
     return gDepthTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
 }
 
-float getColor(float2 uv)
+float2 getColor(float2 uv)
 {
-    return gSrcTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
+    return gSrcTex.Sample(gSampler, clamp(uv, uvMin, uvMax));
 }
 
-float getBright(float2 uv)
+float2 getOriginalColor(float2 uv)
 {
-    return gBrightTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
-}
-
-float getDark(float2 uv)
-{
-    return gDarkTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
-}
-
-float getImportance(float2 uv)
-{
-    return max(getBright(uv) - getDark(uv), 0.001);
-    //return gImportanceTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
+    return gBrightDarkTex.Sample(gSampler, clamp(uv, uvMin, uvMax));
 }
 
 // returns the local average via wave intrinsics
@@ -83,12 +74,13 @@ float4 LocalDepthWeights(float localDepth)
     return w / (w.x + w.y + w.z + w.w);
 }
 
-float main(BlurPSIn pIn) : SV_TARGET
+float2 main(BlurPSIn pIn) : SV_TARGET
 {
-    float pixelSum = 0.0;
+    float2 means = 0.0;
     float weightSum = 0.0;
     float localDepth = max(getDepth(pIn.texC), 1.401298e-45);
-   
+    float2 local = getColor(pIn.texC);
+       
     // calc single step in uv coordinates
     float2 uvStep;
     gSrcTex.GetDimensions(uvStep.x, uvStep.y);
@@ -100,8 +92,9 @@ float main(BlurPSIn pIn) : SV_TARGET
         // calculate weights
         //float spatialWeight = 1.0;
         float spatialWeight = kernel(KERNEL_RADIUS - it, 10.0);
+        float2 sampleAO = getColor(uv);
         //float importanceWeight = kernel(getImportance(uv), 0.028);
-        float importanceWeight = 1.0 - getImportance(uv);
+        float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
         //float importanceWeight = 1.0;
         float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float depthWeight = kernel(relativeDepth, 0.001);
@@ -111,45 +104,52 @@ float main(BlurPSIn pIn) : SV_TARGET
         // update sum
         float w = spatialWeight * importanceWeight * depthWeight;
         weightSum += w;
-        pixelSum += w * getColor(uv);
+        means += w * sampleAO;
         
         uv += uvStep;
     }
     
-    pixelSum /= max(weightSum, 1e-4);
+    means /= max(weightSum, 1e-4);
     if(weightSum < 1e-4)
-        pixelSum = getColor(pIn.texC); // fallback color when weight is too small
+        means = local; // fallback color when weight is too small
     
     //if (CLAMP_RESULTS) pixelSum = clamp(pixelSum, getDark(pIn.texC), getBright(pIn.texC));
 
     if(dir.y != 0) // last iteration
     {
+        // compute final color value from bright and dark image
+        float c = BRIGHT(means.x); // use bright image as default
+        float2 cOriginal = getOriginalColor(pIn.texC);
+        
         if (ENHANCE_CONTRAST)
         {
             // contrast enhancement
-            float c = pixelSum;
             float4 w = LocalDepthWeights(localDepth);
             //w = 0.25;
             float cAvg = WeightedLocalAverage(c, w);
-
-            float cBright = getBright(pIn.texC);
+            float importance = max(BRIGHT(cOriginal) - DARK(cOriginal), 0.001);
+            
+            float cBright = BRIGHT(cOriginal);
             float cBrightAvg = WeightedLocalAverage(cBright, w);
             float brightDev = cBright - cBrightAvg;
 
-            float cDark = getDark(pIn.texC);
+            float cDark = DARK(cOriginal);
             float cDarkAvg = WeightedLocalAverage(cDark, w);
             float darkDev = cDark - cDarkAvg;
             
             //pixelSum = cAvg + brightDev;
             //pixelSum = cAvg + min(brightDev, 0.0) * 2.0;
             //pixelSum = cAvg + min(brightDev, darkDev);
-            pixelSum = cAvg + min(brightDev, 0.0) * 2.0 / (1.0 - getImportance(pIn.texC));
+            
+            c = cAvg + min(brightDev, 0.0) * 2.0 / (1.0 - importance);
         }
         
         // clamp between bright and dark image
         if (CLAMP_RESULTS)
-            pixelSum = clamp(pixelSum, getDark(pIn.texC), getBright(pIn.texC));
+            c = clamp(c, DARK(cOriginal), BRIGHT(cOriginal));
+
+        return c;
     }
     
-    return pixelSum;
+    return means;
 }

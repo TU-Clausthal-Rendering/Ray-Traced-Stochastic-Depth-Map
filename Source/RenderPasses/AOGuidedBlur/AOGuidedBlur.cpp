@@ -32,8 +32,7 @@ namespace
 {
     const char kShaderPath[] = "RenderPasses/AOGuidedBlur/AOGuidedBlur.ps.slang";
 
-    const std::string kBright = "bright";
-    const std::string kDark = "dark";
+    const std::string kIn = "ao2";
     //const std::string kImportance = "importance";
     const std::string kDepth = "lineardepth";
     const std::string kPingPong = "pingpong";
@@ -85,16 +84,13 @@ RenderPassReflection AOGuidedBlur::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
     mReady = false;
-    
-    reflector.addInput(kBright, "bright ao (will be overwritten)").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget).texture2D(0,0,1,1,0);
-    reflector.addInput(kDark, "dark ao").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0, 0, 1, 1, 0);
+    reflector.addInput(kIn, "ao (bright, dark)").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget).texture2D(0, 0, 1, 1, 0);
     reflector.addInput(kDepth, "linear depth").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0,0,1,1,0);
-    //reflector.addInput(kImportance, "importance map").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0,0,1,1,0);
     reflector.addInternal(kPingPong, "temporal result after first blur").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
-    reflector.addOutput(kOutput, "blurred ao").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+    reflector.addOutput(kOutput, "blurred ao").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget).format(ResourceFormat::R8Unorm);
 
     // set correct input format and dimensions of the ping pong buffer
-    auto edge = compileData.connectedResources.getField(kBright);
+    auto edge = compileData.connectedResources.getField(kIn);
     if (edge)
     {
         const auto inputFormat = edge->getFormat();
@@ -104,7 +100,7 @@ RenderPassReflection AOGuidedBlur::reflect(const CompileData& compileData)
 
         mLastFormat = inputFormat;
         reflector.addInternal(kPingPong, "").format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
-        reflector.addOutput(kOutput, "").format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
+        reflector.addOutput(kOutput, "").texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
 
         mReady = true;
     }
@@ -128,23 +124,21 @@ void AOGuidedBlur::compile(RenderContext* pRenderContext, const CompileData& com
 
 void AOGuidedBlur::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    auto pBright = renderData[kBright]->asTexture();
-    auto pDark = renderData[kDark]->asTexture();
+    auto pIn = renderData[kIn]->asTexture();
     auto pPingPong = renderData[kPingPong]->asTexture();
     auto pDepth = renderData[kDepth]->asTexture();
     //auto pImportance = renderData[kImportance]->asTexture();
 
     auto pOutput = renderData[kOutput]->asTexture();
 
-    assert(pBright->getFormat() == pPingPong->getFormat());
-    assert(pBright->getFormat() == pOutput->getFormat());
+    assert(pIn->getFormat() == pPingPong->getFormat());
 
     if (!mEnabled)
     {
         // blit input to output
-        for (uint slice = 0; slice < pBright->getArraySize(); ++slice)
+        for (uint slice = 0; slice < pIn->getArraySize(); ++slice)
         {
-            pRenderContext->blit(pBright->getSRV(0, 1, slice, 1), pOutput->getRTV(0, slice, 1));
+            pRenderContext->blit(pIn->getSRV(0, 1, slice, 1), pOutput->getRTV(0, slice, 1));
         }
         return;
     }
@@ -154,25 +148,24 @@ void AOGuidedBlur::execute(RenderContext* pRenderContext, const RenderData& rend
 
     auto& dict = renderData.getDictionary();
     auto guardBand = dict.getValue("guardBand", 0);
-    if(pBright->getArraySize() > 1)
+    if(pIn->getArraySize() > 1)
     {
-        guardBand = guardBand / int(std::sqrt((double)pBright->getArraySize()) + 0.5);
+        guardBand = guardBand / int(std::sqrt((double)pIn->getArraySize()) + 0.5);
     }
-    uint2 renderRes = { pBright->getWidth(), pBright->getHeight() };
+    uint2 renderRes = { pIn->getWidth(), pIn->getHeight() };
     setGuardBandScissors(*mpBlur->getState(), renderRes, guardBand);
     // set scissor cb (is shared between both shaders)
     vars["ScissorCB"]["uvMin"] = dict.getValue("guardBand.uvMin", float2(0.0f));
     vars["ScissorCB"]["uvMax"] = dict.getValue("guardBand.uvMax", float2(1.0f));
 
-    for(uint slice = 0; slice < pBright->getArraySize(); ++slice)
+    for(uint slice = 0; slice < pIn->getArraySize(); ++slice)
     {
         vars["gDepthTex"].setSrv(pDepth->getSRV(0, 1, slice, 1));
         //vars["gImportanceTex"].setSrv(pImportance->getSRV(0, 1, slice, 1));
-        vars["gBrightTex"].setSrv(pBright->getSRV(0, 1, slice, 1));
-        vars["gDarkTex"].setSrv(pDark->getSRV(0, 1, slice, 1));
+        vars["gBrightDarkTex"].setSrv(pIn->getSRV(0, 1, slice, 1));
 
         // blur in x
-        vars["gSrcTex"].setSrv(pBright->getSRV(0, 1, slice, 1));
+        vars["gSrcTex"].setSrv(pIn->getSRV(0, 1, slice, 1));
         mpFbo->attachColorTarget(pPingPong, 0, 0, slice, 1);
         vars["Direction"]["dir"] = float2(1.0f, 0.0f);
         mpBlur->execute(pRenderContext, mpFbo, false);
