@@ -35,6 +35,26 @@ using namespace Falcor;
 class AOGuidedBlur : public RenderPass
 {
 public:
+    enum class Output
+    {
+        Results,
+        BrightMean,
+        DarkMean,
+        BrightDev,
+        DarkDev,
+    };
+
+    FALCOR_ENUM_INFO(
+        Output,
+        {
+            { Output::Results, "Results" },
+            { Output::BrightMean, "BrightMean" },
+            { Output::DarkMean, "DarkMean" },
+            { Output::BrightDev, "BrightDev" },
+            { Output::DarkDev, "DarkDev" },
+        }
+    );
+
     FALCOR_PLUGIN_CLASS(AOGuidedBlur, "AOGuidedBlur", "Insert pass description here.");
 
     static ref<AOGuidedBlur> create(ref<Device> pDevice, const Properties& dict);
@@ -52,6 +72,7 @@ public:
 
 private:
     void updateShaderDefines();
+    DefineList getShaderDefines() const;
 
     ref<Fbo> mpFbo;
     ref<Sampler> mpSampler;
@@ -64,4 +85,8 @@ private:
 
     ref<FullScreenPass> mpBlur;
     ResourceFormat mLastFormat = ResourceFormat::RGBA32Float;
+    Output mOutput = Output::Results;
 };
+
+
+FALCOR_ENUM_REGISTER(AOGuidedBlur::Output);

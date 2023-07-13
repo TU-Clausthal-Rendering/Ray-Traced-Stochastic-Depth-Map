@@ -27,6 +27,12 @@ cbuffer Direction
 #define BRIGHT(v) (v.x)
 #define DARK(v) (v.y)
 
+#define OUTPUT_RESULT 0
+#define OUTPUT_BRIGHT_MEAN 1
+#define OUTPUT_DARK_MEAN 2
+#define OUTPUT_BRIGHT_DEV 3
+#define OUTPUT_DARK_DEV 4
+
 // Simple Gauss-Kernel. Normalization is not included and must be
 // done by dividing through the weight sum.
 float kernel(float offset, float variance)
@@ -93,9 +99,9 @@ float2 main(BlurPSIn pIn) : SV_TARGET
         //float spatialWeight = 1.0;
         float spatialWeight = kernel(KERNEL_RADIUS - it, 10.0);
         float2 sampleAO = getColor(uv);
-        //float importanceWeight = kernel(getImportance(uv), 0.028);
-        float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
-        //float importanceWeight = 1.0;
+        //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), 0.028);
+        //float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
+        float importanceWeight = 1.0;
         float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float depthWeight = kernel(relativeDepth, 0.001);
         //float depthWeight = kernel(relativeDepth, 0.1);
@@ -117,12 +123,53 @@ float2 main(BlurPSIn pIn) : SV_TARGET
 
     if(dir.y != 0) // last iteration
     {
+        if (OUTPUT == OUTPUT_BRIGHT_MEAN)
+            return means.x;
+        if (OUTPUT == OUTPUT_DARK_MEAN)
+            return means.y;
+        
         // compute final color value from bright and dark image
         float c = BRIGHT(means.x); // use bright image as default
         float2 cOriginal = getOriginalColor(pIn.texC);
+
+        float2 dev = cOriginal - means;
+        float2 adev = abs(dev);
+        //adev.x = max(dev.x, 0.0);
+        //adev.y = max(-dev.y, 0.0);
+        adev.y = max(adev.y, 0.01); // prevent division by zero
+        float2 w = adev.yx / (adev.x + adev.y);
+        c = dot(cOriginal, w); // interpolate from original color value
+
+        if (OUTPUT == OUTPUT_BRIGHT_DEV)
+            return adev.x;
+        if (OUTPUT == OUTPUT_DARK_DEV)
+            return adev.y;
         
         if (ENHANCE_CONTRAST)
         {
+            float4 w = LocalDepthWeights(localDepth);
+            //w = 0.25;
+            float cAvg = WeightedLocalAverage(c, w);
+            float importance = max(BRIGHT(cOriginal) - DARK(cOriginal), 0.001);
+
+            float cBright = BRIGHT(cOriginal);
+            float cBrightAvg = WeightedLocalAverage(cBright, w);
+            float brightDev = cBright - cBrightAvg;
+
+            float cDark = DARK(cOriginal);
+            float cDarkAvg = WeightedLocalAverage(cDark, w);
+            float darkDev = cDark - cDarkAvg;
+
+            //float meanDev = 0.5 * (brightDev + darkDev);
+            //float meanDev = abs(brightDev) > abs(darkDev) ? brightDev : darkDev;
+            
+            //c = cAvg + meanDev;
+        }
+        
+        /*c = BRIGHT(means.x); // use bright image as default
+        if (ENHANCE_CONTRAST)
+        {
+        
             // contrast enhancement
             float4 w = LocalDepthWeights(localDepth);
             //w = 0.25;
@@ -137,19 +184,16 @@ float2 main(BlurPSIn pIn) : SV_TARGET
             float cDarkAvg = WeightedLocalAverage(cDark, w);
             float darkDev = cDark - cDarkAvg;
             
-            //pixelSum = cAvg + brightDev;
-            //pixelSum = cAvg + min(brightDev, 0.0) * 2.0;
-            //pixelSum = cAvg + min(brightDev, darkDev);
-            
             c = cAvg + min(brightDev, 0.0) * 2.0 / (1.0 - importance);
-        }
+        }*/
+        
         
         // clamp between bright and dark image
-        if (CLAMP_RESULTS)
-            c = clamp(c, DARK(cOriginal), BRIGHT(cOriginal));
+            if (CLAMP_RESULTS)
+                c = clamp(c, DARK(cOriginal), BRIGHT(cOriginal));
 
-        return c;
-    }
+            return c;
+        }
     
     return means;
 }

@@ -112,11 +112,7 @@ void AOGuidedBlur::compile(RenderContext* pRenderContext, const CompileData& com
 {
     if (!mReady) throw std::runtime_error("AOGuidedBlur::compile - missing incoming reflection information");
 
-    DefineList defines;
-    defines.add("KERNEL_RADIUS", std::to_string(mKernelRadius));
-    defines.add("CLAMP_RESULTS", mClampResults ? "1" : "0");
-    defines.add("ENHANCE_CONTRAST", mEnhanceContrast ? "1" : "0");
-
+    DefineList defines = getShaderDefines();
     mpBlur = FullScreenPass::create(mpDevice, kShaderPath, defines);
 
     mpBlur->getRootVar()["gSampler"] = mpSampler;
@@ -186,13 +182,23 @@ void AOGuidedBlur::renderUI(Gui::Widgets& widget)
     if (widget.var("Kernel Radius", mKernelRadius, uint32_t(1), uint32_t(20))) updateShaderDefines();
     if (widget.checkbox("Clamp Results", mClampResults)) updateShaderDefines();
     if (widget.checkbox("Enhance Contrast", mEnhanceContrast)) updateShaderDefines();
+
+    if (widget.dropdown("Output", mOutput)) updateShaderDefines();
 }
 
 void AOGuidedBlur::updateShaderDefines()
 {
     if (!mpBlur) return;
 
-    mpBlur->getProgram()->addDefine("CLAMP_RESULTS", mClampResults ? "1" : "0");
-    mpBlur->getProgram()->addDefine("ENHANCE_CONTRAST", mEnhanceContrast ? "1" : "0");
-    mpBlur->getProgram()->addDefine("KERNEL_RADIUS", std::to_string(mKernelRadius));
+    mpBlur->getProgram()->setDefines(getShaderDefines());
+}
+
+DefineList AOGuidedBlur::getShaderDefines() const
+{
+    DefineList defines;
+    defines.add("KERNEL_RADIUS", std::to_string(mKernelRadius));
+    defines.add("ENHANCE_CONTRAST", mEnhanceContrast ? "1" : "0");
+    defines.add("CLAMP_RESULTS", std::to_string(mClampResults));
+    defines.add("OUTPUT", std::to_string((uint)mOutput));
+    return defines;
 }
