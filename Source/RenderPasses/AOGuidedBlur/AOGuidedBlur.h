@@ -42,6 +42,8 @@ public:
         DarkMean,
         BrightDev,
         DarkDev,
+        BrightLocalDev,
+        DarkLocalDev,
     };
 
     FALCOR_ENUM_INFO(
@@ -52,6 +54,8 @@ public:
             { Output::DarkMean, "DarkMean" },
             { Output::BrightDev, "BrightDev" },
             { Output::DarkDev, "DarkDev" },
+            { Output::BrightLocalDev, "BrightLocalDev" },
+            { Output::DarkLocalDev, "DarkLocalDev" },
         }
     );
 
@@ -79,7 +83,7 @@ private:
     bool mEnabled = true;
     uint32_t mKernelRadius = 4;
     bool mClampResults = true;
-    bool mEnhanceContrast = true;
+    bool mUseLocalDeviation = true;
 
     bool mReady = false;
 

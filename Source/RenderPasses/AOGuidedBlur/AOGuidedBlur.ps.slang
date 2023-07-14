@@ -1,4 +1,4 @@
-Texture2D<float2> gSrcTex;
+Texture2D gSrcTex;
 Texture2D<float> gDepthTex;
 //Texture2D<float> gImportanceTex;
 
@@ -32,6 +32,8 @@ cbuffer Direction
 #define OUTPUT_DARK_MEAN 2
 #define OUTPUT_BRIGHT_DEV 3
 #define OUTPUT_DARK_DEV 4
+#define OUTPUT_BRIGHT_LOCAL_DEV 5
+#define OUTPUT_DARK_LOCAL_DEV 6
 
 // Simple Gauss-Kernel. Normalization is not included and must be
 // done by dividing through the weight sum.
@@ -45,7 +47,7 @@ float getDepth(float2 uv)
     return gDepthTex.Sample(gSampler, clamp(uv, uvMin, uvMax)).r;
 }
 
-float2 getColor(float2 uv)
+float4 getColor(float2 uv)
 {
     return gSrcTex.Sample(gSampler, clamp(uv, uvMin, uvMax));
 }
@@ -80,12 +82,13 @@ float4 LocalDepthWeights(float localDepth)
     return w / (w.x + w.y + w.z + w.w);
 }
 
-float2 main(BlurPSIn pIn) : SV_TARGET
+float4 main(BlurPSIn pIn) : SV_TARGET
 {
     float2 means = 0.0;
+    float2 meansSq = 0.0;
     float weightSum = 0.0;
     float localDepth = max(getDepth(pIn.texC), 1.401298e-45);
-    float2 local = getColor(pIn.texC);
+    float2 local = getColor(pIn.texC).xy;
        
     // calc single step in uv coordinates
     float2 uvStep;
@@ -98,7 +101,11 @@ float2 main(BlurPSIn pIn) : SV_TARGET
         // calculate weights
         //float spatialWeight = 1.0;
         float spatialWeight = kernel(KERNEL_RADIUS - it, 10.0);
-        float2 sampleAO = getColor(uv);
+        float2 sampleAO = getColor(uv).xy;
+        float2 sampleAOSq = sampleAO * sampleAO;
+        if (dir.y != 0) // second iteration
+            sampleAOSq = getColor(uv).zw; // squared values will be in the last two channels
+        
         //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), 0.028);
         //float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
         float importanceWeight = 1.0;
@@ -111,89 +118,63 @@ float2 main(BlurPSIn pIn) : SV_TARGET
         float w = spatialWeight * importanceWeight * depthWeight;
         weightSum += w;
         means += w * sampleAO;
+        meansSq += w * sampleAOSq;
         
         uv += uvStep;
     }
     
     means /= max(weightSum, 1e-4);
+    meansSq /= max(weightSum, 1e-4);
     if(weightSum < 1e-4)
+    {        
         means = local; // fallback color when weight is too small
+        meansSq = local * local;
+    }
     
     //if (CLAMP_RESULTS) pixelSum = clamp(pixelSum, getDark(pIn.texC), getBright(pIn.texC));
 
-    if(dir.y != 0) // last iteration
+    if (dir.y != 0) // last iteration
     {
         if (OUTPUT == OUTPUT_BRIGHT_MEAN)
             return means.x;
         if (OUTPUT == OUTPUT_DARK_MEAN)
             return means.y;
         
-        // compute final color value from bright and dark image
+    // compute final color value from bright and dark image
         float c = BRIGHT(means.x); // use bright image as default
         float2 cOriginal = getOriginalColor(pIn.texC);
+        float devExponent = 2.0;
+        
+        // local deviation
+        float2 ldev = pow(abs(cOriginal - means), devExponent);
+        ldev.y = max(ldev.y, 0.01); // prevent division by zero
+        float2 w = ldev.yx / (ldev.x + ldev.y);
+        if (LOCAL_DEVIATION)
+            c = dot(cOriginal, w); // interpolate from original color value
 
-        float2 dev = cOriginal - means;
-        float2 adev = abs(dev);
-        //adev.x = max(dev.x, 0.0);
-        //adev.y = max(-dev.y, 0.0);
+        if (OUTPUT == OUTPUT_BRIGHT_LOCAL_DEV)
+            return ldev.x;
+        if (OUTPUT == OUTPUT_DARK_LOCAL_DEV)
+            return ldev.y;
+
+        // actual deviation
+        float2 adev = pow(abs(meansSq - means * means), devExponent * 0.5);
         adev.y = max(adev.y, 0.01); // prevent division by zero
-        float2 w = adev.yx / (adev.x + adev.y);
-        c = dot(cOriginal, w); // interpolate from original color value
-
+        w = adev.yx / (adev.x + adev.y);
+        if (!LOCAL_DEVIATION)
+            c = dot(cOriginal, w); // interpolate from original color value
+        
         if (OUTPUT == OUTPUT_BRIGHT_DEV)
             return adev.x;
         if (OUTPUT == OUTPUT_DARK_DEV)
             return adev.y;
         
-        if (ENHANCE_CONTRAST)
-        {
-            float4 w = LocalDepthWeights(localDepth);
-            //w = 0.25;
-            float cAvg = WeightedLocalAverage(c, w);
-            float importance = max(BRIGHT(cOriginal) - DARK(cOriginal), 0.001);
+    // clamp between bright and dark image
+        //if (CLAMP_RESULTS)
+        //    c = clamp(c, DARK(cOriginal), BRIGHT(cOriginal));
 
-            float cBright = BRIGHT(cOriginal);
-            float cBrightAvg = WeightedLocalAverage(cBright, w);
-            float brightDev = cBright - cBrightAvg;
-
-            float cDark = DARK(cOriginal);
-            float cDarkAvg = WeightedLocalAverage(cDark, w);
-            float darkDev = cDark - cDarkAvg;
-
-            //float meanDev = 0.5 * (brightDev + darkDev);
-            //float meanDev = abs(brightDev) > abs(darkDev) ? brightDev : darkDev;
-            
-            //c = cAvg + meanDev;
-        }
-        
-        /*c = BRIGHT(means.x); // use bright image as default
-        if (ENHANCE_CONTRAST)
-        {
-        
-            // contrast enhancement
-            float4 w = LocalDepthWeights(localDepth);
-            //w = 0.25;
-            float cAvg = WeightedLocalAverage(c, w);
-            float importance = max(BRIGHT(cOriginal) - DARK(cOriginal), 0.001);
-            
-            float cBright = BRIGHT(cOriginal);
-            float cBrightAvg = WeightedLocalAverage(cBright, w);
-            float brightDev = cBright - cBrightAvg;
-
-            float cDark = DARK(cOriginal);
-            float cDarkAvg = WeightedLocalAverage(cDark, w);
-            float darkDev = cDark - cDarkAvg;
-            
-            c = cAvg + min(brightDev, 0.0) * 2.0 / (1.0 - importance);
-        }*/
-        
-        
-        // clamp between bright and dark image
-            if (CLAMP_RESULTS)
-                c = clamp(c, DARK(cOriginal), BRIGHT(cOriginal));
-
-            return c;
-        }
+        return c;
+    }
     
-    return means;
+    return float4(means, meansSq);
 }

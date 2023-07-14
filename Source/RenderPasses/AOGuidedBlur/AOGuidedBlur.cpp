@@ -41,7 +41,6 @@ namespace
 
     const std::string kKernelRadius = "kernelRadius";
     const std::string kClampResults = "clampResults";
-    const std::string kEnhanceContrast = "enhanceContrast";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -56,7 +55,6 @@ ref<AOGuidedBlur> AOGuidedBlur::create(ref<Device> pDevice, const Properties& di
     {
         if (key == kKernelRadius) pPass->mKernelRadius = value;
         else if (key == kClampResults) pPass->mClampResults = value;
-        else if (key == kEnhanceContrast) pPass->mEnhanceContrast = value;
         else logWarning("Unknown field '" + key + "' in a AOGuidedBlur dictionary");
     }
     return pPass;
@@ -76,7 +74,6 @@ Properties AOGuidedBlur::getProperties() const
     Properties dict;
     dict[kKernelRadius] = mKernelRadius;
     dict[kClampResults] = mClampResults;
-    dict[kEnhanceContrast] = mEnhanceContrast;
     return dict;
 }
 
@@ -86,7 +83,7 @@ RenderPassReflection AOGuidedBlur::reflect(const CompileData& compileData)
     mReady = false;
     reflector.addInput(kIn, "ao (bright, dark)").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget).texture2D(0, 0, 1, 1, 0);
     reflector.addInput(kDepth, "linear depth").bindFlags(ResourceBindFlags::ShaderResource).texture2D(0,0,1,1,0);
-    reflector.addInternal(kPingPong, "temporal result after first blur").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+    reflector.addInternal(kPingPong, "temporal result after first blur").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget).format(ResourceFormat::RGBA8Unorm);
     reflector.addOutput(kOutput, "blurred ao").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget).format(ResourceFormat::R8Unorm);
 
     // set correct input format and dimensions of the ping pong buffer
@@ -99,7 +96,7 @@ RenderPassReflection AOGuidedBlur::reflect(const CompileData& compileData)
         const auto srcArraySize = edge->getArraySize();
 
         mLastFormat = inputFormat;
-        reflector.addInternal(kPingPong, "").format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
+        reflector.addInternal(kPingPong, "").texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
         reflector.addOutput(kOutput, "").texture2D(srcWidth, srcHeight, 1, 1, srcArraySize);
 
         mReady = true;
@@ -180,8 +177,8 @@ void AOGuidedBlur::renderUI(Gui::Widgets& widget)
     if (!mEnabled) return;
 
     if (widget.var("Kernel Radius", mKernelRadius, uint32_t(1), uint32_t(20))) updateShaderDefines();
-    if (widget.checkbox("Clamp Results", mClampResults)) updateShaderDefines();
-    if (widget.checkbox("Enhance Contrast", mEnhanceContrast)) updateShaderDefines();
+    //if (widget.checkbox("Clamp Results", mClampResults)) updateShaderDefines(); // currently happens automatically
+    if (widget.checkbox("Local Deviation", mUseLocalDeviation)) updateShaderDefines();
 
     if (widget.dropdown("Output", mOutput)) updateShaderDefines();
 }
@@ -197,7 +194,7 @@ DefineList AOGuidedBlur::getShaderDefines() const
 {
     DefineList defines;
     defines.add("KERNEL_RADIUS", std::to_string(mKernelRadius));
-    defines.add("ENHANCE_CONTRAST", mEnhanceContrast ? "1" : "0");
+    defines.add("LOCAL_DEVIATION", mUseLocalDeviation ? "1" : "0");
     defines.add("CLAMP_RESULTS", std::to_string(mClampResults));
     defines.add("OUTPUT", std::to_string((uint)mOutput));
     return defines;
