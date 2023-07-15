@@ -29,72 +29,46 @@
 #include "Falcor.h"
 #include "Core/Pass/FullScreenPass.h"
 #include "RenderGraph/RenderPass.h"
+#include "../VAO/DepthMode.h"
+#include "HBAOData.slang"
 
 using namespace Falcor;
 
-class AOGuidedBlur : public RenderPass
+class HBAO : public RenderPass
 {
 public:
-    enum class Output
-    {
-        Results,
-        BrightMean,
-        DarkMean,
-        BrightDev,
-        DarkDev,
-        BrightLocalDev,
-        DarkLocalDev,
-        Bright,
-        Dark,
-    };
+    FALCOR_PLUGIN_CLASS(HBAO, "HBAO", "Insert pass description here.");
 
-    FALCOR_ENUM_INFO(
-        Output,
-        {
-            { Output::Results, "Results" },
-            { Output::BrightMean, "BrightMean" },
-            { Output::DarkMean, "DarkMean" },
-            { Output::BrightDev, "BrightDev" },
-            { Output::DarkDev, "DarkDev" },
-            { Output::BrightLocalDev, "BrightLocalDev" },
-            { Output::DarkLocalDev, "DarkLocalDev" },
-            { Output::Bright, "Bright" },
-            { Output::Dark, "Dark" },
-        }
-    );
+    static ref<HBAO> create(ref<Device> pDevice, const Properties& props);
 
-    FALCOR_PLUGIN_CLASS(AOGuidedBlur, "AOGuidedBlur", "Insert pass description here.");
-
-    static ref<AOGuidedBlur> create(ref<Device> pDevice, const Properties& dict);
-
-    AOGuidedBlur(ref<Device> pDevice, const Properties& dict);
+    HBAO(ref<Device> pDevice, const Properties& props);
 
     virtual Properties getProperties() const override;
     virtual RenderPassReflection reflect(const CompileData& compileData) override;
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override;
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override {}
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override { mpScene = pScene; }
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
+    void setRadius(float r);
+    void setDepthMode(DepthMode m);
+
+    std::vector<float4> genNoiseTexture();
 private:
-    void updateShaderDefines();
-    DefineList getShaderDefines() const;
 
     ref<Fbo> mpFbo;
-    ref<Sampler> mpSampler;
+    ref<FullScreenPass> mpPass;
+    ref<Sampler> mpTextureSampler;
+
+    ref<Scene> mpScene;
+
+    DepthMode mDepthMode = DepthMode::SingleDepth;
     bool mEnabled = true;
-    uint32_t mKernelRadius = 4;
-    bool mClampResults = true;
-    bool mUseLocalDeviation = true;
 
-    bool mReady = false;
+    HBAOData mData;
+    bool mDirty = true;
 
-    ref<FullScreenPass> mpBlur;
-    ResourceFormat mLastFormat = ResourceFormat::RGBA32Float;
-    Output mOutput = Output::Results;
+    std::vector<float4> mNoiseTexture;
 };
-
-
-FALCOR_ENUM_REGISTER(AOGuidedBlur::Output);

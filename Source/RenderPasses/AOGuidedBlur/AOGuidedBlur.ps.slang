@@ -34,6 +34,8 @@ cbuffer Direction
 #define OUTPUT_DARK_DEV 4
 #define OUTPUT_BRIGHT_LOCAL_DEV 5
 #define OUTPUT_DARK_LOCAL_DEV 6
+#define OUTPUT_BRIGHT 7
+#define OUTPUT_DARK 8
 
 // Simple Gauss-Kernel. Normalization is not included and must be
 // done by dividing through the weight sum.
@@ -136,6 +138,8 @@ float4 main(BlurPSIn pIn) : SV_TARGET
 
     if (dir.y != 0) // last iteration
     {
+
+        
         if (OUTPUT == OUTPUT_BRIGHT_MEAN)
             return means.x;
         if (OUTPUT == OUTPUT_DARK_MEAN)
@@ -144,6 +148,11 @@ float4 main(BlurPSIn pIn) : SV_TARGET
     // compute final color value from bright and dark image
         float c = BRIGHT(means.x); // use bright image as default
         float2 cOriginal = getOriginalColor(pIn.texC);
+        if (OUTPUT == OUTPUT_BRIGHT)
+            return cOriginal.x;
+        if (OUTPUT == OUTPUT_DARK)
+            return cOriginal.y;
+        
         float devExponent = 1.0;
         
         // local deviation
