@@ -100,7 +100,7 @@ float4 main(BlurPSIn pIn) : SV_TARGET
     {
         // calculate weights
         //float spatialWeight = 1.0;
-        float spatialWeight = kernel(KERNEL_RADIUS - it, 10.0);
+        float spatialWeight = kernel(KERNEL_RADIUS - it, 0.134);
         float2 sampleAO = getColor(uv).xy;
         float2 sampleAOSq = sampleAO * sampleAO;
         if (dir.y != 0) // second iteration
@@ -109,7 +109,8 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), 0.028);
         //float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
         float importanceWeight = 1.0;
-        float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
+        //float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
+        float relativeDepth = abs(getDepth(uv) / localDepth - 1.0); // 0.0 = same depth
         float depthWeight = kernel(relativeDepth, 0.001);
         //float depthWeight = kernel(relativeDepth, 0.1);
         //float depthWeight = 1.0;
@@ -143,7 +144,7 @@ float4 main(BlurPSIn pIn) : SV_TARGET
     // compute final color value from bright and dark image
         float c = BRIGHT(means.x); // use bright image as default
         float2 cOriginal = getOriginalColor(pIn.texC);
-        float devExponent = 2.0;
+        float devExponent = 1.0;
         
         // local deviation
         float2 ldev = pow(abs(cOriginal - means), devExponent);

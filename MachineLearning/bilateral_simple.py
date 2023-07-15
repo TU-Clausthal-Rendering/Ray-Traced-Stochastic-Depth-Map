@@ -4,7 +4,6 @@ dataPath = 'D:/VAO/'
 # imports
 import os
 import numpy as np
-from PIL import Image
 from tensorflow import keras
 import tensorflow as tf
 from keras.models import Sequential
@@ -214,8 +213,8 @@ def build_network():
         model.compile(optimizer='adam', loss='mean_squared_error')
 
     # special loss for train model
-    #loss = AoLoss()
-    loss = SSIMLoss()
+    loss = AoLoss()
+    #loss = SSIMLoss()
     optimizer = keras.optimizers.Adam(learning_rate=0.001)
     train_model.compile(optimizer=optimizer, loss=loss, run_eagerly=False)
     models['train'] = train_model

@@ -1,5 +1,6 @@
 from tensorflow import keras
 import tensorflow as tf
+import numpy as np
 
 class RelativeDepthLayer(keras.layers.Layer):
     def __init__(self, name=None, **kwargs):
@@ -55,8 +56,11 @@ class AoLoss(keras.losses.Loss):
         
         y_diff = tf.math.subtract(y_ref, y_pred)
         # multiply with 2.0 if y_diff is positive
-        y_diff = tf.where(y_diff > 0, y_diff * 2, y_diff)
+        #y_diff = tf.where(y_diff > 0, y_diff * 2, y_diff)
         
+        # errors below 0.01 are irrelevant
+        y_diff = tf.maximum(tf.abs(y_diff) - 0.01, 0.0)
+
         return tf.math.square(y_diff) # return squared error
     
     def get_config(self):
@@ -128,6 +132,103 @@ class NeighborExpansionLayer(keras.layers.Layer):
         expanded_tensor = tf.concat(expanded_channels, axis=-1)
         return expanded_tensor
 
+class GreaterThanConstraint(tf.keras.constraints.Constraint):
+    def __init__(self, epsilon=1e-7):
+        self.epsilon = epsilon
+
+    def __call__(self, w):
+        return tf.keras.backend.clip(w, self.epsilon, None)
+
+class BilateralBlur(tf.keras.layers.Layer):
+    def __init__(self, R=2, **kwargs):
+        super(BilateralBlur, self).__init__(**kwargs)
+        self.R = R
+
+    def build(self, input_shape):
+        self.kernel_size = 2 * self.R + 1
+        self.depth_variance = self.add_weight(
+            name='depth_variance', 
+            #initializer=keras.initializers.Constant(0.001),
+            initializer=keras.initializers.Constant(0.001),
+            constraint=GreaterThanConstraint(epsilon=1e-7),
+            trainable=True
+        )
+        self.spatial_variance = self.add_weight(
+            name='spatial_variance', 
+            #initializer=keras.initializers.Constant(10.0),
+            initializer=keras.initializers.Constant(0.134),
+            constraint=GreaterThanConstraint(epsilon=1e-7),
+            trainable=True
+        )
+        self.dev_exponent = self.add_weight(
+            name='dev_exponent',
+            #initializer=keras.initializers.Constant(2.0),
+            initializer=keras.initializers.Constant(1.0),
+            constraint=GreaterThanConstraint(epsilon=1.0) # produces nan below 1?
+        )
+        self.dark_epsilon = self.add_weight(
+            name='dark_epsilon',
+            initializer=keras.initializers.Constant(0.01),
+            constraint=GreaterThanConstraint(epsilon=1e-8),
+        )
+
+        # spatial distances (-2, -1, 0, 1, 2)
+        self.spatial_dist = tf.constant([x - self.R for x in range(self.kernel_size)], 
+                                        shape=(1,1,1,self.kernel_size),
+                                        dtype=tf.float32)
+        
+
+    def do_blur(self, bright_x, dark_x, depths_x, depths):
+        # convert depths_x to relative depths
+        rel_depth_x = tf.minimum(tf.abs(tf.divide(depths_x, depths) - 1.0), 1.0)
+        #rel_depth_x = tf.abs(tf.divide(depths_x, depths) - 1.0)
+
+        # apply a gaussian kernel to rel_depth_x    
+        w_depth = tf.exp(-tf.square(rel_depth_x) / (2 * self.depth_variance))
+        # apply gaussian kernel to spatial distances
+        w_spatial = tf.exp(-tf.square(self.spatial_dist) / (2 * self.spatial_variance))
+
+        # apply spatial weights
+        w_x = w_depth * w_spatial
+
+        # normalize the weights
+        w_x = tf.divide(w_x, tf.reduce_sum(w_x, axis=-1, keepdims=True))
+
+        # apply weights and reduce to channel size 1 (dot product)
+        bright_x = tf.reduce_sum(tf.multiply(bright_x, w_x), axis=-1, keepdims=True)
+        dark_x = tf.reduce_sum(tf.multiply(dark_x, w_x), axis=-1, keepdims=True)
+
+        return bright_x, dark_x
+
+    def call(self, inputs):
+        bright, dark, depths = inputs # color = AO bright/dark values
+
+        # prepare for blur in X
+        bright_x = tf.image.extract_patches(bright, sizes=[1, 1, self.kernel_size, 1], strides=[1,1,1,1], rates=[1,1,1,1], padding='SAME')
+        dark_x = tf.image.extract_patches(dark, sizes=[1, 1, self.kernel_size, 1], strides=[1,1,1,1], rates=[1,1,1,1], padding='SAME')
+        depths_x = tf.image.extract_patches(depths, sizes=[1, 1, self.kernel_size, 1], strides=[1,1,1,1], rates=[1,1,1,1], padding='SAME')
+
+        bright_x, dark_x = self.do_blur(bright_x, dark_x, depths_x, depths)
+
+        # do the same for Y direction
+        bright_y = tf.image.extract_patches(bright_x, sizes=[1, self.kernel_size, 1, 1], strides=[1,1,1,1], rates=[1,1,1,1], padding='SAME')
+        dark_y = tf.image.extract_patches(dark_x, sizes=[1, self.kernel_size, 1, 1], strides=[1,1,1,1], rates=[1,1,1,1], padding='SAME')
+        depths_y = tf.image.extract_patches(depths, sizes=[1, self.kernel_size, 1, 1], strides=[1,1,1,1], rates=[1,1,1,1], padding='SAME')
+
+        bright_mean, dark_mean = self.do_blur(bright_y, dark_y, depths_y, depths)
+
+        # compute the local deviation
+        dev_bright = tf.pow(tf.abs(bright - bright_mean), self.dev_exponent)
+        dev_dark = tf.pow(tf.abs(dark - dark_mean), self.dev_exponent)
+        # prevent division by zero
+        dev_dark = tf.maximum(dev_dark, self.dark_epsilon)
+        # normalize deviations
+        weight_sum = tf.add(dev_bright, dev_dark)
+        dev_bright = tf.divide(dev_bright, weight_sum)
+        dev_dark = tf.divide(dev_dark, weight_sum)
+
+        res = dev_dark * bright + dev_bright * dark
+        return res
 
 def get_custom_objects():
     return {
@@ -135,5 +236,7 @@ def get_custom_objects():
         'WeightedSumLayer': WeightedSumLayer,
         'AoLoss': AoLoss,
         'GaussianActivation': GaussianActivation,
-        'NeighborExpansionLayer': NeighborExpansionLayer
+        'NeighborExpansionLayer': NeighborExpansionLayer,
+        'GreaterThanConstraint': GreaterThanConstraint,
+        'BilateralBlur': BilateralBlur
     }
