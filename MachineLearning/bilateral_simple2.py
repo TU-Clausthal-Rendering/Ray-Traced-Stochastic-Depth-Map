@@ -113,8 +113,9 @@ def build_network():
     loss = AoLoss()
     #loss = SSIMLoss()
     #loss = 'mean_squared_error'
-    #optimizer = keras.optimizers.Adam(learning_rate=0.001)
-    optimizer = keras.optimizers.Nadam()
+    optimizer = keras.optimizers.Adam(learning_rate=0.001)
+    #optimizer = keras.optimizers.Nadam()
+    #optimizer = keras.optimizers.SGD(learning_rate=0.001, momentum=0.9, nesterov=True)
     train_model.compile(optimizer=optimizer, loss=loss, run_eagerly=False)
     models['train'] = train_model
 

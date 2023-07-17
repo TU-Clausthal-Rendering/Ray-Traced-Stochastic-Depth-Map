@@ -149,14 +149,14 @@ class BilateralBlur(tf.keras.layers.Layer):
         self.depth_variance = self.add_weight(
             name='depth_variance', 
             #initializer=keras.initializers.Constant(0.001),
-            initializer=keras.initializers.Constant(0.001),
+            initializer=keras.initializers.Constant(0.002),
             constraint=GreaterThanConstraint(epsilon=1e-7),
             trainable=True
         )
         self.spatial_variance = self.add_weight(
             name='spatial_variance', 
             #initializer=keras.initializers.Constant(10.0),
-            initializer=keras.initializers.Constant(0.134),
+            initializer=keras.initializers.Constant(17.67),
             constraint=GreaterThanConstraint(epsilon=1e-7),
             trainable=True
         )
@@ -168,8 +168,13 @@ class BilateralBlur(tf.keras.layers.Layer):
         )
         self.dark_epsilon = self.add_weight(
             name='dark_epsilon',
-            initializer=keras.initializers.Constant(0.01),
+            initializer=keras.initializers.Constant(0.083),
             constraint=GreaterThanConstraint(epsilon=1e-8),
+        )
+        self.contrast_enhance = self.add_weight(
+            name='contrast_enhance',
+            initializer=keras.initializers.Constant(1.0),
+            constraint=GreaterThanConstraint(epsilon=0.1),
         )
 
         # spatial distances (-2, -1, 0, 1, 2)
@@ -218,10 +223,12 @@ class BilateralBlur(tf.keras.layers.Layer):
         bright_mean, dark_mean = self.do_blur(bright_y, dark_y, depths_y, depths)
 
         # compute the local deviation
-        dev_bright = tf.pow(tf.abs(bright - bright_mean), self.dev_exponent)
-        dev_dark = tf.pow(tf.abs(dark - dark_mean), self.dev_exponent)
+        dev_bright = tf.math.pow(tf.abs(bright - bright_mean), self.dev_exponent)
+        dev_dark = tf.math.pow(tf.abs(dark - dark_mean), self.dev_exponent)
         # prevent division by zero
         dev_dark = tf.maximum(dev_dark, self.dark_epsilon)
+        # enhance dark contrast
+        dev_bright = dev_bright * self.contrast_enhance
         # normalize deviations
         weight_sum = tf.add(dev_bright, dev_dark)
         dev_bright = tf.divide(dev_bright, weight_sum)
