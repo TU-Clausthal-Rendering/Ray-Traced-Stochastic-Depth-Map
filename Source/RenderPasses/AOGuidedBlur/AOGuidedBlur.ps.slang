@@ -24,6 +24,16 @@ cbuffer Direction
     float2 dir;
 }
 
+// settings
+//#define DEPTH_VARIANCE 0.001
+//#define SPATIAL_VARIANCE 0.134
+//#define DEV_EXPONENT 1.0
+//#define DARK_EPSILON 0.01
+#define DEPTH_VARIANCE  0.002
+#define SPATIAL_VARIANCE 17.67
+#define DEV_EXPONENT 1.0
+#define DARK_EPSILON 0.083
+
 #define BRIGHT(v) (v.x)
 #define DARK(v) (v.y)
 
@@ -102,7 +112,7 @@ float4 main(BlurPSIn pIn) : SV_TARGET
     {
         // calculate weights
         //float spatialWeight = 1.0;
-        float spatialWeight = kernel(KERNEL_RADIUS - it, 0.134);
+        float spatialWeight = kernel(KERNEL_RADIUS - it, SPATIAL_VARIANCE);
         float2 sampleAO = getColor(uv).xy;
         float2 sampleAOSq = sampleAO * sampleAO;
         if (dir.y != 0) // second iteration
@@ -113,7 +123,7 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         float importanceWeight = 1.0;
         //float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float relativeDepth = abs(getDepth(uv) / localDepth - 1.0); // 0.0 = same depth
-        float depthWeight = kernel(relativeDepth, 0.001);
+        float depthWeight = kernel(relativeDepth, DEPTH_VARIANCE);
         //float depthWeight = kernel(relativeDepth, 0.1);
         //float depthWeight = 1.0;
 
@@ -153,11 +163,9 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         if (OUTPUT == OUTPUT_DARK)
             return cOriginal.y;
         
-        float devExponent = 1.0;
-        
         // local deviation
-        float2 ldev = pow(abs(cOriginal - means), devExponent);
-        ldev.y = max(ldev.y, 0.01); // prevent division by zero
+        float2 ldev = pow(abs(cOriginal - means), DEV_EXPONENT);
+        ldev.y = max(ldev.y, DARK_EPSILON); // prevent division by zero
         float2 w = ldev.yx / (ldev.x + ldev.y);
         if (LOCAL_DEVIATION)
             c = dot(cOriginal, w); // interpolate from original color value
@@ -168,8 +176,8 @@ float4 main(BlurPSIn pIn) : SV_TARGET
             return ldev.y;
 
         // actual deviation
-        float2 adev = pow(abs(meansSq - means * means), devExponent * 0.5);
-        adev.y = max(adev.y, 0.01); // prevent division by zero
+        float2 adev = pow(abs(meansSq - means * means), DEV_EXPONENT * 0.5);
+        adev.y = max(adev.y, DARK_EPSILON); // prevent division by zero
         w = adev.yx / (adev.x + adev.y);
         if (!LOCAL_DEVIATION)
             c = dot(cOriginal, w); // interpolate from original color value

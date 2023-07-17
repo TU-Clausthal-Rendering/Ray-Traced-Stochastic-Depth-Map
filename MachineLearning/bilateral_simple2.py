@@ -122,6 +122,7 @@ def build_network():
 
 
 models = build_network()
-process_sample(models, 10000)
+#models['train'].load_weights('model_checkpoint.h5')
+process_sample(models, 1000)
 for name, model in models.items():
     model.save(f'model_{name}.h5')
