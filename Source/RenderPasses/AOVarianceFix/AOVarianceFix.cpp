@@ -119,7 +119,6 @@ void AOVarianceFix::execute(RenderContext* pRenderContext, const RenderData& ren
     auto pDepth = renderData[kDepth]->asTexture();
     auto pOutput = renderData[kOutput]->asTexture();
 
-    assert(pBright->getFormat() == pPingPong->getFormat());
     assert(pBright->getFormat() == pOutput->getFormat());
 
     if (!mEnabled)

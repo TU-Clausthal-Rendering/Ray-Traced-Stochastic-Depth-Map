@@ -124,8 +124,6 @@ void AOGuidedBlur::execute(RenderContext* pRenderContext, const RenderData& rend
 
     auto pOutput = renderData[kOutput]->asTexture();
 
-    assert(pIn->getFormat() == pPingPong->getFormat());
-
     if (!mEnabled)
     {
         // blit input to output
