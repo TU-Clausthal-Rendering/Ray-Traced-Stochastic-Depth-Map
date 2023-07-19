@@ -3,7 +3,7 @@ import Scene.RaytracingInline;
 
 // inputs from previous stage
 Texture2D<uint> aoMask;
-Texture2D<float> aoPrev;
+Texture2D<float2> aoPrev;
 
 // implementation of the traceAORay used inside calcAO2
 void traceAORay(RayDesc ray, inout RayData rayData)
@@ -34,13 +34,14 @@ void traceAORay(RayDesc ray, inout RayData rayData)
 }
 
 [earlydepthstencil]
-float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
+float2 main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
 {
     uint mask = aoMask[uint2(svPos.xy)] & 0xFF;
     
-    float visibility = calcAO2(uint2(svPos.xy), mask);
-    float prevAo = aoPrev.SampleLevel(gTextureSampler, texC, 0);
+    float2 visibility = calcAO2(uint2(svPos.xy), mask);
+    float2 prevAo = aoPrev.SampleLevel(gTextureSampler, texC, 0);
     visibility += prevAo;
+    visibility.y = min(visibility.x, visibility.y); // make sure that bright ao is bigger than dark ao
     visibility = pow(visibility, gData.exponent);
     return visibility;
 }

@@ -3,7 +3,7 @@ import Scene.Raytracing;
 
 // inputs from previous stage
 Texture2D<uint> aoMask;
-RWTexture2D<float> output;
+RWTexture2D<float2> output;
 
 [shader("anyhit")]
 void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs)
@@ -59,8 +59,9 @@ void rayGen()
     if (mask == 0u)
         return;
 
-    float visibility = calcAO2(svPos, mask);
+    float2 visibility = calcAO2(svPos, mask);
     visibility += output[svPos];
+    visibility.y = min(visibility.x, visibility.y); // make sure that bright ao is bigger than dark ao
     visibility = pow(visibility, gData.exponent);
     output[svPos] = visibility;
 }

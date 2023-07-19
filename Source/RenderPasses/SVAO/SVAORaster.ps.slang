@@ -1,18 +1,10 @@
 import Scene.RaytracingInline;
 #include "Common.slang"
 
-#define DARK_MAP
-#ifdef DARK_MAP
-#define darkmap(x) x
-#else
-#define darkmap(x)
-#endif
-
 struct PSOut
 {
-    float ao1 : SV_TARGET0;
+    float2 ao1 : SV_TARGET0;
     uint stencil : SV_TARGET1;
-    darkmap(float aoDark : SV_TARGET2);
 };
 
 RWTexture2D<uint> gRayMinAccess;
@@ -23,7 +15,6 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     PSOut output;
     output.ao1 = 0.0;
     output.stencil = 0;
-    darkmap(output.aoDark = 0.0);
 
     BasicAOData data;
     if (!data.Init(texC))
@@ -44,7 +35,6 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         if (isSamePixel(texC, s.rasterSamplePosUV))
         {
             output.ao1 += (s.sphereStart - s.sphereEnd) / s.pdf;
-            darkmap(output.aoDark += (s.sphereStart - s.sphereEnd) / s.pdf);
             continue;
         }
 
@@ -59,7 +49,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             s.evalDualVisibility(data);
 
         // always add computed visibility from raster
-        output.ao1 += s.visibility;        
+        output.ao1.x += s.visibility; // only on bright       
         if (!data.denyRays() && (s.requireRay || forceRay))
         {
             // calc pixel importance
@@ -79,17 +69,15 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         }
         else
         {
-            darkmap(output.aoDark += s.visibility);
+            output.ao1.y += s.visibility; // also add on dark if no ray is required (reference solution)
         }
     }
 
     output.ao1 *= 2.0 / float(NUM_DIRECTIONS);
-    darkmap(output.aoDark *= 2.0 / float(NUM_DIRECTIONS));
 
     // apply exponent
     if(output.stencil == 0)
         output.ao1 = pow(output.ao1, gData.exponent);
-    darkmap(output.aoDark = pow(output.aoDark, gData.exponent));
     
     return output;
 }

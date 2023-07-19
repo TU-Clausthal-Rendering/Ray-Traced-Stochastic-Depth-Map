@@ -33,6 +33,7 @@ namespace
     const char kShaderPath[] = "RenderPasses/CrossBilateralBlur/CrossBilateralBlur.ps.slang";
 
     const std::string kColor = "color";
+    const std::string kColorOut = "colorOut";
     const std::string kDepth = "linear depth";
     const std::string kPingPong = "pingpong";
 }
@@ -72,25 +73,23 @@ RenderPassReflection CrossBilateralBlur::reflect(const CompileData& compileData)
     RenderPassReflection reflector;
     mReady = false;
 
-    auto& colorField = reflector.addInputOutput(kColor, "color image to be blurred").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
-    auto& depthField = reflector.addInput(kDepth, "linear depth").bindFlags(ResourceBindFlags::ShaderResource);
-    auto& pingpongField = reflector.addInternal(kPingPong, "temporal result after first blur").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+    reflector.addInput(kColor, "color image to be blurred").bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+    reflector.addInput(kDepth, "linear depth").bindFlags(ResourceBindFlags::ShaderResource);
+    reflector.addInternal(kPingPong, "temporal result after first blur").format(mFormat).bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
+    reflector.addOutput(kColorOut, "blurred color").format(mFormat).bindFlags(ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget);
 
     // set correct input format and dimensions of the ping pong buffer
     auto edge = compileData.connectedResources.getField(kColor);
     if (edge)
     {
-        const auto inputFormat = edge->getFormat();
         const auto srcWidth = edge->getWidth();
         const auto srcHeight = edge->getHeight();
 
-        mLastFormat = inputFormat;
-        colorField.format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, 1);
-        pingpongField.format(inputFormat).texture2D(srcWidth, srcHeight, 1, 1, 1);
+        reflector.addInternal(kPingPong, "").texture2D(srcWidth, srcHeight, 1, 1, 1);
+        reflector.addOutput(kColorOut, "").texture2D(srcWidth, srcHeight, 1, 1, 1);
 
         mReady = true;
     }
-    else colorField.format(mLastFormat);
 
     return reflector;
 }
@@ -112,6 +111,7 @@ void CrossBilateralBlur::execute(RenderContext* pRenderContext, const RenderData
     if (!mEnabled) return;
 
     auto pColor = renderData[kColor]->asTexture();
+    auto pColorOut = renderData[kColorOut]->asTexture();
     auto pPingPong = renderData[kPingPong]->asTexture();
     auto pDepth = renderData[kDepth]->asTexture();
 
@@ -140,7 +140,7 @@ void CrossBilateralBlur::execute(RenderContext* pRenderContext, const RenderData
 
         // blur in y
         mpBlur->getRootVar()["gSrcTex"] = pPingPong;
-        mpFbo->attachColorTarget(pColor, 0);
+        mpFbo->attachColorTarget(pColorOut, 0);
         mpBlur->getRootVar()["Direction"]["dir"] = float2(0.0f, 1.0f);
         mpBlur->execute(pRenderContext, mpFbo, false);
     }

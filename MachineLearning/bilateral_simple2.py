@@ -27,7 +27,22 @@ class PrintWeightsCallback(tf.keras.callbacks.Callback):
             print(f" {variable_name}: {variable_value}", sep=',', end='')
         print()
 
+class SSIMLoss(keras.losses.Loss):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
+    @tf.function
+    def call(self, y_true, y_pred):
+        y_ref = y_true[:, :, :, :, 0]
+        y_max_error = y_true[:, 5:-5, 5:-5, :, 1]
+
+        dssim = 1.0 - tf.image.ssim(y_ref, y_pred, max_val=1.0, return_index_map=True, filter_size=11)
+
+        return dssim * tf.squeeze(y_max_error, axis=-1)
+    
+    def get_config(self):
+        config = super().get_config()
+        return config
 
 
 
@@ -88,7 +103,7 @@ def build_network():
     layer_input_dark = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
     layer_input_depth = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
     
-    bilateral = BilateralBlur(R=2)
+    bilateral = BilateralBlur(R=6)
     bilateral_layer = bilateral([layer_input_bright, layer_input_dark, layer_input_depth])
 
     train_model = keras.models.Model(
@@ -124,6 +139,6 @@ def build_network():
 
 models = build_network()
 #models['train'].load_weights('model_checkpoint.h5')
-process_sample(models, 1000)
+process_sample(models, 4000)
 for name, model in models.items():
     model.save(f'model_{name}.h5')

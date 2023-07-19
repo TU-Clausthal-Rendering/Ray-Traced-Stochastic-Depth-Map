@@ -45,7 +45,6 @@ namespace
     // ray bounds for the stochastic depth map RT
     const std::string kInternalRayMin = "internalRayMin";
     const std::string kInternalRayMax = "internalRayMax";
-    const std::string kDarkMap = "aoDark";
 
     const std::string kRasterShader = "RenderPasses/SVAO/SVAORaster.ps.slang";
     const std::string kRasterShader2 = "RenderPasses/SVAO/SVAORaster2.ps.slang";
@@ -149,7 +148,7 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     reflector.addInput(kNormals, "World space normals, [0, 1] range").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kMatDoubleSided, "Material double sided flag").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kColor, "Color for pixel importance").bindFlags(ResourceBindFlags::ShaderResource);
-    reflector.addOutput(kAmbientMap, "Ambient Occlusion (primary)").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::RenderTarget).format(ResourceFormat::R8Unorm);
+    reflector.addOutput(kAmbientMap, "Ambient Occlusion (bright/dark)").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::RenderTarget).format(ResourceFormat::RG8Unorm);
     reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kAoStencil2, "ping pong for stencil mask").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24);
@@ -158,7 +157,6 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     reflector.addOutput(kInternalRayMin, "internal ray min").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews);
     reflector.addOutput(kInternalRayMax, "internal ray max").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews);
 
-    reflector.addOutput(kDarkMap, "lower bound for AO (dark halos)").format(ResourceFormat::R8Unorm).bindFlags(ResourceBindFlags::AllColorViews);
     return reflector;
 }
 
@@ -217,8 +215,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
     auto pInternalRayMin = renderData[kInternalRayMin]->asTexture();
     auto pInternalRayMax = renderData[kInternalRayMax]->asTexture();
-
-    auto pDarkMap = renderData[kDarkMap]->asTexture();
 
     if (!mEnabled)
     {
@@ -296,7 +292,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
     mpFbo->attachColorTarget(pAoDst, 0);
     mpFbo->attachColorTarget(pAoMask, 1);
-    mpFbo->attachColorTarget(pDarkMap, 2);
     //mpFbo->attachColorTarget(mEnableRayFilter ? pAoMask2 : pAoMask, 1);
 
     auto pCamera = mpScene->getCamera().get();

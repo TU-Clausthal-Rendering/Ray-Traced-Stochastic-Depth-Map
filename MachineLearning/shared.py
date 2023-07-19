@@ -149,14 +149,14 @@ class BilateralBlur(tf.keras.layers.Layer):
         self.depth_variance = self.add_weight(
             name='depth_variance', 
             #initializer=keras.initializers.Constant(0.001),
-            initializer=keras.initializers.Constant(0.002),
+            initializer=keras.initializers.Constant(0.0012),
             constraint=GreaterThanConstraint(epsilon=1e-7),
             trainable=True
         )
         self.spatial_variance = self.add_weight(
             name='spatial_variance', 
             #initializer=keras.initializers.Constant(10.0),
-            initializer=keras.initializers.Constant(17.67),
+            initializer=keras.initializers.Constant(16.4),
             constraint=GreaterThanConstraint(epsilon=1e-7),
             trainable=True
         )
@@ -168,12 +168,12 @@ class BilateralBlur(tf.keras.layers.Layer):
         )
         self.dark_epsilon = self.add_weight(
             name='dark_epsilon',
-            initializer=keras.initializers.Constant(0.083),
+            initializer=keras.initializers.Constant(0.137),
             constraint=GreaterThanConstraint(epsilon=1e-8),
         )
         self.contrast_enhance = self.add_weight(
             name='contrast_enhance',
-            initializer=keras.initializers.Constant(1.0),
+            initializer=keras.initializers.Constant(1.66),
             constraint=GreaterThanConstraint(epsilon=0.1),
         )
 

@@ -343,14 +343,14 @@ struct RayData // cannot be compressed to half floats => no diff in rendering ti
 
 void traceAORay(RayDesc ray, inout RayData rayData);
 
-float calcAO2(uint2 svPos, uint mask)
+float2 calcAO2(uint2 svPos, uint mask)
 {
     float2 texC = (float2(svPos) + 0.5) * gData.invResolution;
 
     BasicAOData data;
     data.Init(texC);
 
-    float visibility = 0.0f;
+    float2 visibility = 0.0f;
 
     uint i = 0;
     //[loop] while(mask != 0u)
@@ -380,7 +380,7 @@ float calcAO2(uint2 svPos, uint mask)
         else // DEPTH_MODE == DUAL
             s.evalDualVisibility(data);
         float curVisibility = s.visibility;
-        visibility -= s.visibility;
+        visibility.x -= s.visibility; // subtract old visibility from raster for bright channel
         
         if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
         {
@@ -391,6 +391,7 @@ float calcAO2(uint2 svPos, uint mask)
 
             const float depthRange = gCamera.data.farZ - gCamera.data.nearZ;
             const float depthOffset = gCamera.data.nearZ;
+            bool stochInside = false;
             [unroll]
             for (uint i = 0; i < MSAA_SAMPLES; ++i)
             {
@@ -399,9 +400,13 @@ float calcAO2(uint2 svPos, uint mask)
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(s.rasterSamplePosUV, linearSampleDepth);
                 float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
+                if (objectSpaceZ <= gData.radius + gData.thickness * gData.radius && objectSpaceZ >= -gData.radius)
+                    stochInside = true;
                 float newVisibility = calcVisibility(objectSpaceZ, s.sphereStart, s.sphereEnd, s.pdf);
                 curVisibility = COMBINE_VIS(curVisibility, newVisibility);
             }
+            // if (!stochInside) visibility.y -= curVisibility; // keep dark term dark (+= curVisibility will be performed at the end)
+
         }
         else if (SECONDARY_DEPTH_MODE == DEPTH_MODE_RAYTRACING)
         {

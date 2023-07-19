@@ -63,5 +63,5 @@ private:
     bool mReady = false;
 
     ref<FullScreenPass> mpBlur;
-    ResourceFormat mLastFormat = ResourceFormat::RGBA32Float;
+    ResourceFormat mFormat = ResourceFormat::R8Unorm; // ao default
 };
