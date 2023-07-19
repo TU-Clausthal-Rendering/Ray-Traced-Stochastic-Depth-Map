@@ -46,7 +46,6 @@ struct GSOut
     uint triangleIndex : SV_PrimitiveID;
 };
 
-
 [maxvertexcount(6)]
 void gsMain(triangle GSIn gin[3], uint triangleIndex : SV_PrimitiveID, inout TriangleStream<GSOut> t)
 {

@@ -29,10 +29,38 @@ cbuffer Direction
 //#define SPATIAL_VARIANCE 0.134
 //#define DEV_EXPONENT 1.0
 //#define DARK_EPSILON 0.01
-#define DEPTH_VARIANCE  0.002
-#define SPATIAL_VARIANCE 17.67
+//#define ENHANCE_CONTRAST 1.0
+
+//#define DEPTH_VARIANCE  0.002
+//#define SPATIAL_VARIANCE 17.67
+//#define DEV_EXPONENT 1.0
+//#define DARK_EPSILON 0.083
+//#define ENHANCE_CONTRAST 1.0
+
+#if KERNEL_RADIUS < 3
+
+#define DEPTH_VARIANCE  0.0012
+#define SPATIAL_VARIANCE 16.4
 #define DEV_EXPONENT 1.0
-#define DARK_EPSILON 0.083
+#define DARK_EPSILON 0.138
+#define ENHANCE_CONTRAST 1.66
+
+#else
+// for radius 6:
+// MSE
+#define DEPTH_VARIANCE  0.0012
+#define SPATIAL_VARIANCE 3.57
+#define DEV_EXPONENT 1.0
+#define DARK_EPSILON 0.141
+#define ENHANCE_CONTRAST 1.64
+// SSIM
+//#define DEPTH_VARIANCE 0.0015
+//#define SPATIAL_VARIANCE 1.3
+//#define DEV_EXPONENT 1.0
+//#define DARK_EPSILON 0.18
+//#define ENHANCE_CONTRAST 1.25
+
+#endif
 
 #define BRIGHT(v) (v.x)
 #define DARK(v) (v.y)
@@ -119,8 +147,8 @@ float4 main(BlurPSIn pIn) : SV_TARGET
             sampleAOSq = getColor(uv).zw; // squared values will be in the last two channels
         
         //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), 0.028);
-        //float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
-        float importanceWeight = 1.0;
+        float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
+        //float importanceWeight = 1.0;
         //float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float relativeDepth = abs(getDepth(uv) / localDepth - 1.0); // 0.0 = same depth
         float depthWeight = kernel(relativeDepth, DEPTH_VARIANCE);
@@ -166,7 +194,7 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         // local deviation
         float2 ldev = pow(abs(cOriginal - means), DEV_EXPONENT);
         ldev.y = max(ldev.y, DARK_EPSILON); // prevent division by zero
-        //ldev.x *= 1.1; // contrast enhancement
+        ldev.x *= ENHANCE_CONTRAST; // contrast enhancement
         float2 w = ldev.yx / (ldev.x + ldev.y);
         if (LOCAL_DEVIATION)
             c = dot(cOriginal, w); // interpolate from original color value
@@ -180,6 +208,7 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         float2 adev = pow(abs(meansSq - means * means), DEV_EXPONENT * 0.5);
         adev.y = max(adev.y, DARK_EPSILON); // prevent division by zero
         w = adev.yx / (adev.x + adev.y);
+        adev.x *= ENHANCE_CONTRAST; // contrast enhancement
         if (!LOCAL_DEVIATION)
             c = dot(cOriginal, w); // interpolate from original color value
         
