@@ -49,6 +49,7 @@ class AoLoss(keras.losses.Loss):
     def call(self, y_true, y_pred):
         y_ref = y_true[:, :, :, :, 0]
         y_max_error = y_true[:, :, :, :, 1]
+        y_max_error = tf.square(y_max_error) # square max error
 
         # multiply with max error
         y_ref = tf.math.multiply(y_ref, y_max_error)
@@ -160,15 +161,20 @@ class BilateralBlur(tf.keras.layers.Layer):
             constraint=GreaterThanConstraint(epsilon=1e-7),
             trainable=True
         )
+        #self.importance_variance = self.add_weight(
+        #    name='importance_variance',
+        #    initializer=keras.initializers.Constant(1.0),
+        #    constraint=GreaterThanConstraint(epsilon=1e-7),
+        #)
         self.dev_exponent = self.add_weight(
             name='dev_exponent',
             #initializer=keras.initializers.Constant(2.0),
             initializer=keras.initializers.Constant(1.0),
-            constraint=GreaterThanConstraint(epsilon=1.0) # produces nan below 1?
+            constraint=GreaterThanConstraint(epsilon=1.0) 
         )
         self.dark_epsilon = self.add_weight(
             name='dark_epsilon',
-            initializer=keras.initializers.Constant(0.137),
+            initializer=keras.initializers.Constant(0.138),
             constraint=GreaterThanConstraint(epsilon=1e-8),
         )
         self.contrast_enhance = self.add_weight(
@@ -192,9 +198,12 @@ class BilateralBlur(tf.keras.layers.Layer):
         w_depth = tf.exp(-tf.square(rel_depth_x) / (2 * self.depth_variance))
         # apply gaussian kernel to spatial distances
         w_spatial = tf.exp(-tf.square(self.spatial_dist) / (2 * self.spatial_variance))
+        # calc importance weights
+        #w_importance = tf.maximum(bright_x - dark_x, 0.0)
+        #w_importance = tf.exp(-tf.square(w_importance) / (2 * self.importance_variance))
 
         # apply spatial weights
-        w_x = w_depth * w_spatial
+        w_x = w_depth * w_spatial #* w_importance
 
         # normalize the weights
         w_x = tf.divide(w_x, tf.reduce_sum(w_x, axis=-1, keepdims=True))
@@ -204,6 +213,9 @@ class BilateralBlur(tf.keras.layers.Layer):
         dark_x = tf.reduce_sum(tf.multiply(dark_x, w_x), axis=-1, keepdims=True)
 
         return bright_x, dark_x
+
+    def custom_pow(self, a, b):
+        return tf.math.exp(tf.math.multiply(b, tf.math.log(tf.maximum(a, 1e-8))))
 
     def call(self, inputs):
         bright, dark, depths = inputs # color = AO bright/dark values
@@ -223,8 +235,8 @@ class BilateralBlur(tf.keras.layers.Layer):
         bright_mean, dark_mean = self.do_blur(bright_y, dark_y, depths_y, depths)
 
         # compute the local deviation
-        dev_bright = tf.math.pow(tf.abs(bright - bright_mean), self.dev_exponent)
-        dev_dark = tf.math.pow(tf.abs(dark - dark_mean), self.dev_exponent)
+        dev_bright = self.custom_pow(tf.abs(bright - bright_mean), self.dev_exponent)
+        dev_dark = self.custom_pow(tf.abs(dark - dark_mean), self.dev_exponent)
         # prevent division by zero
         dev_dark = tf.maximum(dev_dark, self.dark_epsilon)
         # enhance dark contrast

@@ -26,6 +26,10 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #include "DepthPeelSinglePass.h"
+#include "Core/API/NativeHandleTraits.h"
+#include "Core/API/NativeFormats.h"
+#include <d3d12.h>
+#include <wrl/client.h>
 
 namespace
 {
@@ -71,6 +75,15 @@ DepthPeelSinglePass::DepthPeelSinglePass(ref<Device> pDevice, const Properties& 
 {
     mpState = GraphicsState::create(mpDevice);
     mpFbo = Fbo::create(mpDevice);
+
+    auto pRawDevice = mpDevice->getNativeHandle().as<ID3D12Device*>();
+    D3D12_FEATURE_DATA_D3D12_OPTIONS d3d12Options = {};
+    pRawDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &d3d12Options, sizeof(d3d12Options));
+
+    if(!d3d12Options.VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation)
+    {
+        logWarning("DepthPeelSinglePass requires VPAndRTArrayIndexFromAnyShaderFeedingRasterizerSupportedWithoutGSEmulation");
+    }
 }
 
 Properties DepthPeelSinglePass::getProperties() const
@@ -158,7 +171,7 @@ void DepthPeelSinglePass::setScene(RenderContext* pRenderContext, const ref<Scen
     {
         Program::Desc desc;
         desc.addShaderModules(mpScene->getShaderModules());
-        desc.addShaderLibrary(kProgramFile).vsEntry("vsMain").gsEntry("gsMain").psEntry("psMain");
+        desc.addShaderLibrary(kProgramFile).vsEntry("vsMain").psEntry("psMain");
         desc.addTypeConformances(mpScene->getTypeConformances());
         desc.setShaderModel("6_2");
         auto pProgram = GraphicsProgram::create(mpDevice, desc, mpScene->getSceneDefines());

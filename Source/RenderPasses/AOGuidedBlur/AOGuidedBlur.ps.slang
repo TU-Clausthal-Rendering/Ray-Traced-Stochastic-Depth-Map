@@ -24,18 +24,7 @@ cbuffer Direction
     float2 dir;
 }
 
-// settings
-//#define DEPTH_VARIANCE 0.001
-//#define SPATIAL_VARIANCE 0.134
-//#define DEV_EXPONENT 1.0
-//#define DARK_EPSILON 0.01
-//#define ENHANCE_CONTRAST 1.0
 
-//#define DEPTH_VARIANCE  0.002
-//#define SPATIAL_VARIANCE 17.67
-//#define DEV_EXPONENT 1.0
-//#define DARK_EPSILON 0.083
-//#define ENHANCE_CONTRAST 1.0
 
 #if KERNEL_RADIUS < 3
 
@@ -44,6 +33,12 @@ cbuffer Direction
 #define DEV_EXPONENT 1.0
 #define DARK_EPSILON 0.138
 #define ENHANCE_CONTRAST 1.66
+
+//#define DEPTH_VARIANCE  0.0023
+//#define SPATIAL_VARIANCE 17.42
+//#define DEV_EXPONENT 1.0
+//#define DARK_EPSILON 0.225
+//#define ENHANCE_CONTRAST 1.16
 
 #else
 // for radius 6:
@@ -61,6 +56,13 @@ cbuffer Direction
 //#define ENHANCE_CONTRAST 1.25
 
 #endif
+
+// original params w/o optimze
+//#define DEPTH_VARIANCE 0.001
+//#define SPATIAL_VARIANCE 0.134
+//#define DEV_EXPONENT 1.0
+//#define DARK_EPSILON 0.01
+//#define ENHANCE_CONTRAST 1.0
 
 #define BRIGHT(v) (v.x)
 #define DARK(v) (v.y)
@@ -146,9 +148,9 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         if (dir.y != 0) // second iteration
             sampleAOSq = getColor(uv).zw; // squared values will be in the last two channels
         
-        //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), 0.028);
-        float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
-        //float importanceWeight = 1.0;
+        //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), 1.0);
+        //float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
+        float importanceWeight = 1.0;
         //float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float relativeDepth = abs(getDepth(uv) / localDepth - 1.0); // 0.0 = same depth
         float depthWeight = kernel(relativeDepth, DEPTH_VARIANCE);

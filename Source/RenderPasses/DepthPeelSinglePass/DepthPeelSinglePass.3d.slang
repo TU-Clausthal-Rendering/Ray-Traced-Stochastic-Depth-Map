@@ -28,12 +28,21 @@
 import Scene.Raster;
 import Utils.Math.MathHelpers;
 
-VSOut vsMain(VSIn vIn)
+struct VSOutEx
 {
-    return defaultVS(vIn);
+    VSOut vsOut;
+    uint rtIndex : SV_RenderTargetArrayIndex;
+};
+
+VSOutEx vsMain(VSIn vIn)
+{
+    VSOutEx o;
+    o.vsOut = defaultVS(vIn);
+    o.rtIndex = 1;
+    return o;
 }
 
-struct GSIn
+/*struct GSIn
 {
     VSOut vsOut;
     //uint triangleIndex : SV_PrimitiveID;
@@ -65,7 +74,7 @@ void gsMain(triangle GSIn gin[3], uint triangleIndex : SV_PrimitiveID, inout Tri
         t.Append(o);
         t.RestartStrip();
     }
-}
+}*/
 
 Texture2D<float> prevDepthTex;
 
@@ -95,8 +104,8 @@ void psMain(VSOut vsOut, uint rtIndex : SV_RenderTargetArrayIndex, uint triangle
     // do approximate depth peeling
     //float2 mvec = computeMotionVector(vsOut, int2(vsOut.posH.xy));
 
-    float prevDepth = prevDepthTex[int2(vsOut.posH.xy)].x;
+    /*float prevDepth = prevDepthTex[int2(vsOut.posH.xy)].x;
     if (vsOut.posH.z <= prevDepth)
         discard; // only accept smaller depths
-
+*/
 }

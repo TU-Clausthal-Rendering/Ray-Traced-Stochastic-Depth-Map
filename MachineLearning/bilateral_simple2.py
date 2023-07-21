@@ -44,6 +44,28 @@ class SSIMLoss(keras.losses.Loss):
         config = super().get_config()
         return config
 
+class GradientLoss(keras.losses.Loss):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @tf.function
+    def call(self, y_true, y_pred):
+        y_ref = y_true[:, :, :, :, 0]
+        y_max_error = y_true[:, :, :, :, 1]
+
+        # calculate gradient
+        y_pred_gradient = tf.image.sobel_edges(y_pred)
+        y_ref_gradient = tf.image.sobel_edges(y_ref)
+
+        y_gradient_error = tf.abs(y_pred_gradient - y_ref_gradient)
+        y_gradient_error = tf.squeeze(y_gradient_error, axis=[3]) # create 4D tensor with 2 channels
+        
+        y_value_error = tf.abs(y_pred - y_ref)
+
+        y_loss = tf.square(y_value_error) + tf.square(y_gradient_error)
+        y_loss = y_loss * y_max_error # prioritize loss in error prone areas
+
+        return y_loss
 
 
 # returns true if sample was processed, false if sample was not processed because it does not exist
@@ -103,7 +125,7 @@ def build_network():
     layer_input_dark = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
     layer_input_depth = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
     
-    bilateral = BilateralBlur(R=6)
+    bilateral = BilateralBlur(R=2)
     bilateral_layer = bilateral([layer_input_bright, layer_input_dark, layer_input_depth])
 
     train_model = keras.models.Model(
@@ -125,7 +147,8 @@ def build_network():
         model.compile(optimizer='adam', loss='mean_squared_error')
 
     # special loss for train model
-    loss = AoLoss()
+    #loss = AoLoss()
+    loss = GradientLoss()
     #loss = SSIMLoss()
     #loss = 'mean_squared_error'
     optimizer = keras.optimizers.Adam(learning_rate=0.001)
