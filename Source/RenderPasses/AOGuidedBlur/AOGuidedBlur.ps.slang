@@ -33,12 +33,24 @@ cbuffer Direction
 #define DEV_EXPONENT 1.0
 #define DARK_EPSILON 0.138
 #define ENHANCE_CONTRAST 1.66
+//#define IMPORTANCE_VARIANCE 5.0
+#define IMPORTANCE_EXPONENT 1.0
 
-//#define DEPTH_VARIANCE  0.0023
-//#define SPATIAL_VARIANCE 17.42
-//#define DEV_EXPONENT 1.0
-//#define DARK_EPSILON 0.225
-//#define ENHANCE_CONTRAST 1.16
+// optimized
+#define DEPTH_VARIANCE  0.0004
+#define SPATIAL_VARIANCE 13.16
+#define IMPORTANCE_EXPONENT 2.37
+#define DEV_EXPONENT 0.3
+#define DARK_EPSILON 0.375
+#define ENHANCE_CONTRAST 0.95
+
+// optimized city
+#define DEPTH_VARIANCE  0.0049
+#define SPATIAL_VARIANCE 10.4
+#define IMPORTANCE_EXPONENT 2.19
+#define DEV_EXPONENT 0.32
+#define DARK_EPSILON 0.76
+#define ENHANCE_CONTRAST 0.40
 
 #else
 // for radius 6:
@@ -48,12 +60,22 @@ cbuffer Direction
 #define DEV_EXPONENT 1.0
 #define DARK_EPSILON 0.141
 #define ENHANCE_CONTRAST 1.64
-// SSIM
-//#define DEPTH_VARIANCE 0.0015
-//#define SPATIAL_VARIANCE 1.3
-//#define DEV_EXPONENT 1.0
-//#define DARK_EPSILON 0.18
-//#define ENHANCE_CONTRAST 1.25
+#define IMPORTANCE_EXPONENT 1.0
+
+#define DEPTH_VARIANCE 0.0008
+#define SPATIAL_VARIANCE 8.0
+#define IMPORTANCE_EXPONENT 2.23
+#define DEV_EXPONENT 0.35
+#define DARK_EPSILON 0.36
+#define ENHANCE_CONTRAST 1.015
+
+// optimized city
+#define DEPTH_VARIANCE 0.0027
+#define SPATIAL_VARIANCE 6.68
+#define IMPORTANCE_EXPONENT 2.84
+#define DEV_EXPONENT 0.365
+#define DARK_EPSILON 0.75
+#define ENHANCE_CONTRAST 0.46
 
 #endif
 
@@ -148,9 +170,9 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         if (dir.y != 0) // second iteration
             sampleAOSq = getColor(uv).zw; // squared values will be in the last two channels
         
-        //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), 1.0);
-        //float importanceWeight = 1.0 - max(BRIGHT(sampleAO) - DARK(sampleAO), 0.001);
-        float importanceWeight = 1.0;
+        //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), IMPORTANCE_VARIANCE);
+        float importanceWeight = pow(max(BRIGHT(sampleAO) - DARK(sampleAO), 1e-8), IMPORTANCE_EXPONENT);
+        //float importanceWeight = 1.0;
         //float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float relativeDepth = abs(getDepth(uv) / localDepth - 1.0); // 0.0 = same depth
         float depthWeight = kernel(relativeDepth, DEPTH_VARIANCE);
