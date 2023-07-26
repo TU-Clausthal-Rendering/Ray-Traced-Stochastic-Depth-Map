@@ -4,6 +4,7 @@ target_sources(TemporalDepthPeel PRIVATE
     TemporalDepthPeel.cpp
     TemporalDepthPeel.h
     TemporalDepthPeel.ps.slang
+    TemporalDepthPeelRaster.3d.slang
 )
 
 target_copy_shaders(TemporalDepthPeel RenderPasses/TemporalDepthPeel)

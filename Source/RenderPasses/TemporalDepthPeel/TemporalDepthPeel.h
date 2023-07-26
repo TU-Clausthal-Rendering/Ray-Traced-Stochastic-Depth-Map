@@ -35,6 +35,18 @@ using namespace Falcor;
 class TemporalDepthPeel : public RenderPass
 {
 public:
+    enum class Implementation
+    {
+        Iterative,
+        Raster
+    };
+
+    FALCOR_ENUM_INFO(Implementation,
+    {
+           { Implementation::Iterative, "Iterative" },
+           { Implementation::Raster, "Raster" }
+    });
+
     FALCOR_PLUGIN_CLASS(TemporalDepthPeel, "TemporalDepthPeel", "Insert pass description here.");
 
     static ref<TemporalDepthPeel> create(ref<Device> pDevice, const Properties& props) { return make_ref<TemporalDepthPeel>(pDevice, props); }
@@ -52,8 +64,9 @@ public:
 
 private:
     ref<Texture> allocatePrevFrameTexture(const ref<Texture>& original, ref<Texture> prev) const;
+    ref<Buffer> genIndexBuffer(uint2 res) const;
 
-    ref<FullScreenPass> mpPass;
+    ref<FullScreenPass> mpIterPass;
     ref<Fbo> mpFbo;
 
     ref<Texture> mpPrevDepth;
@@ -61,4 +74,11 @@ private:
 
     ref<Scene> mpScene;
     bool mEnabled = true;
+    Implementation mImplementation = Implementation::Raster;
+
+    ref<Buffer> mRasterIndexBuffer;
+    ref<GraphicsState> mpRasterState;
+    ref<GraphicsVars> mpRasterVars;
 };
+
+FALCOR_ENUM_REGISTER(TemporalDepthPeel::Implementation);

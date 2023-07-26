@@ -115,8 +115,6 @@ void CrossBilateralBlur::execute(RenderContext* pRenderContext, const RenderData
     auto pPingPong = renderData[kPingPong]->asTexture();
     auto pDepth = renderData[kDepth]->asTexture();
 
-    assert(pColor->getFormat() == pPingPong->getFormat());
-
     // set resources if they changed
     if (mpBlur->getRootVar()["gDepthTex"].getTexture() != pDepth)
     {

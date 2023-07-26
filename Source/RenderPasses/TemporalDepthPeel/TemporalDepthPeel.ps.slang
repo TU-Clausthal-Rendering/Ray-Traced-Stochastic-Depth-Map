@@ -158,6 +158,12 @@ struct PsOut
     float depth2 : SV_Target0;
 };
 
+float maxComponent(float4 v)
+{
+    //return max(max(v.x, v.y), max(v.z, v.w));
+    return (v.x + v.y + v.z + v.w) * 0.25;
+}
+
 PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 {
     float depth = gDepth.SampleLevel(gDepthSampler, texC, 0.0);
@@ -197,6 +203,8 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         float d[2];
         d[0] = gPrevDepth.SampleLevel(gDepthSampler, uvmid, 0.0);
         d[1] = gPrevDepth2.SampleLevel(gDepthSampler, uvmid, 0.0);
+        //d[0] = maxComponent(gPrevDepth.Gather(gDepthSampler, uvmid));
+        //d[1] = maxComponent(gPrevDepth2.Gather(gDepthSampler, uvmid));
         d[1] = max(d[0], d[1]); // d[1] can be zero if it was invalid
 
         float2 curUV;

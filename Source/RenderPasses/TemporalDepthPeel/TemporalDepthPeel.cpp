@@ -26,6 +26,8 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #include "TemporalDepthPeel.h"
+
+#include "Core/API/VAO.h"
 //#include "../Utils/GuardBand/guardband.h"
 
 namespace
@@ -34,7 +36,8 @@ namespace
     const std::string kDepth = "linearZ";
     const std::string kDepthOut = "depth2";
 
-    const std::string kShaderFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeel.ps.slang";
+    const std::string kIterativeFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeel.ps.slang";
+    const std::string kRasterFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeelRaster.3d.slang";
 
 }
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -45,17 +48,26 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
 TemporalDepthPeel::TemporalDepthPeel(ref<Device> pDevice, const Properties& props)
     : RenderPass(pDevice)
 {
-    mpPass = FullScreenPass::create(mpDevice, kShaderFilename);
+    mpIterPass = FullScreenPass::create(mpDevice, kIterativeFilename);
     mpFbo = Fbo::create(pDevice);
+
+
+
+    mpRasterState = GraphicsState::create(mpDevice);
+    auto rasterProgram = GraphicsProgram::createFromFile(mpDevice, kRasterFilename, "vsMain", "psMain");
+    mpRasterState->setProgram(rasterProgram);
+
+    mpRasterVars = GraphicsVars::create(mpDevice, rasterProgram->getReflector());
+
 
     { // depth sampler
         Sampler::Desc samplerDesc;
         samplerDesc.setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear);
         samplerDesc.setAddressingMode(Sampler::AddressMode::Border, Sampler::AddressMode::Border, Sampler::AddressMode::Border);
         samplerDesc.setBorderColor(float4(0.0f));
-        mpPass->getRootVar()["gDepthSampler"] = Sampler::create(pDevice, samplerDesc);
+        mpIterPass->getRootVar()["gDepthSampler"] = Sampler::create(pDevice, samplerDesc);
+        mpRasterVars->getRootVar()["gDepthSampler"] = Sampler::create(pDevice, samplerDesc);
     }
-
 }
 
 Properties TemporalDepthPeel::getProperties() const
@@ -76,6 +88,10 @@ void TemporalDepthPeel::compile(RenderContext* pRenderContext, const CompileData
 {
     mpPrevDepth.reset();
     mpPrevDepth2.reset();
+
+    mRasterIndexBuffer = genIndexBuffer(compileData.defaultTexDims);
+    auto vao = Vao::create(Vao::Topology::TriangleList, nullptr, Vao::BufferVec(), mRasterIndexBuffer, ResourceFormat::R32Uint);
+    mpRasterState->setVao(vao);
 }
 
 void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -100,24 +116,43 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
 
     //auto& dict = renderData.getDictionary();
     //auto guardBand = dict.getValue("guardBand", 0);
-    //setGuardBandScissors(*mpPass->getState(), renderData.getDefaultTextureDims(), guardBand);
+    //setGuardBandScissors(*mpIterPass->getState(), renderData.getDefaultTextureDims(), guardBand);
 
-    auto vars = mpPass->getRootVar();
-    vars["gMotionVec"] = pMotionVec;
+    ShaderVar vars;
+    if (mImplementation == Implementation::Iterative) vars = mpIterPass->getRootVar();
+    else if(mImplementation == Implementation::Raster) vars = mpRasterVars->getRootVar();
+
+    // set common vars
     vars["gDepth"] = pDepth;
     vars["gPrevDepth"] = mpPrevDepth;
     vars["gPrevDepth2"] = mpPrevDepth2;
 
     mpScene->getCamera()->setShaderData(vars["PerFrameCB"]["gCamera"]);
+
     auto conversionMat = math::mul(mpScene->getCamera()->getViewMatrix(), math::inverse(mpScene->getCamera()->getPrevViewMatrix()));
     vars["PerFrameCB"]["prevViewToCurView"] = conversionMat;
     conversionMat = math::mul(mpScene->getCamera()->getPrevViewMatrix(), math::inverse(mpScene->getCamera()->getViewMatrix()));
     vars["PerFrameCB"]["curViewToPrevView"] = conversionMat;
-    //vars["PerFrameCB"]["uvMin"] = dict.getValue("guardBand.uvMin", float2(0.0f));
-    //vars["PerFrameCB"]["uvMax"] = dict.getValue("guardBand.uvMax", float2(1.0f));
 
-    mpFbo->attachColorTarget(pDepthOut, 0);
-    mpPass->execute(pRenderContext, mpFbo, true);
+    if(mImplementation == Implementation::Iterative)
+    {
+        vars["gMotionVec"] = pMotionVec;
+
+        mpFbo->attachColorTarget(pDepthOut, 0);
+        mpIterPass->execute(pRenderContext, mpFbo, true);
+    }
+    else if(mImplementation == Implementation::Raster)
+    {
+        // clear pDepthOut before drawing
+        pRenderContext->clearTexture(pDepthOut.get(), float4(0.0f));
+
+        vars["PerFrameCB"]["resolution"] = renderData.getDefaultTextureDims();
+
+        mpFbo->attachColorTarget(pDepthOut, 0);
+        mpRasterState->setFbo(mpFbo, true);
+
+        pRenderContext->drawIndexed(mpRasterState.get(), mpRasterVars.get(), mRasterIndexBuffer->getElementCount(), 0, 0);
+    }
 
     // save depth and ao from this frame for next frame
     pRenderContext->blit(pDepth->getSRV(), mpPrevDepth->getRTV());
@@ -127,6 +162,8 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
 void TemporalDepthPeel::renderUI(Gui::Widgets& widget)
 {
     widget.checkbox("Enable", mEnabled);
+
+    widget.dropdown("Implementation", mImplementation);
 }
 
 void TemporalDepthPeel::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
@@ -145,4 +182,38 @@ ref<Texture> TemporalDepthPeel::allocatePrevFrameTexture(const ref<Texture>& ori
     if (!allocate) return prev;
 
     return Texture::create2D(mpDevice, original->getWidth(), original->getHeight(), original->getFormat(), 1, 1, nullptr, original->getBindFlags());
+}
+
+ref<Buffer> TemporalDepthPeel::genIndexBuffer(uint2 res) const
+{
+    size_t numQuads = (res.x - 1) * (res.y - 1);
+    size_t numVertices = numQuads * 6;
+
+    std::vector<uint32_t> indices(numVertices);
+
+    auto calcVertexIndex = [&](size_t x, size_t y)
+    {
+        return uint32_t(y * res.x + x);
+    };
+
+    for(size_t y = 0; y < res.y - 1; ++y)
+    {
+        for(size_t x = 0; x < res.x - 1; ++x)
+        {
+            size_t quadIndex = y * (res.x - 1) + x;
+            size_t vertexIndex = quadIndex * 6;
+            // triangle 1 (cw)
+            indices[vertexIndex + 0] = calcVertexIndex(x + 0, y + 0);
+            indices[vertexIndex + 1] = calcVertexIndex(x + 1, y + 0);
+            indices[vertexIndex + 2] = calcVertexIndex(x + 0, y + 1);
+
+            // triangle 2 (cw)
+            indices[vertexIndex + 3] = calcVertexIndex(x + 1, y + 0);
+            indices[vertexIndex + 4] = calcVertexIndex(x + 1, y + 1);
+            indices[vertexIndex + 5] = calcVertexIndex(x + 0, y + 1);
+        }
+    }
+    
+    //return Buffer::create(mpDevice, numVertices * sizeof(indices[0]), Resource::BindFlags::Index, Buffer::CpuAccess::None, indices.data());
+    return Buffer::createStructured(mpDevice, sizeof(indices[0]), (uint32_t)numVertices, Resource::BindFlags::Index, Buffer::CpuAccess::None, indices.data());
 }
