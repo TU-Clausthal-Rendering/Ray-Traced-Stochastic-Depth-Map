@@ -41,6 +41,7 @@ namespace
 
     const std::string kKernelRadius = "kernelRadius";
     const std::string kClampResults = "clampResults";
+    const std::string kEnabled = "enabled";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -55,6 +56,7 @@ ref<AOGuidedBlur> AOGuidedBlur::create(ref<Device> pDevice, const Properties& di
     {
         if (key == kKernelRadius) pPass->mKernelRadius = value;
         else if (key == kClampResults) pPass->mClampResults = value;
+        else if (key == kEnabled) pPass->mEnabled = value;
         else logWarning("Unknown field '" + key + "' in a AOGuidedBlur dictionary");
     }
     return pPass;
@@ -74,6 +76,7 @@ Properties AOGuidedBlur::getProperties() const
     Properties dict;
     dict[kKernelRadius] = mKernelRadius;
     dict[kClampResults] = mClampResults;
+    dict[kEnabled] = mEnabled;
     return dict;
 }
 

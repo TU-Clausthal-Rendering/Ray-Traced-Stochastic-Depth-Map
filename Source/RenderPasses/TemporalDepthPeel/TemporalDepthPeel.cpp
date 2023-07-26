@@ -27,7 +27,10 @@
  **************************************************************************/
 #include "TemporalDepthPeel.h"
 
+#include "Core/API/RasterizerState.h"
 #include "Core/API/VAO.h"
+#include "../LinearizeDepth/LinearizeDepth.h"
+#include "Core/API/Sampler.h"
 //#include "../Utils/GuardBand/guardband.h"
 
 namespace
@@ -35,6 +38,8 @@ namespace
     const std::string kMotionVec = "mvec";
     const std::string kDepth = "linearZ";
     const std::string kDepthOut = "depth2";
+
+    //const std::string kRawDepth = "rawDepth2"; 
 
     const std::string kIterativeFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeel.ps.slang";
     const std::string kRasterFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeelRaster.3d.slang";
@@ -50,7 +55,7 @@ TemporalDepthPeel::TemporalDepthPeel(ref<Device> pDevice, const Properties& prop
 {
     mpIterPass = FullScreenPass::create(mpDevice, kIterativeFilename);
     mpFbo = Fbo::create(pDevice);
-
+    mpRasterFbo = Fbo::create(pDevice);
 
 
     mpRasterState = GraphicsState::create(mpDevice);
@@ -59,14 +64,23 @@ TemporalDepthPeel::TemporalDepthPeel(ref<Device> pDevice, const Properties& prop
 
     mpRasterVars = GraphicsVars::create(mpDevice, rasterProgram->getReflector());
 
+    RasterizerState::Desc rasterDesc;
+    rasterDesc.setCullMode(RasterizerState::CullMode::Front);
+    //rasterDesc.setDepthClamp(false);
+    //rasterDesc.setFillMode(RasterizerState::FillMode::Wireframe);
+
+    mpRasterState->setRasterizerState(RasterizerState::create(rasterDesc));
 
     { // depth sampler
         Sampler::Desc samplerDesc;
         samplerDesc.setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear);
         samplerDesc.setAddressingMode(Sampler::AddressMode::Border, Sampler::AddressMode::Border, Sampler::AddressMode::Border);
         samplerDesc.setBorderColor(float4(0.0f));
-        mpIterPass->getRootVar()["gDepthSampler"] = Sampler::create(pDevice, samplerDesc);
-        mpRasterVars->getRootVar()["gDepthSampler"] = Sampler::create(pDevice, samplerDesc);
+        mpIterPass->getRootVar()["gLinearSampler"] = Sampler::create(pDevice, samplerDesc);
+        mpRasterVars->getRootVar()["gLinearSampler"] = Sampler::create(pDevice, samplerDesc);
+        samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point);
+        mpIterPass->getRootVar()["gPointSampler"] = Sampler::create(pDevice, samplerDesc);
+        mpRasterVars->getRootVar()["gPointSampler"] = Sampler::create(pDevice, samplerDesc);
     }
 }
 
@@ -81,6 +95,7 @@ RenderPassReflection TemporalDepthPeel::reflect(const CompileData& compileData)
     reflector.addInput(kDepth, "linear depths").bindFlags(Resource::BindFlags::ShaderResource);
     reflector.addInput(kMotionVec, "Motion vectors").bindFlags(Resource::BindFlags::ShaderResource);
     reflector.addOutput(kDepthOut, "depthOut").format(ResourceFormat::R32Float).bindFlags(ResourceBindFlags::AllColorViews);
+    //reflector.addInternal(kRawDepth, "non-linear depth 2").format(ResourceFormat::D32Float).bindFlags(ResourceBindFlags::AllDepthViews);
     return reflector;
 }
 
@@ -90,7 +105,7 @@ void TemporalDepthPeel::compile(RenderContext* pRenderContext, const CompileData
     mpPrevDepth2.reset();
 
     mRasterIndexBuffer = genIndexBuffer(compileData.defaultTexDims);
-    auto vao = Vao::create(Vao::Topology::TriangleList, nullptr, Vao::BufferVec(), mRasterIndexBuffer, ResourceFormat::R32Uint);
+    auto vao = Vao::create(Vao::Topology::TriangleList, VertexLayout::create(), Vao::BufferVec(), mRasterIndexBuffer, ResourceFormat::R32Uint);
     mpRasterState->setVao(vao);
 }
 
@@ -101,14 +116,9 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
     auto pDepth = renderData[kDepth]->asTexture();
     auto pMotionVec = renderData[kMotionVec]->asTexture();
     auto pDepthOut = renderData[kDepthOut]->asTexture();
+    //auto pRawDepth = renderData[kRawDepth]->asTexture();
 
-    if (!mEnabled)
-    {
-        pRenderContext->blit(pDepth->getSRV(), pDepthOut->getRTV());
-        mpPrevDepth.reset();
-        mpPrevDepth2.reset();
-        return;
-    }
+
 
     // check if resource dimensions changed and allocate texture accordingly
     mpPrevDepth = allocatePrevFrameTexture(pDepth, std::move(mpPrevDepth));
@@ -124,8 +134,6 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
 
     // set common vars
     vars["gDepth"] = pDepth;
-    vars["gPrevDepth"] = mpPrevDepth;
-    vars["gPrevDepth2"] = mpPrevDepth2;
 
     mpScene->getCamera()->setShaderData(vars["PerFrameCB"]["gCamera"]);
 
@@ -137,6 +145,8 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
     if(mImplementation == Implementation::Iterative)
     {
         vars["gMotionVec"] = pMotionVec;
+        vars["gPrevDepth"] = mpPrevDepth;
+        vars["gPrevDepth2"] = mpPrevDepth2;
 
         mpFbo->attachColorTarget(pDepthOut, 0);
         mpIterPass->execute(pRenderContext, mpFbo, true);
@@ -144,19 +154,32 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
     else if(mImplementation == Implementation::Raster)
     {
         // clear pDepthOut before drawing
-        pRenderContext->clearTexture(pDepthOut.get(), float4(0.0f));
+        //pRenderContext->clearTexture(pDepthOut.get(), float4(0.0f));
+        pRenderContext->blit(pDepth->getSRV(), pDepthOut->getRTV());
+        //pRenderContext->clearDsv(pRawDepth->getDSV().get(), 1.0f, 0);
 
         vars["PerFrameCB"]["resolution"] = renderData.getDefaultTextureDims();
 
-        mpFbo->attachColorTarget(pDepthOut, 0);
-        mpRasterState->setFbo(mpFbo, true);
+        mpRasterFbo->attachColorTarget(pDepthOut, 0);
+        mpRasterState->setFbo(mpRasterFbo, true);
 
+        // draw with prev2
+        vars["gPrevDepth"] = mpPrevDepth2;
+        pRenderContext->drawIndexed(mpRasterState.get(), mpRasterVars.get(), mRasterIndexBuffer->getElementCount(), 0, 0);
+
+        // draw with prev
+        vars["gPrevDepth"] = mpPrevDepth;
         pRenderContext->drawIndexed(mpRasterState.get(), mpRasterVars.get(), mRasterIndexBuffer->getElementCount(), 0, 0);
     }
 
     // save depth and ao from this frame for next frame
     pRenderContext->blit(pDepth->getSRV(), mpPrevDepth->getRTV());
     pRenderContext->blit(pDepthOut->getSRV(), mpPrevDepth2->getRTV());
+
+    if (!mEnabled)
+    {
+        pRenderContext->blit(pDepth->getSRV(), pDepthOut->getRTV());
+    }
 }
 
 void TemporalDepthPeel::renderUI(Gui::Widgets& widget)
@@ -204,13 +227,13 @@ ref<Buffer> TemporalDepthPeel::genIndexBuffer(uint2 res) const
             size_t vertexIndex = quadIndex * 6;
             // triangle 1 (cw)
             indices[vertexIndex + 0] = calcVertexIndex(x + 0, y + 0);
-            indices[vertexIndex + 1] = calcVertexIndex(x + 1, y + 0);
             indices[vertexIndex + 2] = calcVertexIndex(x + 0, y + 1);
+            indices[vertexIndex + 1] = calcVertexIndex(x + 1, y + 0);
 
             // triangle 2 (cw)
             indices[vertexIndex + 3] = calcVertexIndex(x + 1, y + 0);
-            indices[vertexIndex + 4] = calcVertexIndex(x + 1, y + 1);
             indices[vertexIndex + 5] = calcVertexIndex(x + 0, y + 1);
+            indices[vertexIndex + 4] = calcVertexIndex(x + 1, y + 1);
         }
     }
     

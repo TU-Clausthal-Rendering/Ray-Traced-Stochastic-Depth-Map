@@ -1,11 +1,10 @@
 import Scene.Camera.Camera;
 
-Texture2D<float2> gMotionVec;
 Texture2D<float> gDepth;
-Texture2D<float> gPrevDepth;
-Texture2D<float> gPrevDepth2;
+Texture2D<float> gPrevDepth; // prev depth OR prev depth 2
 
-SamplerState gDepthSampler;
+SamplerState gLinearSampler;
+SamplerState gPointSampler;
 
 cbuffer PerFrameCB
 {
@@ -44,6 +43,7 @@ float2 ViewSpaceToUV(float3 posV)
 struct VSOut
 {
     float2 texC : TEXCOORD;
+    float originalDepth : DEPTH;
     float4 svPos : SV_POSITION;
 };
 
@@ -53,18 +53,19 @@ VSOut vsMain(uint id : SV_VertexID)
     //uint2 pixel = uint2(id % resolution.x, id / resolution.x);
     uint2 pixel = uint2(id % resolution.x,  (id / resolution.x));
     o.texC = (pixel + 0.5) / float2(resolution);
-    float depth = gDepth[pixel];
+    float depth = gPrevDepth[pixel];
+    o.originalDepth = depth;
     float3 prevPosV = UVToViewSpace(o.texC, depth);
     // transform to current view space and then project it
     float3 curPosV = mul(prevViewToCurView, float4(prevPosV, 1.0)).xyz;
-   
+
     // apply projection
     o.svPos = mul(gCamera.data.projMat, float4(curPosV, 1.0));
     float4 svPos = o.svPos;
-    o.svPos.z = 0.0;
+    //o.svPos.z = 0.0;
     //o.svPos = float4(o.texC, 0.0, 1.0);
 
-    o.texC.r = 1.0; //svPos.y / svPos.w;
+    //o.texC.r = 10.0; //svPos.y / svPos.w;
     return o;
 }
 
@@ -73,20 +74,28 @@ struct PsOut
     float depth2 : SV_Target0;
 };
 
-PsOut psMain(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
+PsOut psMain(float2 texC : TEXCOORD, float originalDepth : DEPTH, float4 svPos : SV_POSITION)
 {
-    float depth = gDepth.SampleLevel(gDepthSampler, texC, 0.0);
+    //float depth = gDepth.SampleLevel(gLinearSampler, , 0.0);
+    float primaryDepth = gDepth[int2(svPos.xy)];
     PsOut o;
-    //o.depth2 = gCamera.data.farZ; // assume far plane
-    //o.depth2 = 0.0;
-    //o.depth2 = 0.5;
-
-    //if (svPos.w > depth + 0.2)
+    o.depth2 = svPos.w;
+    float4 n = gPrevDepth.Gather(gLinearSampler, texC);
+    //float nearestMin = min(min(nearestDepths.x, nearestDepths.y), min(nearestDepths.z, nearestDepths.w));
+    float closestPixelDiff = min(min(abs(n[0] - originalDepth), abs(n[1] - originalDepth)), min(abs(n[2] - originalDepth), abs(n[3] - originalDepth)));
+    if (closestPixelDiff > 0.1)
     {
-        // use this depth
-        o.depth2 = texC.r;
+        o.depth2 = gPrevDepth.Sample(gPointSampler, texC); // overwrite with closest point
+        //discard;
     }
-    //o.depth2 = texC.r* 10.0;
+     
+    
+        
+    //o.depth2 = viewDepth;
+
+    // depth peeling
+    if (o.depth2 < primaryDepth + 0.4)
+        discard;
 
     return o;
 }

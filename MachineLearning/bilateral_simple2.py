@@ -1,5 +1,5 @@
 # config
-dataPath = 'D:/VAO/'
+dataPath = 'D:/VAO/2'
 fileEnding = '.npy'
 
 # imports
@@ -125,7 +125,7 @@ def build_network():
     layer_input_dark = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
     layer_input_depth = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
     
-    bilateral = BilateralBlur(R=2)
+    bilateral = BilateralBlur(R=6)
     bilateral_layer = bilateral([layer_input_bright, layer_input_dark, layer_input_depth])
 
     train_model = keras.models.Model(
@@ -147,8 +147,8 @@ def build_network():
         model.compile(optimizer='adam', loss='mean_squared_error')
 
     # special loss for train model
-    #loss = AoLoss()
-    loss = GradientLoss()
+    loss = AoLoss()
+    #loss = GradientLoss()
     #loss = SSIMLoss()
     #loss = 'mean_squared_error'
     optimizer = keras.optimizers.Adam(learning_rate=0.001)
@@ -162,6 +162,6 @@ def build_network():
 
 models = build_network()
 #models['train'].load_weights('model_checkpoint.h5')
-process_sample(models, 4000)
+process_sample(models, 6000)
 for name, model in models.items():
     model.save(f'model_{name}.h5')

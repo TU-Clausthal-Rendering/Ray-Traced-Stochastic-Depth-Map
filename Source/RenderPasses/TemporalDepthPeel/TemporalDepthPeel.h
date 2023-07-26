@@ -68,6 +68,7 @@ private:
 
     ref<FullScreenPass> mpIterPass;
     ref<Fbo> mpFbo;
+    ref<Fbo> mpRasterFbo;
 
     ref<Texture> mpPrevDepth;
     ref<Texture> mpPrevDepth2;

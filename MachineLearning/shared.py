@@ -150,36 +150,36 @@ class BilateralBlur(tf.keras.layers.Layer):
         self.depth_variance = self.add_weight(
             name='depth_variance', 
             #initializer=keras.initializers.Constant(0.001),
-            initializer=keras.initializers.Constant(0.0012),
+            initializer=keras.initializers.Constant(0.0004),
             constraint=GreaterThanConstraint(epsilon=1e-7),
             trainable=True
         )
         self.spatial_variance = self.add_weight(
             name='spatial_variance', 
             #initializer=keras.initializers.Constant(10.0),
-            initializer=keras.initializers.Constant(16.4),
+            initializer=keras.initializers.Constant(13.16),
             constraint=GreaterThanConstraint(epsilon=1e-7),
             trainable=True
         )
-        #self.importance_variance = self.add_weight(
-        #    name='importance_variance',
-        #    initializer=keras.initializers.Constant(1.0),
-        #    constraint=GreaterThanConstraint(epsilon=1e-7),
-        #)
+        self.importance_exponent = self.add_weight(
+            name='importance_exponent',
+            initializer=keras.initializers.Constant(2.37),
+            constraint=GreaterThanConstraint(epsilon=1e-7),
+        )
         self.dev_exponent = self.add_weight(
             name='dev_exponent',
             #initializer=keras.initializers.Constant(2.0),
-            initializer=keras.initializers.Constant(1.0),
-            constraint=GreaterThanConstraint(epsilon=1.0) 
+            initializer=keras.initializers.Constant(0.3),
+            constraint=GreaterThanConstraint(epsilon=1e-7) 
         )
         self.dark_epsilon = self.add_weight(
             name='dark_epsilon',
-            initializer=keras.initializers.Constant(0.138),
+            initializer=keras.initializers.Constant(0.375),
             constraint=GreaterThanConstraint(epsilon=1e-8),
         )
         self.contrast_enhance = self.add_weight(
             name='contrast_enhance',
-            initializer=keras.initializers.Constant(1.66),
+            initializer=keras.initializers.Constant(0.95),
             constraint=GreaterThanConstraint(epsilon=0.1),
         )
 
@@ -188,6 +188,9 @@ class BilateralBlur(tf.keras.layers.Layer):
                                         shape=(1,1,1,self.kernel_size),
                                         dtype=tf.float32)
         
+
+    def custom_pow(self, a, b):
+        return tf.math.exp(tf.math.multiply(b, tf.math.log(tf.maximum(a, 1e-8))))
 
     def do_blur(self, bright_x, dark_x, depths_x, depths):
         # convert depths_x to relative depths
@@ -199,11 +202,11 @@ class BilateralBlur(tf.keras.layers.Layer):
         # apply gaussian kernel to spatial distances
         w_spatial = tf.exp(-tf.square(self.spatial_dist) / (2 * self.spatial_variance))
         # calc importance weights
-        #w_importance = tf.maximum(bright_x - dark_x, 0.0)
-        #w_importance = tf.exp(-tf.square(w_importance) / (2 * self.importance_variance))
+        w_importance = tf.maximum(bright_x - dark_x, 0.0)
+        w_importance = self.custom_pow(w_importance, self.importance_exponent)
 
         # apply spatial weights
-        w_x = w_depth * w_spatial #* w_importance
+        w_x = w_depth * w_spatial * w_importance
 
         # normalize the weights
         w_x = tf.divide(w_x, tf.reduce_sum(w_x, axis=-1, keepdims=True))
@@ -214,8 +217,7 @@ class BilateralBlur(tf.keras.layers.Layer):
 
         return bright_x, dark_x
 
-    def custom_pow(self, a, b):
-        return tf.math.exp(tf.math.multiply(b, tf.math.log(tf.maximum(a, 1e-8))))
+
 
     def call(self, inputs):
         bright, dark, depths = inputs # color = AO bright/dark values

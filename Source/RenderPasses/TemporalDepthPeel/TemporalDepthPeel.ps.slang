@@ -9,7 +9,8 @@ Texture2D<float> gDepth;
 Texture2D<float> gPrevDepth;
 Texture2D<float> gPrevDepth2;
 
-SamplerState gDepthSampler;
+SamplerState gLinearSampler;
+SamplerState gPointSampler;
 
 cbuffer PerFrameCB
 {
@@ -148,7 +149,7 @@ float RelativeDepth(float reference, float value)
 
 float CalcViewDepthFromPrev(float2 prevUV, Texture2D<float> tex)
 {
-    float3 prevPosV = UVToViewSpace(prevUV, tex.SampleLevel(gDepthSampler, prevUV, 0.0));
+    float3 prevPosV = UVToViewSpace(prevUV, tex.SampleLevel(gLinearSampler, prevUV, 0.0));
     float3 curPosV = mul(prevViewToCurView, float4(prevPosV, 1.0)).xyz;
     return -curPosV.z;
 }
@@ -166,12 +167,12 @@ float maxComponent(float4 v)
 
 PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 {
-    float depth = gDepth.SampleLevel(gDepthSampler, texC, 0.0);
+    float depth = gDepth.SampleLevel(gLinearSampler, texC, 0.0);
     PsOut o;
     o.depth2 = depth;
     //o.depth2 = gCamera.data.farZ; // assume far plane
     
-    float2 mvec = gMotionVec.SampleLevel(gDepthSampler, texC, 0.0);
+    float2 mvec = gMotionVec.SampleLevel(gLinearSampler, texC, 0.0);
     
     if (!isInValidArea(texC + mvec)) // test if motion vector is outside of the screen
     {
@@ -201,10 +202,10 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         
         // obtain previous depth values at uvmid
         float d[2];
-        d[0] = gPrevDepth.SampleLevel(gDepthSampler, uvmid, 0.0);
-        d[1] = gPrevDepth2.SampleLevel(gDepthSampler, uvmid, 0.0);
-        //d[0] = maxComponent(gPrevDepth.Gather(gDepthSampler, uvmid));
-        //d[1] = maxComponent(gPrevDepth2.Gather(gDepthSampler, uvmid));
+        d[0] = gPrevDepth.SampleLevel(gLinearSampler, uvmid, 0.0);
+        d[1] = gPrevDepth2.SampleLevel(gLinearSampler, uvmid, 0.0);
+        //d[0] = maxComponent(gPrevDepth.Gather(gLinearSampler, uvmid));
+        //d[1] = maxComponent(gPrevDepth2.Gather(gLinearSampler, uvmid));
         d[1] = max(d[0], d[1]); // d[1] can be zero if it was invalid
 
         float2 curUV;
