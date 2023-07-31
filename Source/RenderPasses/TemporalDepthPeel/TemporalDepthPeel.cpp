@@ -30,6 +30,8 @@
 #include "Core/API/RasterizerState.h"
 #include "Core/API/VAO.h"
 #include "../LinearizeDepth/LinearizeDepth.h"
+#include "Core/API/BlendState.h"
+#include "Core/API/BlendState.h"
 #include "Core/API/Sampler.h"
 //#include "../Utils/GuardBand/guardband.h"
 
@@ -43,6 +45,7 @@ namespace
 
     const std::string kIterativeFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeel.ps.slang";
     const std::string kRasterFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeelRaster.3d.slang";
+    const std::string kPointsFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeelPoints.3d.slang";
 
 }
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -61,15 +64,25 @@ TemporalDepthPeel::TemporalDepthPeel(ref<Device> pDevice, const Properties& prop
     mpRasterState = GraphicsState::create(mpDevice);
     auto rasterProgram = GraphicsProgram::createFromFile(mpDevice, kRasterFilename, "vsMain", "psMain");
     mpRasterState->setProgram(rasterProgram);
-
     mpRasterVars = GraphicsVars::create(mpDevice, rasterProgram->getReflector());
 
     RasterizerState::Desc rasterDesc;
     rasterDesc.setCullMode(RasterizerState::CullMode::Front);
     //rasterDesc.setDepthClamp(false);
     //rasterDesc.setFillMode(RasterizerState::FillMode::Wireframe);
-
     mpRasterState->setRasterizerState(RasterizerState::create(rasterDesc));
+
+
+    mpPointsState = GraphicsState::create(mpDevice);
+    auto pointsProgram = GraphicsProgram::createFromFile(mpDevice, kPointsFilename, "vsMain", "psMain");
+    mpPointsState->setProgram(pointsProgram);
+    mpPointsVars = GraphicsVars::create(mpDevice, pointsProgram->getReflector());
+
+    // set max blending (always use the max depth value)
+    //BlendState::Desc blendDesc;
+    //blendDesc.setRtParams(0, BlendState::BlendOp::Max, BlendState::BlendOp::Max, BlendState::BlendFunc::One, BlendState::BlendFunc::One, BlendState::BlendFunc::One, BlendState::BlendFunc::One);
+    //blendDesc.setRtBlend(0, true);
+    //mpPointsState->setBlendState(BlendState::create(blendDesc));
 
     { // depth sampler
         Sampler::Desc samplerDesc;
@@ -78,9 +91,11 @@ TemporalDepthPeel::TemporalDepthPeel(ref<Device> pDevice, const Properties& prop
         samplerDesc.setBorderColor(float4(0.0f));
         mpIterPass->getRootVar()["gLinearSampler"] = Sampler::create(pDevice, samplerDesc);
         mpRasterVars->getRootVar()["gLinearSampler"] = Sampler::create(pDevice, samplerDesc);
+        mpPointsVars->getRootVar()["gLinearSampler"] = Sampler::create(pDevice, samplerDesc);
         samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point);
         mpIterPass->getRootVar()["gPointSampler"] = Sampler::create(pDevice, samplerDesc);
         mpRasterVars->getRootVar()["gPointSampler"] = Sampler::create(pDevice, samplerDesc);
+        mpPointsVars->getRootVar()["gPointSampler"] = Sampler::create(pDevice, samplerDesc);
     }
 }
 
@@ -107,6 +122,9 @@ void TemporalDepthPeel::compile(RenderContext* pRenderContext, const CompileData
     mRasterIndexBuffer = genIndexBuffer(compileData.defaultTexDims);
     auto vao = Vao::create(Vao::Topology::TriangleList, VertexLayout::create(), Vao::BufferVec(), mRasterIndexBuffer, ResourceFormat::R32Uint);
     mpRasterState->setVao(vao);
+
+    vao = Vao::create(Vao::Topology::PointList, nullptr, Vao::BufferVec());
+    mpPointsState->setVao(vao);
 }
 
 void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -130,7 +148,8 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
 
     ShaderVar vars;
     if (mImplementation == Implementation::Iterative) vars = mpIterPass->getRootVar();
-    else if(mImplementation == Implementation::Raster) vars = mpRasterVars->getRootVar();
+    else if (mImplementation == Implementation::Raster) vars = mpRasterVars->getRootVar();
+    else if (mImplementation == Implementation::Points) vars = mpPointsVars->getRootVar();
 
     // set common vars
     vars["gDepth"] = pDepth;
@@ -170,6 +189,28 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
         // draw with prev
         vars["gPrevDepth"] = mpPrevDepth;
         pRenderContext->drawIndexed(mpRasterState.get(), mpRasterVars.get(), mRasterIndexBuffer->getElementCount(), 0, 0);
+    }
+    else if(mImplementation == Implementation::Points)
+    {
+               // clear pDepthOut before drawing
+        //pRenderContext->clearTexture(pDepthOut.get(), float4(0.0f));
+        pRenderContext->blit(pDepth->getSRV(), pDepthOut->getRTV());
+        //pRenderContext->clearDsv(pRawDepth->getDSV().get(), 1.0f, 0);
+
+        vars["PerFrameCB"]["resolution"] = renderData.getDefaultTextureDims();
+
+        mpRasterFbo->attachColorTarget(pDepthOut, 0);
+        mpPointsState->setFbo(mpRasterFbo, true);
+
+        auto nVertices = renderData.getDefaultTextureDims().x * renderData.getDefaultTextureDims().y;
+
+        // draw with prev2
+        vars["gPrevDepth"] = mpPrevDepth2;
+        pRenderContext->draw(mpPointsState.get(), mpPointsVars.get(), nVertices, 0);
+
+        // draw with prev
+        vars["gPrevDepth"] = mpPrevDepth;
+        pRenderContext->draw(mpPointsState.get(), mpPointsVars.get(), nVertices, 0);
     }
 
     // save depth and ao from this frame for next frame

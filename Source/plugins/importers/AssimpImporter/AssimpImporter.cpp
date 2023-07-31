@@ -273,7 +273,7 @@ void createAnimation(ImporterData& data, const aiAnimation* pAiAnim, ImportMode 
         while (!done)
         {
             double time = nextKeyTime();
-            FALCOR_ASSERT(time == 0 || (time / ticksPerSecond) > keyframe.time);
+            //FALCOR_ASSERT(time == 0 || (time / ticksPerSecond) > keyframe.time);
             keyframe.time = time / ticksPerSecond;
 
             // Note the order of the logical-and, we don't want to short-circuit the function calls

@@ -38,13 +38,15 @@ public:
     enum class Implementation
     {
         Iterative,
-        Raster
+        Raster,
+        Points
     };
 
     FALCOR_ENUM_INFO(Implementation,
     {
            { Implementation::Iterative, "Iterative" },
-           { Implementation::Raster, "Raster" }
+           { Implementation::Raster, "Raster" },
+           { Implementation::Points, "Points" }
     });
 
     FALCOR_PLUGIN_CLASS(TemporalDepthPeel, "TemporalDepthPeel", "Insert pass description here.");
@@ -75,11 +77,14 @@ private:
 
     ref<Scene> mpScene;
     bool mEnabled = true;
-    Implementation mImplementation = Implementation::Raster;
+    Implementation mImplementation = Implementation::Points;
 
     ref<Buffer> mRasterIndexBuffer;
     ref<GraphicsState> mpRasterState;
     ref<GraphicsVars> mpRasterVars;
+
+    ref<GraphicsState> mpPointsState;
+    ref<GraphicsVars> mpPointsVars;
 };
 
 FALCOR_ENUM_REGISTER(TemporalDepthPeel::Implementation);
