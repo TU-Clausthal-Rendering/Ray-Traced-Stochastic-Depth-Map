@@ -71,6 +71,7 @@ private:
     ref<FullScreenPass> mpIterPass;
     ref<Fbo> mpFbo;
     ref<Fbo> mpRasterFbo;
+    ref<Fbo> mpPointsFbo;
 
     ref<Texture> mpPrevDepth;
     ref<Texture> mpPrevDepth2;
@@ -85,6 +86,8 @@ private:
 
     ref<GraphicsState> mpPointsState;
     ref<GraphicsVars> mpPointsVars;
+    ref<FullScreenPass> mpPointFixPass;
+    int mPointFixIterations = 1;
 };
 
 FALCOR_ENUM_REGISTER(TemporalDepthPeel::Implementation);

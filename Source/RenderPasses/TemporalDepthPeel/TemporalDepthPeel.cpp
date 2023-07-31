@@ -41,11 +41,14 @@ namespace
     const std::string kDepth = "linearZ";
     const std::string kDepthOut = "depth2";
 
+    const std::string kDepthStencil = "depthStencil";
+
     //const std::string kRawDepth = "rawDepth2"; 
 
     const std::string kIterativeFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeel.ps.slang";
     const std::string kRasterFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeelRaster.3d.slang";
     const std::string kPointsFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeelPoints.3d.slang";
+    const std::string kPointsFixFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeelPointsFix.ps.slang";
 
 }
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -59,6 +62,7 @@ TemporalDepthPeel::TemporalDepthPeel(ref<Device> pDevice, const Properties& prop
     mpIterPass = FullScreenPass::create(mpDevice, kIterativeFilename);
     mpFbo = Fbo::create(pDevice);
     mpRasterFbo = Fbo::create(pDevice);
+    mpPointsFbo = Fbo::create(pDevice);
 
 
     mpRasterState = GraphicsState::create(mpDevice);
@@ -83,6 +87,21 @@ TemporalDepthPeel::TemporalDepthPeel(ref<Device> pDevice, const Properties& prop
     //blendDesc.setRtParams(0, BlendState::BlendOp::Max, BlendState::BlendOp::Max, BlendState::BlendFunc::One, BlendState::BlendFunc::One, BlendState::BlendFunc::One, BlendState::BlendFunc::One);
     //blendDesc.setRtBlend(0, true);
     //mpPointsState->setBlendState(BlendState::create(blendDesc));
+
+    DepthStencilState::Desc dsDesc;
+    dsDesc.setDepthEnabled(false);
+    dsDesc.setStencilEnabled(false); // TODO reenable?
+    dsDesc.setStencilFunc(DepthStencilState::Face::FrontAndBack, ComparisonFunc::Always); // always pass stencil
+    dsDesc.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::IncreaseSaturate); // increment stencil
+    mpPointsState->setDepthStencilState(DepthStencilState::create(dsDesc));
+
+
+    mpPointFixPass = FullScreenPass::create(mpDevice, kPointsFixFilename);
+    // invert stencil (so that we only render where the stencil is 0)
+    dsDesc.setStencilFunc(DepthStencilState::Face::FrontAndBack, ComparisonFunc::Equal); // equal to 0
+    // TODO change op to zero, this way we can save the stencil clear later
+    dsDesc.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::IncreaseSaturate);
+    mpPointFixPass->getState()->setDepthStencilState(DepthStencilState::create(dsDesc));
 
     { // depth sampler
         Sampler::Desc samplerDesc;
@@ -111,6 +130,7 @@ RenderPassReflection TemporalDepthPeel::reflect(const CompileData& compileData)
     reflector.addInput(kMotionVec, "Motion vectors").bindFlags(Resource::BindFlags::ShaderResource);
     reflector.addOutput(kDepthOut, "depthOut").format(ResourceFormat::R32Float).bindFlags(ResourceBindFlags::AllColorViews);
     //reflector.addInternal(kRawDepth, "non-linear depth 2").format(ResourceFormat::D32Float).bindFlags(ResourceBindFlags::AllDepthViews);
+    reflector.addInternal(kDepthStencil, "depth-stencil").format(ResourceFormat::D32FloatS8X24).bindFlags(ResourceBindFlags::DepthStencil);
     return reflector;
 }
 
@@ -134,6 +154,7 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
     auto pDepth = renderData[kDepth]->asTexture();
     auto pMotionVec = renderData[kMotionVec]->asTexture();
     auto pDepthOut = renderData[kDepthOut]->asTexture();
+    auto pDepthStencil = renderData[kDepthStencil]->asTexture();
     //auto pRawDepth = renderData[kRawDepth]->asTexture();
 
 
@@ -192,15 +213,16 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
     }
     else if(mImplementation == Implementation::Points)
     {
-               // clear pDepthOut before drawing
-        //pRenderContext->clearTexture(pDepthOut.get(), float4(0.0f));
+        // clear depth stencil
+        pRenderContext->clearDsv(pDepthStencil->getDSV().get(), 1.0f, 0);
+        // 'clear' pDepthOut before drawing
         pRenderContext->blit(pDepth->getSRV(), pDepthOut->getRTV());
-        //pRenderContext->clearDsv(pRawDepth->getDSV().get(), 1.0f, 0);
 
         vars["PerFrameCB"]["resolution"] = renderData.getDefaultTextureDims();
 
-        mpRasterFbo->attachColorTarget(pDepthOut, 0);
-        mpPointsState->setFbo(mpRasterFbo, true);
+        mpPointsFbo->attachColorTarget(pDepthOut, 0);
+        mpPointsFbo->attachDepthStencilTarget(pDepthStencil);
+        mpPointsState->setFbo(mpPointsFbo, true);
 
         auto nVertices = renderData.getDefaultTextureDims().x * renderData.getDefaultTextureDims().y;
 
@@ -211,6 +233,16 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
         // draw with prev
         vars["gPrevDepth"] = mpPrevDepth;
         pRenderContext->draw(mpPointsState.get(), mpPointsVars.get(), nVertices, 0);
+
+        // fix spaces that were not occupied by any point
+        auto fixVars = mpPointFixPass->getRootVar();
+
+        for(int i = 0; i < mPointFixIterations; ++i)
+        {
+            fixVars["gDepth"] = pDepth;
+            fixVars["gDepth2"] = pDepthOut;
+            mpPointFixPass->execute(pRenderContext, mpPointsFbo, true);
+        }
     }
 
     // save depth and ao from this frame for next frame
@@ -228,6 +260,8 @@ void TemporalDepthPeel::renderUI(Gui::Widgets& widget)
     widget.checkbox("Enable", mEnabled);
 
     widget.dropdown("Implementation", mImplementation);
+
+    widget.var("Point Fix Iterations", mPointFixIterations, 0, 10);
 }
 
 void TemporalDepthPeel::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
