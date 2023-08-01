@@ -50,6 +50,8 @@ namespace
     const std::string kPointsFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeelPoints.3d.slang";
     const std::string kPointsFixFilename = "RenderPasses/TemporalDepthPeel/TemporalDepthPeelPointsFix.ps.slang";
 
+    const std::string kMinSeparationDistance = "minSeparationDistance";
+
 }
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
@@ -59,6 +61,13 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
 TemporalDepthPeel::TemporalDepthPeel(ref<Device> pDevice, const Properties& props)
     : RenderPass(pDevice)
 {
+    // load properties
+    for (const auto [key, value] : props)
+    {
+        if (key == kMinSeparationDistance) mMinSeparationDistance = value;
+        else logWarning("Unknown field `" + key + "` in a TemporalDepthPeel pass dictionary");
+    }
+
     mpIterPass = FullScreenPass::create(mpDevice, kIterativeFilename);
     mpFbo = Fbo::create(pDevice);
     mpRasterFbo = Fbo::create(pDevice);
@@ -120,7 +129,9 @@ TemporalDepthPeel::TemporalDepthPeel(ref<Device> pDevice, const Properties& prop
 
 Properties TemporalDepthPeel::getProperties() const
 {
-    return {};
+    Properties props;
+    props[kMinSeparationDistance] = mMinSeparationDistance;
+    return props;
 }
 
 RenderPassReflection TemporalDepthPeel::reflect(const CompileData& compileData)
@@ -181,9 +192,13 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
     vars["PerFrameCB"]["prevViewToCurView"] = conversionMat;
     conversionMat = math::mul(mpScene->getCamera()->getPrevViewMatrix(), math::inverse(mpScene->getCamera()->getViewMatrix()));
     vars["PerFrameCB"]["curViewToPrevView"] = conversionMat;
+    vars["PerFrameCB"]["resolution"] = renderData.getDefaultTextureDims();
+    vars["PerFrameCB"]["minSeparationDist"] = mMinSeparationDistance;
 
     if(mImplementation == Implementation::Iterative)
     {
+        vars["PerFrameCB"]["maxIterations"] = mIterations;
+
         vars["gMotionVec"] = pMotionVec;
         vars["gPrevDepth"] = mpPrevDepth;
         vars["gPrevDepth2"] = mpPrevDepth2;
@@ -198,7 +213,7 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
         pRenderContext->blit(pDepth->getSRV(), pDepthOut->getRTV());
         //pRenderContext->clearDsv(pRawDepth->getDSV().get(), 1.0f, 0);
 
-        vars["PerFrameCB"]["resolution"] = renderData.getDefaultTextureDims();
+
 
         mpRasterFbo->attachColorTarget(pDepthOut, 0);
         mpRasterState->setFbo(mpRasterFbo, true);
@@ -217,8 +232,7 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
         pRenderContext->clearDsv(pDepthStencil->getDSV().get(), 1.0f, 0);
         // 'clear' pDepthOut before drawing
         pRenderContext->blit(pDepth->getSRV(), pDepthOut->getRTV());
-
-        vars["PerFrameCB"]["resolution"] = renderData.getDefaultTextureDims();
+        
 
         mpPointsFbo->attachColorTarget(pDepthOut, 0);
         mpPointsFbo->attachDepthStencilTarget(pDepthStencil);
@@ -236,8 +250,8 @@ void TemporalDepthPeel::execute(RenderContext* pRenderContext, const RenderData&
 
         // fix spaces that were not occupied by any point
         auto fixVars = mpPointFixPass->getRootVar();
-
-        for(int i = 0; i < mPointFixIterations; ++i)
+        fixVars["PerFrameCB"]["minSeparationDist"] = mMinSeparationDistance;
+        for(int i = 0; i < mIterations; ++i)
         {
             fixVars["gDepth"] = pDepth;
             fixVars["gDepth2"] = pDepthOut;
@@ -259,9 +273,11 @@ void TemporalDepthPeel::renderUI(Gui::Widgets& widget)
 {
     widget.checkbox("Enable", mEnabled);
 
+    widget.var("Min Separation Distance", mMinSeparationDistance, 0.0f, 100.0f, 0.01f);
+
     widget.dropdown("Implementation", mImplementation);
 
-    widget.var("Point Fix Iterations", mPointFixIterations, 0, 10);
+    widget.var("Iterations", mIterations, 0, 10);
 }
 
 void TemporalDepthPeel::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

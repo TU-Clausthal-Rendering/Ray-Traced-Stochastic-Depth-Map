@@ -1,9 +1,5 @@
 import Scene.Camera.Camera;
 
-#ifndef MAX_ITERATION
-#define MAX_ITERATION 5
-#endif
-
 Texture2D<float2> gMotionVec;
 Texture2D<float> gDepth;
 Texture2D<float> gPrevDepth;
@@ -17,6 +13,9 @@ cbuffer PerFrameCB
     Camera gCamera;
     float4x4 prevViewToCurView; // viewMat * Inverse(prevViewMat)
     float4x4 curViewToPrevView; // prevViewMat * Inverse(viewMat)
+    uint2 resolution;
+    float minSeparationDist;
+    int maxIterations;
 }
 
 bool isInValidArea(float2 uv)
@@ -188,15 +187,18 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     float2 uvmax = ViewSpaceToUV(mul(curViewToPrevView, float4(curPosVMax, 1.0)).xyz);
 
     float2 minUVvec = ViewSpaceToUV(mul(prevViewToCurView, float4(UVToViewSpace(uvmin, gCamera.data.farZ), 1.0)).xyz) - texC;
-
+    
     CohenSutherlandClipping(uvmin, uvmax);
+
+    //o.depth2 = distance(uvmin, uvmax);
+    //return o;
     
     // init best result so far
     float bestUVDist = 10000.0;
     o.depth2 = depth;
     
     // do binary search for the correct depth value
-    for (int i = 0; i < MAX_ITERATION; ++i)
+    for (int i = 0; i < maxIterations; ++i)
     {
         float2 uvmid = (uvmin + uvmax) * 0.5;
         
@@ -218,7 +220,7 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             curUV = ViewSpaceToUV(curPosV);
 
             float uvDist = dot(curUV, texC);
-            if (uvDist < bestUVDist && -curPosV.z > depth + 0.2)
+            if (uvDist < bestUVDist && -curPosV.z > depth + minSeparationDist)
             //if (uvDist < bestUVDist && -curPosV.z > depth * 1.1)
             {
                 o.depth2 = -curPosV.z; // ~ d[di]

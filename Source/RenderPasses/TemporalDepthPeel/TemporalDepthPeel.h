@@ -78,7 +78,7 @@ private:
 
     ref<Scene> mpScene;
     bool mEnabled = true;
-    Implementation mImplementation = Implementation::Points;
+    Implementation mImplementation = Implementation::Raster;
 
     ref<Buffer> mRasterIndexBuffer;
     ref<GraphicsState> mpRasterState;
@@ -87,7 +87,9 @@ private:
     ref<GraphicsState> mpPointsState;
     ref<GraphicsVars> mpPointsVars;
     ref<FullScreenPass> mpPointFixPass;
-    int mPointFixIterations = 1;
+
+    int mIterations = 1; // for iterative implementations (iterative and point (fix))
+    float mMinSeparationDistance = 0.5f; // for depth peeling
 };
 
 FALCOR_ENUM_REGISTER(TemporalDepthPeel::Implementation);

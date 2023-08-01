@@ -12,6 +12,7 @@ cbuffer PerFrameCB
     float4x4 prevViewToCurView; // viewMat * Inverse(prevViewMat)
     float4x4 curViewToPrevView; // prevViewMat * Inverse(viewMat)
     uint2 resolution; // screen resolution
+    float minSeparationDist;
 }
 
 
@@ -86,7 +87,7 @@ PsOut psMain(float2 texC : TEXCOORD, float originalDepth : DEPTH, float4 svPos :
         discard;
 
     // depth peeling
-    if (o.depth2 < primaryDepth + 0.4)
+    if (o.depth2 < primaryDepth + minSeparationDist)
         discard;
 
     return o;

@@ -12,6 +12,7 @@ cbuffer PerFrameCB
     float4x4 prevViewToCurView; // viewMat * Inverse(prevViewMat)
     float4x4 curViewToPrevView; // prevViewMat * Inverse(viewMat)
     uint2 resolution; // screen resolution
+    float minSeparationDist;
 }
 
 
@@ -74,6 +75,18 @@ struct PsOut
     float depth2 : SV_Target0;
 };
 
+float pow2(float x)
+{
+    return x * x;
+}
+
+float neighborDev(float4 n)
+{
+    float avg = (n.x + n.y + n.z + n.w) * 0.25;
+    float var = (pow2(n.x - avg) + pow2(n.y - avg) + pow2(n.z - avg) + pow2(n.w - avg)) * 0.25;
+    return var;
+}
+
 PsOut psMain(float2 texC : TEXCOORD, float originalDepth : DEPTH, float4 svPos : SV_POSITION)
 {
     //float depth = gDepth.SampleLevel(gLinearSampler, , 0.0);
@@ -81,8 +94,13 @@ PsOut psMain(float2 texC : TEXCOORD, float originalDepth : DEPTH, float4 svPos :
     PsOut o;
     o.depth2 = svPos.w;
     float4 n = gPrevDepth.Gather(gLinearSampler, texC);
+    if (neighborDev(n) > 0.01)
+    {
+    }
     //float nearestMin = min(min(nearestDepths.x, nearestDepths.y), min(nearestDepths.z, nearestDepths.w));
     float closestPixelDiff = min(min(abs(n[0] - originalDepth), abs(n[1] - originalDepth)), min(abs(n[2] - originalDepth), abs(n[3] - originalDepth)));
+
+    
     if (closestPixelDiff > 0.1)
     {
         o.depth2 = gPrevDepth.Sample(gPointSampler, texC); // overwrite with closest point
@@ -94,7 +112,7 @@ PsOut psMain(float2 texC : TEXCOORD, float originalDepth : DEPTH, float4 svPos :
     //o.depth2 = viewDepth;
 
     // depth peeling
-    if (o.depth2 < primaryDepth + 0.4)
+    if (o.depth2 < primaryDepth + minSeparationDist)
         discard;
 
     return o;

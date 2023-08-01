@@ -4,6 +4,11 @@ Texture2D<float> gDepth2;
 //SamplerState gLinearSampler;
 //SamplerState gPointSampler;
 
+cbuffer PerFrameCB
+{
+    float minSeparationDist;
+}
+
 float RelativeDepth(float reference, float value)
 {
     return abs(1.0 - value / reference);
@@ -43,7 +48,7 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
    
 
     // overwrite with interpolated depth
-    if (newDepth <= depth + 0.4)
+    if (newDepth <= depth + minSeparationDist)
         discard;
 
     PsOut o;
