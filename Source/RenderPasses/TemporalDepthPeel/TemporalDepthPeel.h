@@ -78,7 +78,7 @@ private:
 
     ref<Scene> mpScene;
     bool mEnabled = true;
-    Implementation mImplementation = Implementation::Raster;
+    Implementation mImplementation = Implementation::Iterative;
 
     ref<Buffer> mRasterIndexBuffer;
     ref<GraphicsState> mpRasterState;
@@ -88,7 +88,7 @@ private:
     ref<GraphicsVars> mpPointsVars;
     ref<FullScreenPass> mpPointFixPass;
 
-    int mIterations = 1; // for iterative implementations (iterative and point (fix))
+    int mIterations = 32; // for iterative implementations (iterative and point (fix))
     float mMinSeparationDistance = 0.5f; // for depth peeling
 };
 

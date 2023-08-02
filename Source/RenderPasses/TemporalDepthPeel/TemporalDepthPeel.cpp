@@ -277,7 +277,13 @@ void TemporalDepthPeel::renderUI(Gui::Widgets& widget)
 
     widget.dropdown("Implementation", mImplementation);
 
-    widget.var("Iterations", mIterations, 0, 10);
+    widget.var("Iterations", mIterations, 0, 256);
+
+    if(widget.button("Reset Cache"))
+    {
+        mpPrevDepth = nullptr;
+        mpPrevDepth2 = nullptr;
+    }
 }
 
 void TemporalDepthPeel::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
