@@ -187,6 +187,17 @@ float GetRectifiedDepth(float2 uv, Texture2D<float> depthTex)
     return depth;
 }
 
+float2 GetRectifiedDepths(float2 uv)
+{
+    float2 d;
+    d[0] = GetRectifiedDepth(uv, gPrevDepth);
+    d[1] = GetRectifiedDepth(uv, gPrevDepth2);
+    d[1] = max(d[0], d[1]); // make sure d1 is not smaller than d0
+    if (d[1] > 0.9 * gCamera.data.farZ)
+        d[1] = d[0]; // dont use far plane
+    return d;
+}
+
 PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 {
     float depth = gDepth.SampleLevel(gLinearSampler, texC, 0.0);
@@ -218,28 +229,83 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 
     float2 bestUV = 0.0;
     float bestZ = 0.0;
-    
     float t = 0.0; // interpolation between min and max
     float tmin = 0.0;
     float tmax = 1.0;
-    for (int i = 0; i < maxIterations; ++i)
+    int i = 0; // iteration counter
+    
+    //#define DO_LINEAR_SEARCH
+    #ifdef DO_LINEAR_SEARCH
+
+    bool2 prevIntersect = true; // set it like this to prevent a loop break on the first iteration
+    int intersectIndex = -1; // 0 = d0, 1 = d1
+    while(t < 1.0)
+    {
+        i++; // count iterations
+        float2 uv = lerp(minUV, maxUV, t);
+        float zref = zlerp(minZ, maxZ, t); // reference z value of the current pixels ray
+        // obtain rectified depth values from the previous frame
+        float2 d = GetRectifiedDepths(uv);
+        bool2 intersect = d < zref;
+        if (!prevIntersect.x && intersect.x) // test d0 intersection
+        {
+            intersectIndex = 0;
+            break;
+        }
+        if (!prevIntersect.y && intersect.y) // test d1 intersection
+        {
+            intersectIndex = 1;
+            break;
+        }
+        prevIntersect = intersect;
+        tmin = t;
+        t += 2.0 / maxIterations; // spend at most half the iterations on the linear search
+        tmax = t;
+    }
+
+    if (intersectIndex == -1)
+        i = maxIterations; // abort, nothing found
+
+    for (; i < maxIterations; ++i)
     {
         t = (tmin + tmax) * 0.5;
         float2 uv = lerp(minUV, maxUV, t);
         float zRef = zlerp(minZ, maxZ, t); // reference z value of the current pixels ray
         // obtain rectified depth values from the previous frame
-        float2 d;
-        d[0] = GetRectifiedDepth(uv, gPrevDepth);
-        d[1] = GetRectifiedDepth(uv, gPrevDepth2);
-        d[1] = max(d[0], d[1]); // make sure d1 is not smaller than d0
-        if (d[1] > 0.9 * gCamera.data.farZ)
-            d[1] = d[0]; // dont use far plane
+        float2 dtmp = GetRectifiedDepths(uv);
+        float d = intersectIndex == 0 ? dtmp[0] : dtmp[1];
+
+        // remember best (here last) values so far
+        bestZ = d;
+        bestUV = uv;
+        
+        if (abs(zRef - d) < minSeparationDist * 0.001)
+            break;
+        else if (zRef < d) // increase t
+        {
+            tmin = t;
+        }
+        else
+        {
+            tmax = t;
+        }
+    }
+    
+    #else
+    for (; i < maxIterations; ++i)
+    {
+        t = (tmin + tmax) * 0.5;
+        float2 uv = lerp(minUV, maxUV, t);
+        float zRef = zlerp(minZ, maxZ, t); // reference z value of the current pixels ray
+        // obtain rectified depth values from the previous frame
+        float2 d = GetRectifiedDepths(uv);
 
         // remember best (here last) values so far
         bestZ = d[1];
         bestUV = uv;
         
-        if(abs(zRef - d[1]) < minSeparationDist * 0.001) break;
+        if (abs(zRef - d[1]) < minSeparationDist * 0.001)
+            break;
         else if (zRef < d[1]) // increase t
         {
             tmin = t;
@@ -249,6 +315,9 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             tmax = t;
         }
     }
+    #endif
+
+
     
     /*for (int i = 0; i < maxIterations; ++i)
     {
