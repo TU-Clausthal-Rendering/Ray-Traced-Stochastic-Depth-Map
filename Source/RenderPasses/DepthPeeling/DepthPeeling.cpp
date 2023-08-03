@@ -29,13 +29,14 @@
 
 namespace
 {
-    const std::string kDepthIn = "depth";
+    const std::string kDepthIn = "linearZ";
     const std::string kDepthOut = "depth2";
 
     const std::string kDepthPeelProgram = "RenderPasses/DepthPeeling/DepthPeeling.3d.slang";
 
     const std::string kCullMode = "cullMode";
     const std::string kDepthFormat = "depthFormat";
+    const std::string kMinSeparationDistance = "minSeparationDistance";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -57,6 +58,7 @@ ref<DepthPeeling> DepthPeeling::create(ref<Device> pDevice, const Properties& di
     {
         if (key == kCullMode) pPass->mCullMode = value;
         else if (key == kDepthFormat) pPass->mDepthFormat = value;
+        else if (key == kMinSeparationDistance) pPass->mMinSeparationDistance = value;
         else logWarning("Unknown field '" + key + "' in a DepthPeelPass dictionary");
     }
     return pPass;
@@ -74,13 +76,14 @@ Properties DepthPeeling::getProperties() const
     Properties d;
     d[kCullMode] = mCullMode;
     d[kDepthFormat] = mDepthFormat;
+    d[kMinSeparationDistance] = mMinSeparationDistance;
     return d;
 }
 
 RenderPassReflection DepthPeeling::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
-    auto& inField = reflector.addInput(kDepthIn, "non-linearized depth").bindFlags(ResourceBindFlags::ShaderResource);
+    auto& inField = reflector.addInput(kDepthIn, "linearized depth").bindFlags(ResourceBindFlags::ShaderResource);
     auto& outField = reflector.addOutput(kDepthOut, "next layer of depth (non-linear)").format(mDepthFormat).bindFlags(ResourceBindFlags::AllDepthViews); // set backup depth format
     return reflector;
 }
@@ -103,6 +106,7 @@ void DepthPeeling::execute(RenderContext* pRenderContext, const RenderData& rend
     // set primary depth
     auto var = mpDepthPeelVars->getRootVar();
     var["prevDepth"] = pDepthIn;
+    var["CBuffer"]["minSeparationDistance"] = mMinSeparationDistance;
 
     // rasterize
     mpScene->rasterize(pRenderContext, mpDepthPeelState.get(), mpDepthPeelVars.get(), mCullMode);
@@ -110,6 +114,8 @@ void DepthPeeling::execute(RenderContext* pRenderContext, const RenderData& rend
 
 void DepthPeeling::renderUI(Gui::Widgets& widget)
 {
+    widget.var("Min Separation Distance", mMinSeparationDistance, 0.0f, 100.0f, 0.01f);
+
     static const Gui::DropdownList kDepthFormats =
     {
         { (uint32_t)ResourceFormat::D16Unorm, "D16Unorm"},
@@ -128,6 +134,7 @@ void DepthPeeling::renderUI(Gui::Widgets& widget)
     uint32_t cullMode = (uint32_t)mCullMode;
     if (widget.dropdown("Cull mode", kCullModeList, cullMode))
         mCullMode = (RasterizerState::CullMode)cullMode;
+
 }
 
 void DepthPeeling::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

@@ -63,4 +63,5 @@ private:
     ref<Scene> mpScene;
 
     ResourceFormat mDepthFormat = ResourceFormat::D32Float;
+    float mMinSeparationDistance = 0.5f;
 };
