@@ -198,6 +198,73 @@ float2 GetRectifiedDepths(float2 uv)
     return d;
 }
 
+struct SearchResult
+{
+    float depth2;
+    float error;
+};
+
+SearchResult SearchDepth(float primaryDepth, float2 minUV, float2 maxUV, float minZ, float maxZ, Texture2D<float> depthTex)
+{
+    SearchResult res;
+    res.depth2 = 0.0;
+    res.error = 1e10;
+    
+    float2 bestUV = 0.0;
+    float bestZ = 0.0;
+    float t = 0.0; // interpolation between min and max
+    float tmin = 0.0;
+    float tmax = 1.0;
+    
+    int i = 0;
+    float uvEpsilon = 0.5 / resolution.x;
+    
+    for (; i < maxIterations; ++i)
+    {
+        t = (tmin + tmax) * 0.5;
+        float2 uv = lerp(minUV, maxUV, t);
+        float zRef = zlerp(minZ, maxZ, t); // reference z value of the current pixels ray
+        // obtain rectified depth values from the previous frame
+        //float2 d = GetRectifiedDepths(uv);
+        float d = GetRectifiedDepth(uv, depthTex);
+
+        // remember best (here last) values so far
+        bestZ = d;
+        bestUV = uv;
+        res.error = abs(zRef - d);
+        //res.error = abs(1.0 - d / zRef);
+        // early out if search interval is smaller than epsilon
+        if (distance(lerp(minUV, maxUV, tmin), lerp(minUV, maxUV, tmax)) < uvEpsilon)
+            break;
+        // early out if d and zref are close
+        if (abs(d - zRef) < minSeparationDist * 0.001)
+            break;
+        else if (zRef < d) // increase t
+        {
+            tmin = t;
+        }
+        else
+        {
+            tmax = t;
+        }
+    }
+
+    if (bestZ == 0.0)
+        return res; // no information
+
+    // calc view position in previouse view space
+    float3 bestPosV = UVToViewSpace(bestUV, bestZ);
+    // cacl view position in current view space
+    bestPosV = mul(prevViewToCurView, float4(bestPosV, 1.0)).xyz;
+    // use z component as depth
+    if (-bestPosV.z > primaryDepth + minSeparationDist)
+    {
+        res.depth2 = -bestPosV.z;
+    }
+        
+    return res; // nothing
+}
+
 PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 {
     float depth = gDepth.SampleLevel(gLinearSampler, texC, 0.0);
@@ -292,69 +359,17 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     }
     
     #else
-    for (; i < maxIterations; ++i)
-    {
-        t = (tmin + tmax) * 0.5;
-        float2 uv = lerp(minUV, maxUV, t);
-        float zRef = zlerp(minZ, maxZ, t); // reference z value of the current pixels ray
-        // obtain rectified depth values from the previous frame
-        float2 d = GetRectifiedDepths(uv);
-
-        // remember best (here last) values so far
-        bestZ = d[1];
-        bestUV = uv;
-        
-        if (abs(zRef - d[1]) < minSeparationDist * 0.001)
-            break;
-        else if (zRef < d[1]) // increase t
-        {
-            tmin = t;
-        }
-        else
-        {
-            tmax = t;
-        }
-    }
     #endif
 
 
+    SearchResult r2 = SearchDepth(depth, minUV, maxUV, minZ, maxZ, gPrevDepth2);
+    SearchResult r1 = SearchDepth(depth, minUV, maxUV, minZ, maxZ, gPrevDepth);
     
-    /*for (int i = 0; i < maxIterations; ++i)
-    {
-        float2 uv = lerp(minUV, maxUV, t);
-        float zRef = zlerp(minZ, maxZ, t); // reference z value of the current pixels ray
-        // obtain rectified depth values from the previous frame
-        float2 d;
-        d[0] = GetRectifiedDepth(uv, gPrevDepth);
-        d[1] = GetRectifiedDepth(uv, gPrevDepth2);
-        d[1] = max(d[0], d[1]); // make sure d1 is not smaller than d0
-        if (d[1] > 0.99 * gCamera.data.farZ)
-            d[1] = d[0]; // dont use far plane
-
-        if (zRef * 1.001 < d[1]) // increase t
-        {
-            t += 1.0f / maxIterations;
-            // TODO do something if in d[0]
-        }
-        else
-        {
-            // take this point
-            bestZ = zRef;
-            bestUV = uv;
-            break;
-        }
-    }*/
-
-    if(bestZ == 0.0)
-        return o; // no information
-
-    // calc view position in previouse view space
-    float3 bestPosV = UVToViewSpace(bestUV, bestZ);
-    // cacl view position in current view space
-    bestPosV = mul(prevViewToCurView, float4(bestPosV, 1.0)).xyz;
-    // use z component as depth
-    if(-bestPosV.z > depth + minSeparationDist)
-        o.depth2 = -bestPosV.z;
+    //if(r1.error < minSeparationDist && r1.error < r2.error * 10.0 && r1.depth2 > depth + minSeparationDist)
+    //    o.depth2 = r1.depth2;
+    //else
+    if (r2.depth2 > depth + minSeparationDist)
+        o.depth2 = r2.depth2;
     
     return o;
 }
