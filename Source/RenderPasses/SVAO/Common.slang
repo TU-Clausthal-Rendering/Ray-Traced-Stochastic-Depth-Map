@@ -327,7 +327,7 @@ struct SampleAOData
         if (!requireRay)
             return; // not needed
         
-        objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex2);
+        objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex2));
         visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf));
         requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
     }

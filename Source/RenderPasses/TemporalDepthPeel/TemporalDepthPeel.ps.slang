@@ -180,7 +180,7 @@ float GetRectifiedDepth(float2 uv, Texture2D<float> depthTex)
     //float minDist = min(min(abs(n[0] - depth), abs(n[1] - depth)), min(abs(n[2] - depth), abs(n[3] - depth)));
     //float minN = min(min(n[0], n[1]), min(n[2], n[3]));
     //float maxN = max(max(n[0], n[1]), max(n[2], n[3]));
-    if(any(n > 0.99 * gCamera.data.farZ))
+    if(any(n  > 0.99 * gCamera.data.farZ))
         return depthPoint;
     //if (maxN - minN > minSeparationDist && minDist > minSeparationDist * 0.01)
     //    return depthPoint;
@@ -257,7 +257,7 @@ SearchResult SearchDepth(float primaryDepth, float2 minUV, float2 maxUV, float m
     // cacl view position in current view space
     bestPosV = mul(prevViewToCurView, float4(bestPosV, 1.0)).xyz;
     // use z component as depth
-    if (-bestPosV.z > primaryDepth + minSeparationDist)
+    if (-bestPosV.z > primaryDepth + minSeparationDist && -bestPosV.z < 0.99 * gCamera.data.farZ)
     {
         res.depth2 = -bestPosV.z;
     }
