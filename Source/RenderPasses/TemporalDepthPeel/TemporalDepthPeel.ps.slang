@@ -171,12 +171,59 @@ float zlerp(float z0, float z1, float t)
     return 1.0 / lerp(1.0 / z0, 1.0 / z1, t);
 }
 
+float zlerp(float4 z, float4 w)
+{
+    return 1.0 / dot(w, 1.0 / z);
+}
+
+float4 GetTexelWeights(float2 uv)
+{
+    // calculate bilinear interpolation weights from uv coordinate
+    float2 f = frac(uv * float2(resolution) - 0.5);
+    // (-,+),(+,+),(+,-),(-,-)
+    float4 w = float4((1.0 - f.x) * f.y, f.x * f.y, f.x * (1.0 - f.y), (1.0 - f.x) * (1.0 - f.y));
+    return w;
+}
+
+// returns the weight the highest magnitude
+float4 GetTexelPointWeight(float4 w)
+{
+    int maxIdx = 0;
+    float maxVal = w[0];
+    for (int i = 1; i < 4; ++i)
+    {
+        if(w[i] > maxVal)
+        {
+            maxIdx = i;
+            maxVal = w[i];
+        }
+    }
+    float4 res = 0.0;
+    for (int i = 1; i < 4; ++i)
+        if(i == maxIdx)
+            res[i] = 1.0;
+
+    return res;
+}
+
 float GetRectifiedDepth(float2 uv, Texture2D<float> depthTex)
 {
     // TODO optimize this by only relying on n and doing the interpolation manually (currently 25% performance drop)
-    float4 n = depthTex.Gather(gLinearSampler, uv, 0.0);
-    float depth = depthTex.SampleLevel(gLinearSampler, uv, 0.0);
-    float depthPoint = depthTex.SampleLevel(gPointSampler, uv, 0.0);
+    float2 gatherUV = (floor(uv * float2(resolution) - 0.5) + 1.0) / resolution; // snap to center between 4 texels
+    float4 n = depthTex.Gather(gLinearSampler, gatherUV, 0.0);
+    float4 w = GetTexelWeights(uv);
+    //float depth = dot(n, w);
+    float depth = zlerp(n, w);
+    float depthPoint = dot(GetTexelPointWeight(GetTexelWeights(uv)), n);
+    // redistribute weights based on depth difference
+    //w = w * (n - depthPoint < 0.5);
+    //w = w / (w.x + w.y + w.z + w.w);
+    //depth = zlerp(n, w);
+    
+    //return depthPoint;
+    //if (RelativeDepth(depth, depthPoint) > 0.1)
+    //    return gCamera.data.farZ;
+    
     //float minDist = min(min(abs(n[0] - depth), abs(n[1] - depth)), min(abs(n[2] - depth), abs(n[3] - depth)));
     //float minN = min(min(n[0], n[1]), min(n[2], n[3]));
     //float maxN = max(max(n[0], n[1]), max(n[2], n[3]));
