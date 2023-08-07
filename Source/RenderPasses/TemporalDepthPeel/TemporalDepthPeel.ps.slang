@@ -216,9 +216,10 @@ float GetRectifiedDepth(float2 uv, Texture2D<float> depthTex)
     float depth = zlerp(n, w);
     float depthPoint = dot(GetTexelPointWeight(GetTexelWeights(uv)), n);
     // redistribute weights based on depth difference
-    //w = w * (n - depthPoint < 0.5);
+    //w = w * float4(n - depthPoint < 5);
+    //w = sqrt(w);
     //w = w / (w.x + w.y + w.z + w.w);
-    //depth = zlerp(n, w);
+    //depth = dot(n, w);
     
     //return depthPoint;
     //if (RelativeDepth(depth, depthPoint) > 0.1)
@@ -276,9 +277,13 @@ SearchResult SearchDepth(float primaryDepth, float2 minUV, float2 maxUV, float m
         float d = GetRectifiedDepth(uv, depthTex);
 
         // remember best (here last) values so far
-        bestZ = d;
-        bestUV = uv;
-        res.error = abs(zRef - d);
+        float err = abs(zRef - d);
+        if(err < res.error)
+        {
+            bestZ = d;
+            bestUV = uv;
+            res.error = err;
+        }
         //res.error = abs(1.0 - d / zRef);
         // early out if search interval is smaller than epsilon
         if (distance(lerp(minUV, maxUV, tmin), lerp(minUV, maxUV, tmax)) < uvEpsilon)
