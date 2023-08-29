@@ -161,11 +161,11 @@ class BilateralBlur(tf.keras.layers.Layer):
             constraint=GreaterThanConstraint(epsilon=1e-7),
             trainable=True
         )
-        self.importance_exponent = self.add_weight(
-            name='importance_exponent',
-            initializer=keras.initializers.Constant(2.37),
-            constraint=GreaterThanConstraint(epsilon=1e-7),
-        )
+        #self.importance_exponent = self.add_weight(
+        #    name='importance_exponent',
+        #    initializer=keras.initializers.Constant(2.37),
+        #    constraint=GreaterThanConstraint(epsilon=1e-7),
+        #)
         self.dev_exponent = self.add_weight(
             name='dev_exponent',
             #initializer=keras.initializers.Constant(2.0),
@@ -202,11 +202,11 @@ class BilateralBlur(tf.keras.layers.Layer):
         # apply gaussian kernel to spatial distances
         w_spatial = tf.exp(-tf.square(self.spatial_dist) / (2 * self.spatial_variance))
         # calc importance weights
-        w_importance = tf.maximum(bright_x - dark_x, 0.0)
-        w_importance = self.custom_pow(w_importance, self.importance_exponent)
+        #w_importance = tf.minimum(1.0 - (bright_x - dark_x), 1.0)
+        #w_importance = self.custom_pow(w_importance, self.importance_exponent)
 
         # apply spatial weights
-        w_x = w_depth * w_spatial * w_importance
+        w_x = w_depth * w_spatial #* w_importance
 
         # normalize the weights
         w_x = tf.divide(w_x, tf.reduce_sum(w_x, axis=-1, keepdims=True))

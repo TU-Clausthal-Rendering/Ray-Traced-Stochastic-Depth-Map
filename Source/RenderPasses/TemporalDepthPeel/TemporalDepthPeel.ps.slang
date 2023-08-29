@@ -208,7 +208,6 @@ float4 GetTexelPointWeight(float4 w)
 
 float GetRectifiedDepth(float2 uv, Texture2D<float> depthTex)
 {
-    // TODO optimize this by only relying on n and doing the interpolation manually (currently 25% performance drop)
     float2 gatherUV = (floor(uv * float2(resolution) - 0.5) + 1.0) / resolution; // snap to center between 4 texels
     float4 n = depthTex.Gather(gLinearSampler, gatherUV, 0.0);
     float4 w = GetTexelWeights(uv);

@@ -28,21 +28,31 @@ cbuffer Direction
 
 #if KERNEL_RADIUS < 3
 
+// optimized (I = bright - dark)
 #define DEPTH_VARIANCE  0.0012
 #define SPATIAL_VARIANCE 16.4
+#define IMPORTANCE_EXPONENT 1.0
 #define DEV_EXPONENT 1.0
 #define DARK_EPSILON 0.138
 #define ENHANCE_CONTRAST 1.66
-//#define IMPORTANCE_VARIANCE 5.0
-#define IMPORTANCE_EXPONENT 1.0
 
-// optimized
-#define DEPTH_VARIANCE  0.0004
-#define SPATIAL_VARIANCE 13.16
-#define IMPORTANCE_EXPONENT 2.37
-#define DEV_EXPONENT 0.3
-#define DARK_EPSILON 0.375
-#define ENHANCE_CONTRAST 0.95
+// optimized city
+//#define DEPTH_VARIANCE  0.0004
+//#define SPATIAL_VARIANCE 13.16
+//#define IMPORTANCE_EXPONENT 2.37
+//#define DEV_EXPONENT 0.3
+//#define DARK_EPSILON 0.375
+//#define ENHANCE_CONTRAST 0.95
+
+// optimized (I = 1 - (bright - dark)) -> dark halos around lammpost
+//#define DEPTH_VARIANCE  0.00052
+//#define SPATIAL_VARIANCE 5.0
+//#define IMPORTANCE_EXPONENT 0.16
+//#define DEV_EXPONENT 0.3
+//#define DARK_EPSILON 0.46
+//#define ENHANCE_CONTRAST 0.94
+
+// optomized I = 1
 
 // optimized city
 #define DEPTH_VARIANCE  0.0049
@@ -51,6 +61,12 @@ cbuffer Direction
 #define DEV_EXPONENT 0.32
 #define DARK_EPSILON 0.76
 #define ENHANCE_CONTRAST 0.40
+//#define DEPTH_VARIANCE  0.0049
+//#define SPATIAL_VARIANCE 10.4
+//#define IMPORTANCE_EXPONENT 2.19
+//#define DEV_EXPONENT 0.32
+//#define DARK_EPSILON 0.76
+//#define ENHANCE_CONTRAST 0.40
 
 // new optimized
 #define DEPTH_VARIANCE  0.0003
@@ -88,11 +104,11 @@ cbuffer Direction
 #endif
 
 // original params w/o optimze
-//#define DEPTH_VARIANCE 0.001
-//#define SPATIAL_VARIANCE 0.134
-//#define DEV_EXPONENT 1.0
-//#define DARK_EPSILON 0.01
-//#define ENHANCE_CONTRAST 1.0
+#define DEPTH_VARIANCE 0.001
+#define SPATIAL_VARIANCE 16.4
+#define DEV_EXPONENT 1.0
+#define DARK_EPSILON 0.01
+#define ENHANCE_CONTRAST 1.0
 
 #define BRIGHT(v) (v.x)
 #define DARK(v) (v.y)
@@ -178,9 +194,9 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         if (dir.y != 0) // second iteration
             sampleAOSq = getColor(uv).zw; // squared values will be in the last two channels
         
-        //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), IMPORTANCE_VARIANCE);
         //float importanceWeight = pow(max(BRIGHT(sampleAO) - DARK(sampleAO), 1e-8), IMPORTANCE_EXPONENT);
-        //float importanceWeight = 1.0;
+        //float importanceWeight = pow(saturate(1.0 - (BRIGHT(sampleAO) - DARK(sampleAO))), IMPORTANCE_EXPONENT);
+        float importanceWeight = 1.0;
         //float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float relativeDepth = abs(getDepth(uv) / localDepth - 1.0); // 0.0 = same depth
         float depthWeight = kernel(relativeDepth, DEPTH_VARIANCE);

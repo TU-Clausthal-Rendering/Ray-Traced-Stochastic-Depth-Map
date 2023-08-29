@@ -1,5 +1,5 @@
 # config
-dataPath = 'D:/VAO/2'
+dataPath = 'D:/VAO/'
 fileEnding = '.npy'
 
 # imports
