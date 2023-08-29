@@ -47,10 +47,18 @@ cbuffer Direction
 // optimized city
 #define DEPTH_VARIANCE  0.0049
 #define SPATIAL_VARIANCE 10.4
-#define IMPORTANCE_EXPONENT 2.19
+#define IMPORTANCE_EXPONENT 1.0
 #define DEV_EXPONENT 0.32
 #define DARK_EPSILON 0.76
 #define ENHANCE_CONTRAST 0.40
+
+// new optimized
+#define DEPTH_VARIANCE  0.0003
+#define SPATIAL_VARIANCE 7.4
+#define IMPORTANCE_EXPONENT 1.0
+#define DEV_EXPONENT 0.3
+#define DARK_EPSILON 0.38
+#define ENHANCE_CONTRAST 0.82
 
 #else
 // for radius 6:
@@ -171,7 +179,7 @@ float4 main(BlurPSIn pIn) : SV_TARGET
             sampleAOSq = getColor(uv).zw; // squared values will be in the last two channels
         
         //float importanceWeight = kernel(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), IMPORTANCE_VARIANCE);
-        float importanceWeight = pow(max(BRIGHT(sampleAO) - DARK(sampleAO), 1e-8), IMPORTANCE_EXPONENT);
+        //float importanceWeight = pow(max(BRIGHT(sampleAO) - DARK(sampleAO), 1e-8), IMPORTANCE_EXPONENT);
         //float importanceWeight = 1.0;
         //float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float relativeDepth = abs(getDepth(uv) / localDepth - 1.0); // 0.0 = same depth
@@ -180,7 +188,7 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         //float depthWeight = 1.0;
 
         // update sum
-        float w = spatialWeight * importanceWeight * depthWeight;
+        float w = spatialWeight * depthWeight; // * importanceWeight
         weightSum += w;
         means += w * sampleAO;
         meansSq += w * sampleAOSq;
