@@ -54,7 +54,7 @@ AOVarianceFix::AOVarianceFix(ref<Device> pDevice, const Properties& props)
 {
     mpFbo = Fbo::create(mpDevice);
     Sampler::Desc samplerDesc;
-    samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
+    samplerDesc.setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
     mpSampler = Sampler::create(mpDevice, samplerDesc);
 }
 

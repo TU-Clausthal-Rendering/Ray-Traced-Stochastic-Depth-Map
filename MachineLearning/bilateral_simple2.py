@@ -1,5 +1,6 @@
 # config
-dataPath = 'D:/VAO/'
+dataPaths = ['D:/VAO/park', 'D:/VAO/city']
+#dataPaths = ['D:/VAO/city']
 fileEnding = '.npy'
 
 # imports
@@ -71,14 +72,30 @@ class GradientLoss(keras.losses.Loss):
 # returns true if sample was processed, false if sample was not processed because it does not exist
 def process_sample(model : keras.models.Model, epochs):
     # check if f'{dataPath}bright_{sample_id}.npy' exists
-    if not os.path.isfile(f'{dataPath}bright_{fileEnding}'):
-        return False
+    image_bright = None
+    image_dark = None
+    image_ref = None
+    image_depth = None
 
-    # Load and preprocess input images
-    image_bright = np.load(f'{dataPath}bright_{fileEnding}')
-    image_dark = np.load(f'{dataPath}dark_{fileEnding}')
-    image_ref = np.load(f'{dataPath}ref_{fileEnding}')
-    image_depth = np.load(f'{dataPath}depth_{fileEnding}')
+    for dataPath in dataPaths:
+        if not os.path.isfile(f'{dataPath}bright_{fileEnding}'):
+            return False
+
+        # Load and preprocess input images
+        ib = np.load(f'{dataPath}bright_{fileEnding}')
+        id = np.load(f'{dataPath}dark_{fileEnding}')
+        ir = np.load(f'{dataPath}ref_{fileEnding}')
+        id = np.load(f'{dataPath}depth_{fileEnding}')
+        if image_bright is None:
+            image_bright = ib
+            image_dark = id
+            image_ref = ir
+            image_depth = id
+        else:
+            image_bright = np.concatenate((image_bright, ib), axis=0)
+            image_dark = np.concatenate((image_dark, id), axis=0)
+            image_ref = np.concatenate((image_ref, ir), axis=0)
+            image_depth = np.concatenate((image_depth, id), axis=0)
     
     image_bright = image_bright.astype(np.float32) / 255.0
     image_dark = image_dark.astype(np.float32) / 255.0
@@ -117,7 +134,7 @@ def process_sample(model : keras.models.Model, epochs):
 
 def build_network():
     # determine size of convolutional network
-    img_shape = np.load(f'{dataPath}bright_{fileEnding}').shape[1:]
+    img_shape = np.load(f'{dataPaths[0]}bright_{fileEnding}').shape[1:]
     print("image shape: ", img_shape)
 
     # two inputs
@@ -125,7 +142,7 @@ def build_network():
     layer_input_dark = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
     layer_input_depth = keras.layers.Input(shape=(img_shape[0], img_shape[1], 1))
     
-    bilateral = BilateralBlur(R=6)
+    bilateral = BilateralBlur(R=2)
     bilateral_layer = bilateral([layer_input_bright, layer_input_dark, layer_input_depth])
 
     train_model = keras.models.Model(

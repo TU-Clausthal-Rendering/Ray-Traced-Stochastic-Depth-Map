@@ -24,91 +24,31 @@ cbuffer Direction
     float2 dir;
 }
 
-
-
-#if KERNEL_RADIUS < 3
-
-// optimized (I = bright - dark)
-#define DEPTH_VARIANCE  0.0012
-#define SPATIAL_VARIANCE 16.4
+// not used anymore
 #define IMPORTANCE_EXPONENT 1.0
-#define DEV_EXPONENT 1.0
-#define DARK_EPSILON 0.138
-#define ENHANCE_CONTRAST 1.66
+
 
 // optimized city
-//#define DEPTH_VARIANCE  0.0004
-//#define SPATIAL_VARIANCE 13.16
-//#define IMPORTANCE_EXPONENT 2.37
-//#define DEV_EXPONENT 0.3
-//#define DARK_EPSILON 0.375
-//#define ENHANCE_CONTRAST 0.95
-
-// optimized (I = 1 - (bright - dark)) -> dark halos around lammpost
-//#define DEPTH_VARIANCE  0.00052
-//#define SPATIAL_VARIANCE 5.0
-//#define IMPORTANCE_EXPONENT 0.16
-//#define DEV_EXPONENT 0.3
-//#define DARK_EPSILON 0.46
-//#define ENHANCE_CONTRAST 0.94
-
-// optomized I = 1
-
-// optimized city
-#define DEPTH_VARIANCE  0.0049
-#define SPATIAL_VARIANCE 10.4
-#define IMPORTANCE_EXPONENT 1.0
-#define DEV_EXPONENT 0.32
-#define DARK_EPSILON 0.76
-#define ENHANCE_CONTRAST 0.40
 //#define DEPTH_VARIANCE  0.0049
 //#define SPATIAL_VARIANCE 10.4
-//#define IMPORTANCE_EXPONENT 2.19
 //#define DEV_EXPONENT 0.32
 //#define DARK_EPSILON 0.76
 //#define ENHANCE_CONTRAST 0.40
 
-// new optimized
+// optimized park
 #define DEPTH_VARIANCE  0.0003
 #define SPATIAL_VARIANCE 7.4
-#define IMPORTANCE_EXPONENT 1.0
 #define DEV_EXPONENT 0.3
 #define DARK_EPSILON 0.38
 #define ENHANCE_CONTRAST 0.82
 
-#else
-// for radius 6:
-// MSE
-#define DEPTH_VARIANCE  0.0012
-#define SPATIAL_VARIANCE 3.57
-#define DEV_EXPONENT 1.0
-#define DARK_EPSILON 0.141
-#define ENHANCE_CONTRAST 1.64
-#define IMPORTANCE_EXPONENT 1.0
-
-#define DEPTH_VARIANCE 0.0008
-#define SPATIAL_VARIANCE 8.0
-#define IMPORTANCE_EXPONENT 2.23
-#define DEV_EXPONENT 0.35
-#define DARK_EPSILON 0.36
-#define ENHANCE_CONTRAST 1.015
-
-// optimized city
-#define DEPTH_VARIANCE 0.0027
-#define SPATIAL_VARIANCE 6.68
-#define IMPORTANCE_EXPONENT 2.84
-#define DEV_EXPONENT 0.365
-#define DARK_EPSILON 0.75
-#define ENHANCE_CONTRAST 0.46
-
-#endif
 
 // original params w/o optimze
-#define DEPTH_VARIANCE 0.001
-#define SPATIAL_VARIANCE 16.4
-#define DEV_EXPONENT 1.0
-#define DARK_EPSILON 0.01
-#define ENHANCE_CONTRAST 1.0
+//#define DEPTH_VARIANCE 0.001
+//#define SPATIAL_VARIANCE 16.4
+//#define DEV_EXPONENT 1.0
+//#define DARK_EPSILON 0.01
+//#define ENHANCE_CONTRAST 1.0
 
 #define BRIGHT(v) (v.x)
 #define DARK(v) (v.y)
