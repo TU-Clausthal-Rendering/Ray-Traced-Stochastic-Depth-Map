@@ -195,8 +195,8 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         // actual deviation
         float2 adev = pow(abs(meansSq - means * means), DEV_EXPONENT * 0.5);
         adev.y = max(adev.y, DARK_EPSILON); // prevent division by zero
-        w = adev.yx / (adev.x + adev.y);
         adev.x *= ENHANCE_CONTRAST; // contrast enhancement
+        w = adev.yx / (adev.x + adev.y);
         if (!LOCAL_DEVIATION)
             c = dot(cOriginal, w); // interpolate from original color value
         
