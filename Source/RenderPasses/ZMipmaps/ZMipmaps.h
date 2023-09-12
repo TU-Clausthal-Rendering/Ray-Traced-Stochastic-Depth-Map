@@ -56,5 +56,6 @@ private:
 
     int mMipLevels = -1; // all levels
     float mThreshold = 0.9f;
+    bool mAdaptiveThreshold = true;
     ref<Scene> mpScene;
 };

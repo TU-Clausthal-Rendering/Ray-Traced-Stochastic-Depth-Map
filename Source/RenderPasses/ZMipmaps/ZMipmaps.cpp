@@ -94,7 +94,7 @@ void ZMipmaps::execute(RenderContext* pRenderContext, const RenderData& renderDa
 
     auto vars = mpMipPass->getRootVar();
     vars["CameraCB"]["farZ"] = farZ;
-    vars["CameraCB"]["threshold"] = mThreshold;
+
 
     // copy first level
     pRenderContext->blit(pDepthIn->getSRV(0, 1), pDepthOut->getRTV());
@@ -102,9 +102,14 @@ void ZMipmaps::execute(RenderContext* pRenderContext, const RenderData& renderDa
     // gen mipmaps
     for(uint i = 1;  i < pDepthOut->getMipCount(); i++)
     {
+        // adaptive threshold based on mip level
+        float t = mThreshold;
+        if(mAdaptiveThreshold)
+            t = t / (t + powf(2, float(i-1)) * (1 - t));
+
         mpFbo->attachColorTarget(pDepthOut, 0, i);
         vars["gSrc"].setSrv(pDepthOut->getSRV(i - 1, 1));
-
+        vars["CameraCB"]["threshold"] = t;
         mpMipPass->execute(pRenderContext, mpFbo);
     }
 }
@@ -113,6 +118,6 @@ void ZMipmaps::renderUI(Gui::Widgets& widget)
 {
     if (widget.var("Mip Levels", mMipLevels, -1, 14))
         requestRecompile();
-
-
+    widget.var("Threshold", mThreshold, 0.f, 1.f, 0.01f);
+    widget.checkbox("Adaptive Threshold", mAdaptiveThreshold);
 }

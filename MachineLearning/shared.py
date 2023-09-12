@@ -182,6 +182,7 @@ class BilateralBlur(tf.keras.layers.Layer):
             name='dark_epsilon',
             initializer=keras.initializers.Constant(0.01),
             constraint=GreaterThanConstraint(epsilon=1e-8),
+            trainable=False
         )
         self.contrast_enhance = self.add_weight(
             name='contrast_enhance',

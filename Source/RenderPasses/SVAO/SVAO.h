@@ -64,6 +64,7 @@ public:
     SVAO(ref<Device> pDevice);
 private:
     ref<Texture> genNoiseTexture();
+    void setDepthTex(ShaderVar& var, const ref<Texture>& pDepth);
 
     Program::Desc getFullscreenShaderDesc(const std::string& filename);
 
@@ -109,6 +110,7 @@ private:
     float mTargetTimeMs = 0.6f;
 
     bool mUseDepthLod = false;
+    uint mDepthTexMips = 8;
 
     float mLastGpuTime = 0.0;
 

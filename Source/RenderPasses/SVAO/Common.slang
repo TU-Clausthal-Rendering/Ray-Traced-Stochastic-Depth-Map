@@ -16,6 +16,8 @@ import Scene.Shading;
 #define DEPTH_MODE_MACHINE_CLASSIFY 4
 #define DEPTH_MODE_MACHINE_PREDICT 5
 #define DEPTH_MODE_PERFECT_CLASSIFY 6
+// use mipmaps to estimate depth, when mip0 is ambiguous
+#define DEPTH_MODE_MIPMAPS 7 
 
 #define STOCHASTIC_DEPTH_RASTER 0
 #define STOCHASTIC_DEPTH_RAY 1
@@ -53,7 +55,12 @@ cbuffer PerFrameCB
 SamplerState gNoiseSampler;
 SamplerState gTextureSampler;
 
-Texture2D<float> gDepthTex;
+#ifndef DEPTH_MIPS
+#define DEPTH_MIPS 1
+#endif
+
+Texture2D<float> gDepthTexMips[DEPTH_MIPS];
+#define gDepthTex gDepthTexMips[0]
 Texture2D<float> gDepthTex2;
 
 // additional depth textures
@@ -140,9 +147,74 @@ float calcVisibility(float objectSpaceZ, float sphereStart, float sphereEnd, flo
          + calcHaloVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
 }
 
-float calcObjectSpaceZ(float3 posV, float3 normal, float2 uv, Texture2D<float> depthTex, float lod = 0.0)
+float2 calcGatherUV(float2 uv, Texture2D<float> tex)
 {
-    float linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, lod);
+    float2 resolution;
+    tex.GetDimensions(resolution.x, resolution.y);
+
+    return (floor(uv * resolution - 0.5) + 1.0) / resolution;
+}
+
+float4 getTexelWeights(float2 uv, Texture2D<float> tex)
+{
+    float2 resolution;
+    tex.GetDimensions(resolution.x, resolution.y);
+    
+    // calculate bilinear interpolation weights from uv coordinate
+    float2 f = frac(uv * resolution - 0.5);
+    // (-,+),(+,+),(+,-),(-,-)
+    float4 w = float4((1.0 - f.x) * f.y, f.x * f.y, f.x * (1.0 - f.y), (1.0 - f.x) * (1.0 - f.y));
+    return w;
+}
+
+float4 getTexelPointWeight(float4 w)
+{
+    int maxIdx = 0;
+    float maxVal = w[0];
+    for (int i = 1; i < 4; ++i)
+    {
+        if (w[i] > maxVal)
+        {
+            maxIdx = i;
+            maxVal = w[i];
+        }
+    }
+    float4 res = 0.0;
+    for (int i = 1; i < 4; ++i)
+        if (i == maxIdx)
+            res[i] = 1.0;
+
+    return res;
+}
+
+float calcObjectSpaceZ(float3 posV, float3 normal, float2 uv, Texture2D<float> depthTex, uint lod = 0u)
+{
+    float linearSampleDepth;
+    if (lod == 0u) linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
+    else // useGather
+    {
+        float2 gatherUV = calcGatherUV(uv, depthTex);
+        float4 d = depthTex.Gather(gTextureSampler, gatherUV);
+        float4 w = getTexelWeights(uv, depthTex);
+
+        // closest depth
+        float dRef = dot(getTexelPointWeight(w), d);
+        //float dRef = max(max(d[0], d[1]), max(d[2], d[3]));
+
+        float lowT = pow(0.9, lod);
+        float highT = pow(1.1, lod);
+        for (uint i = 0; i < 4; ++i)
+        {
+            if (d[i] < lowT * dRef || d[i] > highT * dRef)
+                w[i] = 0.0; // not similar enough => reject
+        }
+        w = w / (w[0] + w[1] + w[2] + w[3]);
+
+        linearSampleDepth = dot(w, d);
+        //linearSampleDepth = dRef;
+        //linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
+    }
+    
     float3 samplePosV = UVToViewSpace(uv, linearSampleDepth);
             // the object is the sphere centered at posV with the above tangent space (positive values are closer to the camera)
     float objectSpaceZ = dot(samplePosV - posV, normal);
@@ -320,11 +392,27 @@ struct SampleAOData
 
     [mutating] void evalPrimaryVisibility(BasicAOData data)
     {
-        float lod = 0.0;
-        if (useDepthLod) lod = log2(screenSpaceRadius / 8.0);
-        objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex, lod);
+        uint lod = 0;
+        if (useDepthLod)
+            lod = (uint)max(int(log2(screenSpaceRadius / 8.0) + 0.5), 0);
+        objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTexMips[lod], lod);
         visibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
         requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
+
+        if (PRIMARY_DEPTH_MODE == DEPTH_MODE_MIPMAPS)
+        {
+            lod += 1;
+            for (; lod < uint(DEPTH_MIPS); ++lod)
+            {
+                // take min object space Z
+                objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTexMips[lod], lod));
+                visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf));
+                requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
+                if (!requireRay)
+                    break;
+            }
+
+        }
     }
 
     [mutating] void evalDualVisibility(BasicAOData data)
