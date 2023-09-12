@@ -56,7 +56,7 @@ ZMipmaps::ZMipmaps(ref<Device> pDevice, const Properties& props)
     mpFbo = Fbo::create(pDevice);
 
     Sampler::Desc samplerDesc;
-    samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point);
+    samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Border, Sampler::AddressMode::Border, Sampler::AddressMode::Border).setBorderColor(float4(0.0f));
     auto pointSampler = Sampler::create(pDevice, samplerDesc);
 
     mpMipPass = FullScreenPass::create(pDevice, kMipShader);

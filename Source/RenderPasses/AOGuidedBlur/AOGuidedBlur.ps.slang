@@ -49,11 +49,11 @@ cbuffer Direction
 //#define ENHANCE_CONTRAST 0.40
 
 // optimized park R = 2
-#define DEPTH_VARIANCE  0.012
+#define DEPTH_VARIANCE  0.0062
 #define SPATIAL_VARIANCE 8.0
-#define IMPORTANCE_EXPONENT 3.4
-#define DEV_EXPONENT 0.72
-#define DARK_EPSILON 2.1
+#define IMPORTANCE_EXPONENT 1e-7
+#define DEV_EXPONENT 6.35
+#define DARK_EPSILON 0.01
 #define ENHANCE_CONTRAST 1.0
 
 // optimized city R = 2
