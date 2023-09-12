@@ -108,10 +108,14 @@ private:
     bool mTraceOutOfScreen = true;
     float mTargetTimeMs = 0.6f;
 
+    bool mUseDepthLod = false;
+
     float mLastGpuTime = 0.0;
 
     //NeuralNetCollection mNeuralNet;
     //NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
 
     StochasticDepthImpl mStochasticDepthImpl = StochasticDepthImpl::Ray;
+
+    bool mHasDepthMipmap = false;
 };

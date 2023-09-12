@@ -1,6 +1,6 @@
 # config
-dataPaths = ['D:/VAO/park', 'D:/VAO/city']
-#dataPaths = ['D:/VAO/city']
+#dataPaths = ['D:/VAO/park', 'D:/VAO/city']
+dataPaths = ['D:/VAO/park']
 fileEnding = '.npy'
 
 # imports
@@ -164,8 +164,8 @@ def build_network():
         model.compile(optimizer='adam', loss='mean_squared_error')
 
     # special loss for train model
-    loss = AoLoss()
-    #loss = GradientLoss()
+    #loss = AoLoss()
+    loss = GradientLoss()
     #loss = SSIMLoss()
     #loss = 'mean_squared_error'
     optimizer = keras.optimizers.Adam(learning_rate=0.001)

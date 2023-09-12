@@ -57,10 +57,10 @@ class AoLoss(keras.losses.Loss):
         
         y_diff = tf.math.subtract(y_ref, y_pred)
         # multiply with 2.0 if y_diff is positive
-        #y_diff = tf.where(y_diff > 0, y_diff * 2, y_diff)
+        y_diff = tf.where(y_diff > 0, y_diff * 2, y_diff)
         
         # errors below 0.01 are irrelevant
-        y_diff = tf.maximum(tf.abs(y_diff) - 0.01, 0.0)
+        # y_diff = tf.maximum(tf.abs(y_diff) - 0.01, 0.0)
 
         return tf.math.square(y_diff) # return squared error
     
@@ -140,6 +140,15 @@ class GreaterThanConstraint(tf.keras.constraints.Constraint):
     def __call__(self, w):
         return tf.keras.backend.clip(w, self.epsilon, None)
 
+class ValuePenaltyRegularizer(tf.keras.regularizers.Regularizer):
+    def __init__(self, v, penalty_coeff=0.01):
+        self.v = v
+        self.penalty_coeff = penalty_coeff
+
+    def __call__(self, x):
+        penalty = tf.abs(x - self.v)
+        return self.penalty_coeff * penalty
+
 class BilateralBlur(tf.keras.layers.Layer):
     def __init__(self, R=2, **kwargs):
         super(BilateralBlur, self).__init__(**kwargs)
@@ -149,38 +158,36 @@ class BilateralBlur(tf.keras.layers.Layer):
         self.kernel_size = 2 * self.R + 1
         self.depth_variance = self.add_weight(
             name='depth_variance', 
-            #initializer=keras.initializers.Constant(0.001),
-            initializer=keras.initializers.Constant(0.0004),
-            constraint=GreaterThanConstraint(epsilon=1e-7),
+            initializer=keras.initializers.Constant(0.01),
+            constraint=GreaterThanConstraint(epsilon=1e-4),
             trainable=True
         )
         self.spatial_variance = self.add_weight(
             name='spatial_variance', 
-            #initializer=keras.initializers.Constant(10.0),
-            initializer=keras.initializers.Constant(13.16),
-            constraint=GreaterThanConstraint(epsilon=1e-7),
+            initializer=keras.initializers.Constant(16.0),
+            constraint=GreaterThanConstraint(epsilon=8.0),
             trainable=True
         )
-        #self.importance_exponent = self.add_weight(
-        #    name='importance_exponent',
-        #    initializer=keras.initializers.Constant(2.37),
-        #    constraint=GreaterThanConstraint(epsilon=1e-7),
-        #)
+        self.importance_exponent = self.add_weight(
+            name='importance_exponent',
+            initializer=keras.initializers.Constant(1.0),
+            constraint=GreaterThanConstraint(epsilon=1e-7),
+        )
         self.dev_exponent = self.add_weight(
             name='dev_exponent',
-            #initializer=keras.initializers.Constant(2.0),
-            initializer=keras.initializers.Constant(0.3),
+            initializer=keras.initializers.Constant(1.0),
             constraint=GreaterThanConstraint(epsilon=1e-7) 
         )
         self.dark_epsilon = self.add_weight(
             name='dark_epsilon',
-            initializer=keras.initializers.Constant(0.375),
+            initializer=keras.initializers.Constant(0.01),
             constraint=GreaterThanConstraint(epsilon=1e-8),
         )
         self.contrast_enhance = self.add_weight(
             name='contrast_enhance',
-            initializer=keras.initializers.Constant(0.95),
+            initializer=keras.initializers.Constant(1.0),
             constraint=GreaterThanConstraint(epsilon=0.1),
+            trainable=False # produces too bright halos => usually converges to ~0.3
         )
 
         # spatial distances (-2, -1, 0, 1, 2)
@@ -203,10 +210,11 @@ class BilateralBlur(tf.keras.layers.Layer):
         w_spatial = tf.exp(-tf.square(self.spatial_dist) / (2 * self.spatial_variance))
         # calc importance weights
         #w_importance = tf.minimum(1.0 - (bright_x - dark_x), 1.0)
-        #w_importance = self.custom_pow(w_importance, self.importance_exponent)
+        w_importance = tf.maximum((bright_x - dark_x), 0.0)
+        w_importance = self.custom_pow(w_importance, self.importance_exponent)
 
         # apply spatial weights
-        w_x = w_depth * w_spatial #* w_importance
+        w_x = w_depth * w_spatial * w_importance
 
         # normalize the weights
         w_x = tf.divide(w_x, tf.reduce_sum(w_x, axis=-1, keepdims=True))

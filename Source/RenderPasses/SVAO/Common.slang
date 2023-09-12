@@ -47,6 +47,7 @@ cbuffer PerFrameCB
     float4x4 invViewMat;
     Camera gCamera;
     uint guardBand;
+    bool useDepthLod;
 }
 
 SamplerState gNoiseSampler;
@@ -139,9 +140,9 @@ float calcVisibility(float objectSpaceZ, float sphereStart, float sphereEnd, flo
          + calcHaloVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
 }
 
-float calcObjectSpaceZ(float3 posV, float3 normal, float2 uv, Texture2D<float> depthTex)
+float calcObjectSpaceZ(float3 posV, float3 normal, float2 uv, Texture2D<float> depthTex, float lod = 0.0)
 {
-    float linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0);
+    float linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, lod);
     float3 samplePosV = UVToViewSpace(uv, linearSampleDepth);
             // the object is the sphere centered at posV with the above tangent space (positive values are closer to the camera)
     float objectSpaceZ = dot(samplePosV - posV, normal);
@@ -270,6 +271,7 @@ struct SampleAOData
     bool requireRay;
 
     float initialSamplePosLength;
+    float screenSpaceRadius;
     
     // returns false if the sample is invalid (below hemisphere)
     [mutating] bool Init(float2 texC, BasicAOData data, uint i)
@@ -305,6 +307,7 @@ struct SampleAOData
         requireRay = false;
         visibility = 0.0;
         objectSpaceZ = 0.0;
+        screenSpaceRadius = length(float2((texC - samplePosUV) * gData.resolution));
         
         float2 screenUv = getScreenClampedUV(texC, samplePosUV); // clip to screen border
         isInScreen = all(samplePosUV == screenUv);
@@ -317,7 +320,9 @@ struct SampleAOData
 
     [mutating] void evalPrimaryVisibility(BasicAOData data)
     {
-        objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex);
+        float lod = 0.0;
+        if (useDepthLod) lod = log2(screenSpaceRadius / 8.0);
+        objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex, lod);
         visibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
         requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
     }

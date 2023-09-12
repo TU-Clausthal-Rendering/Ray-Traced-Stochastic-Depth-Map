@@ -75,7 +75,7 @@ SVAO::SVAO(ref<Device> pDevice) : RenderPass(std::move(pDevice))
     samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap);
     mpNoiseSampler = Sampler::create(mpDevice, samplerDesc);
 
-    samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
+    samplerDesc.setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
     mpTextureSampler = Sampler::create(mpDevice, samplerDesc);
 
     mpFbo = Fbo::create(mpDevice);
@@ -143,7 +143,8 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     RenderPassReflection reflector;
     //reflector.addInput(kAoStencil, "(Depth-) Stencil Buffer for the ao mask").format(ResourceFormat::D32FloatS8X24);
     reflector.addInput(kGbufferDepth, "Non-Linear Depth from the G-Buffer").bindFlags(ResourceBindFlags::ShaderResource);
-    reflector.addInput(kDepth, "Linear Depth-buffer").bindFlags(ResourceBindFlags::ShaderResource);
+    reflector.addInput(kDepth, "Linear Depth-buffer").bindFlags(ResourceBindFlags::ShaderResource)
+        .texture2D(0, 0, 1, 0, 1); // allow mipmaps
     reflector.addInput(kDepth2, "Linear Depth-buffer of second layer").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kNormals, "World space normals, [0, 1] range").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kMatDoubleSided, "Material double sided flag").bindFlags(ResourceBindFlags::ShaderResource);
@@ -203,6 +204,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
     auto pNonLinearDepth = renderData[kGbufferDepth]->asTexture();
     auto pDepth = renderData[kDepth]->asTexture();
+    mHasDepthMipmap = pDepth->getMipCount() > 1;
     auto pNormal = renderData[kNormals]->asTexture();
     auto pAoDst = renderData[kAmbientMap]->asTexture();
     auto pDepth2 = renderData[kDepth2]->asTexture();
@@ -234,6 +236,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("MSAA_SAMPLES", std::to_string(mStochSamples)); // TODO update this from gui
         defines.add("TRACE_OUT_OF_SCREEN", mTraceOutOfScreen ? "1" : "0");
         defines.add("STOCHASTIC_DEPTH_IMPL", std::to_string(uint32_t(mStochasticDepthImpl)));
+        defines.add("USE_DEPTH_LOD", mUseDepthLod ? "1" : "0");
         defines.add(mpScene->getSceneDefines());
 
         // raster pass 1
@@ -303,6 +306,8 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         auto var = mpRasterPass->getRootVar();
         mpScene->setRaytracingShaderData(pRenderContext, var);
     }
+    rasterVars["PerFrameCB"]["useDepthLod"] = mUseDepthLod ? 1 : 0;
+
     rasterVars["gDepthTex"] = pDepth;
     rasterVars["gDepthTex2"] = pDepth2;
     rasterVars["gNormalTex"] = pNormal;
@@ -542,6 +547,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
     if (widget.var("Fade Size (Screen Space Radius)", mData.ssRadiusFadeSize, 0.01f, 100.0f, 1.0f)) mDirty = true;
     widget.tooltip("The fade will be for a screen space radius in range [FadeEnd, FadeEnd + FadeSize]");
 
+    widget.checkbox("Use Depth LOD", mUseDepthLod);
 
     if (reset) requestRecompile();
 }
