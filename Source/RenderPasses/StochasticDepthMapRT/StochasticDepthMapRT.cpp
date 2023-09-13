@@ -230,6 +230,8 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         defines.add("NUM_SAMPLES", std::to_string(mSampleCount));
         defines.add("ALPHA", std::to_string(0.2f));
         defines.add("NORMALIZE", mNormalize ? "1" : "0");
+        auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
+        defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
 
         // raster pass
         {
@@ -281,9 +283,6 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     }
     else // raster pipeline
     {
-        assert(false); // NOT updated!! (slow performance)
-        return;
-        
         if(pStencilMask)
         {
             FALCOR_PROFILE(pRenderContext, "Stencil Clear&Copy");
@@ -306,6 +305,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         }
 
         mpRasterProgram->getRootVar()["depthInTex"] = pDepthIn;
+        mpRasterProgram->getRootVar()["rayMinTex"] = pRayMin;
         mpRasterProgram->getRootVar()["rayMaxTex"] = pRayMax;
 
         // set gScene and raytracing data

@@ -1,33 +1,14 @@
 import Scene.Raytracing;
+import Rendering.Materials.TexLODHelpers;
+import Rendering.Materials.TexLODTypes;
 
-Texture2D<float> depthInTex;
 RWTexture2DArray<float> depthOutTex;
 Texture2D<uint> maskTex;
-Texture2D<uint> rayMinTex; // contains float values: use asfloat()
-Texture2D<uint> rayMaxTex; // contains float values: use asfloat()
 
-StructuredBuffer<uint> stratifiedIndices;
-StructuredBuffer<uint> stratifiedLookUpTable;
-
-#define DEFAULT_DEPTH (NORMALIZE ? 1.0 : 3.40282347E+37F)
-
-// Hash function from "Improved Alpha Testing Using Hashed Sampling"
-float hash(float2 v)
-{
-    return frac(1.0e4 * sin(17.0 * v.x + 0.1 * v.y) * (0.1 + abs(sin(13.0 * v.y + v.x))));
-}
-
-// 3D hash function from "Improved Alpha Testing Using Hashed Sampling"
-float hash3D(float3 v)
-{
-    return hash(float2(hash(v.xy), v.z));
-}
-
-// 4D hash function based on the 3D hash function
-float hash4D(float4 v)
-{
-    return hash(float2(hash3D(v.xyz), v.w));
-}
+// Note: using lods (ray cones) is about 20% faster than sampling lod 0 (no lod)
+#define TEXTURE_LOD_T ExplicitRayConesLodTextureSampler
+//#define TEXTURE_LOD_T ExplicitLodTextureSampler
+#include "Common.slangh"
 
 struct RayData // cannot be compressed to half floats => no diff in rendering time + insufficient visual quality
 {
@@ -35,118 +16,22 @@ struct RayData // cannot be compressed to half floats => no diff in rendering ti
     uint count; // number of processed samples
 };
 
-float RayToViewDepth(float3 rayDir, float rayT)
-{
-    float cosTheta = dot(normalize(gScene.camera.data.cameraW), rayDir);
-    return rayT * cosTheta;
-}
+//ExplicitLodTextureSampler computeLod(VertexData v, float3 rayDir) { return ExplicitLodTextureSampler(0.0); }
 
-float ViewDepthToRay(float3 rayDir, float viewDepth)
+ExplicitRayConesLodTextureSampler computeLod(VertexData v, float3 rayDir)
 {
-    float cosTheta = dot(normalize(gScene.camera.data.cameraW), rayDir);
-    return viewDepth / cosTheta;    
+    RayCone rc = RayCone(0.0, RAY_CONE_SPREAD);
+    rc = rc.propagateDistance(RayTCurrent());
+    float lambda = rc.computeLOD(v.coneTexLODValue, rayDir, v.normalW);
+    return ExplicitRayConesLodTextureSampler(lambda);
 }
 
 [shader("anyhit")]
 void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs)
 {
-    #define SD_VERSION 2
-    #define MAX_COUNT (2 * NUM_SAMPLES)
-
-    //float rng = hash3D(float3(attribs.barycentrics, RayTCurrent()));
-    float rng = hash(attribs.barycentrics);
-    
-    #if SD_VERSION == 2
-    uint slot = rayData.count; // insertion slot
-    if (rayData.count >= NUM_SAMPLES)
-        slot = uint(rng * rayData.count); // slot in [0, count - 1]
-    
-    rayData.count += 1;
-    if(slot >= NUM_SAMPLES) // rejected?
-    {
-        if (rayData.count > MAX_COUNT)
-            return;
+    bool commit = algorithm(rayData.depths, rayData.count, attribs.barycentrics, RayTCurrent(), getGeometryInstanceID(), PrimitiveIndex(), WorldRayDirection());
+    if (!commit)
         IgnoreHit();
-    }
-
-    // accepted => do (early) depth test
-    float t = RayTCurrent();
-    t = RayToViewDepth(WorldRayDirection(), t); // convert to view depth
-    if (NORMALIZE) t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
-
-    //if (rayData.depths[slot] <= t)
-    //    IgnoreHit();
-    for (uint i = 0; i < NUM_SAMPLES; ++i)
-    {
-        if (i == slot && rayData.depths[i] <= t)
-            IgnoreHit();
-    }
-
-    #endif
-
-    { // ALPHA test
-        TriangleHit hit;
-        hit.instanceID = getGeometryInstanceID();
-        hit.primitiveIndex = PrimitiveIndex();
-        hit.barycentrics = attribs.barycentrics;
-        const uint materialID = gScene.getMaterialID(hit.instanceID);
-        const MaterialHeader header = gScene.materials.materialData[materialID].header;
-
-        // needs alpha testing?
-        if (header.getAlphaMode() == AlphaMode::Mask)
-        {
-            const VertexData v = gScene.getVertexData(hit);
-            if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
-                IgnoreHit(); // alpha test failed => ignore this triangle
-        }
-    }
-    
-
-    
-    
-    #if SD_VERSION == 2
-    //rayData.depths[slot] = t;
-    for (uint i = 0; i < NUM_SAMPLES; ++i)
-    {
-        if (i == slot) rayData.depths[i] = t;
-    }
-
-    if (rayData.count > MAX_COUNT)
-        return;
-    IgnoreHit();
-
-    //float rng2 = hash3D(float3(attribs.barycentrics, t));
-    //if (rng2 < 0.2) // small chance to keep traversal going
-    //if(rayData.count < 5)
-    //    IgnoreHit(); 
-    #endif
-#if SD_VERSION == 1
-    int R = int(floor(ALPHA * NUM_SAMPLES + rng));
-    uint coverageMask = 0;
-    
-    if (R >= NUM_SAMPLES)
-    {
-        coverageMask = 0xffff; // maximum 32 samples
-    }
-    else if (R != 0)
-    {
-        float rng2 = hash3D(float3(attribs.barycentrics, t));
-        int index = int(lerp(stratifiedIndices[R], stratifiedIndices[R + 1], rng2));
-        coverageMask = stratifiedLookUpTable[index];
-    }
-
-    float maxT = 0.0;
-    [unroll]
-    for (uint i = 0; i < NUM_SAMPLES; ++i)
-    {
-        if (coverageMask & (1 << i))
-            rayData.depths[i] = min(rayData.depths[i], t); // z-test enabled
-        maxT = max(maxT, rayData.depths[i]);
-    }
-
-    if (t < maxT)
-        IgnoreHit(); // keep looking for hits, otherwise start to terminate
-#endif
 }
 
 [shader("miss")]

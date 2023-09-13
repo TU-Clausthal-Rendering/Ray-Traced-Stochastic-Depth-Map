@@ -1,40 +1,8 @@
 import Scene.RaytracingInline;
 import Scene.Raster;
 
-Texture2D<float> depthInTex;
-
-StructuredBuffer<uint> stratifiedIndices;
-StructuredBuffer<uint> stratifiedLookUpTable;
-
-// Hash function from "Improved Alpha Testing Using Hashed Sampling"
-float hash(float2 v)
-{
-    return frac(1.0e4 * sin(17.0 * v.x + 0.1 * v.y) * (0.1 + abs(sin(13.0 * v.y + v.x))));
-}
-
-// 3D hash function from "Improved Alpha Testing Using Hashed Sampling"
-float hash3D(float3 v)
-{
-    return hash(float2(hash(v.xy), v.z));
-}
-
-// 4D hash function based on the 3D hash function
-float hash4D(float4 v)
-{
-    return hash(float2(hash3D(v.xyz), v.w));
-}
-
-float RayToViewDepth(float3 rayDir, float rayT)
-{
-    float cosTheta = dot(normalize(gScene.camera.data.cameraW), rayDir);
-    return rayT * cosTheta;
-}
-
-float ViewDepthToRay(float3 rayDir, float viewDepth)
-{
-    float cosTheta = dot(normalize(gScene.camera.data.cameraW), rayDir);
-    return viewDepth / cosTheta;    
-}
+#define TEXTURE_LOD_T ImplicitLodTextureSampler
+#include "Common.slangh"
 
 struct PsOut
 {
@@ -72,12 +40,18 @@ struct PsOut
 #endif
 };
 
+ImplicitLodTextureSampler computeLod(VertexData v, float3 rayDir)
+{
+    return ImplicitLodTextureSampler();
+}
+
 [earlydepthstencil]
 PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 {    
     float depths[NUM_SAMPLES];
+    uint count = 0;
     for (uint i = 0; i < NUM_SAMPLES; ++i)
-        depths[i] = NORMALIZE ? 1.0 : 3.40282347E+37F;
+        depths[i] = DEFAULT_DEPTH;
 
     int width, height;
     depthInTex.GetDimensions(width, height);
@@ -91,56 +65,15 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     {
         if (rayQuery.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE)
         {
-            // alpha test
-            const TriangleHit hit = getCandidateTriangleHit(rayQuery);
-            const uint materialID = gScene.getMaterialID(hit.instanceID);
-            const VertexData v = gScene.getVertexData(hit);
-            const MaterialHeader header = gScene.materials.materialData[materialID].header;
+            bool commit = algorithm(depths, count,
+                rayQuery.CandidateTriangleBarycentrics(),
+                rayQuery.CandidateTriangleRayT(),
+                GeometryInstanceID(rayQuery.CandidateInstanceID(), rayQuery.CandidateGeometryIndex()),
+                rayQuery.CandidatePrimitiveIndex(),
+                ray.Direction
+            );
 
-            // needs alpha testing?
-            if (header.getAlphaMode() == AlphaMode::Mask)
-            {
-                const VertexData v = gScene.getVertexData(hit);
-                if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
-                    continue; // alpha test failed => ignore this triangle
-            }
-
-            float t = rayQuery.CandidateTriangleRayT();
-            t = RayToViewDepth(ray.Direction, t); // convert to view depth
-    
-            //float rng = hash4D(float4(DispatchRaysIndex().x, DispatchRaysIndex().y, t, 1.438943289));
-            float rng = hash4D(float4(rayQuery.CandidateTriangleBarycentrics(), t, 1.438943289));
-
-            int R = int(floor(ALPHA * NUM_SAMPLES + rng));
-            uint coverageMask = 0;
-    
-            if (R >= NUM_SAMPLES)
-            {
-                coverageMask = 0xffff; // maximum 32 samples
-            }
-            else if (R != 0)
-            {
-                float rng2 = hash3D(float3(rayQuery.CandidateTriangleBarycentrics(), t));
-                int index = int(lerp(stratifiedIndices[R], stratifiedIndices[R + 1], rng2));
-                coverageMask = stratifiedLookUpTable[index];
-            }
-
-            if (NORMALIZE)
-            {
-                t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
-            }
-
-            float maxT = 0.0;
-            [unroll]
-            for (uint i = 0; i < NUM_SAMPLES; ++i)
-            {
-                if (coverageMask & (1 << i))
-                    depths[i] = min(depths[i], t); // z-test enabled
-                maxT = max(maxT, depths[i]);
-            }
-
-            if (t >= maxT)
-                rayQuery.CommitNonOpaqueTriangleHit();
+            if(commit) rayQuery.CommitNonOpaqueTriangleHit();
         }
     }
 

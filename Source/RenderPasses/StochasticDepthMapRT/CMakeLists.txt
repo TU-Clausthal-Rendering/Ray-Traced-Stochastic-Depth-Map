@@ -5,6 +5,7 @@ target_sources(StochasticDepthMapRT PRIVATE
     StochasticDepthMapRT.h
     StochasticDepthMapRT.rt.slang
     StochasticDepthMapRT.ps.slang
+    Common.slangh
     Stencil.ps.slang
 )
 

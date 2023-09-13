@@ -30,46 +30,16 @@ cbuffer Direction
 // original params w/o optimze
 #define DEPTH_VARIANCE 0.001
 #define SPATIAL_VARIANCE 16.4
+#define DARK_EPSILON 0.01
 #define DEV_EXPONENT 1.0
-#define DARK_EPSILON 0.01
 #define ENHANCE_CONTRAST 1.0
 
-// optimized park R = 6
-//#define DEPTH_VARIANCE  0.0003
-//#define SPATIAL_VARIANCE 7.4
-//#define DEV_EXPONENT 0.3
-//#define DARK_EPSILON 0.38
-//#define ENHANCE_CONTRAST 0.82
-
-// optimized city R = 6
-//#define DEPTH_VARIANCE  0.0049
-//#define SPATIAL_VARIANCE 10.4
-//#define DEV_EXPONENT 0.32
+//// city
+//#define DEPTH_VARIANCE 0.001
+//#define SPATIAL_VARIANCE 16.4
 //#define DARK_EPSILON 0.76
-//#define ENHANCE_CONTRAST 0.40
-
-// optimized park R = 2
-#define DEPTH_VARIANCE  0.0062
-#define SPATIAL_VARIANCE 8.0
-#define IMPORTANCE_EXPONENT 1e-7
-#define DEV_EXPONENT 6.35
-#define DARK_EPSILON 0.01
-#define ENHANCE_CONTRAST 1.0
-
-// optimized city R = 2
-//#define DEPTH_VARIANCE  0.14
-//#define SPATIAL_VARIANCE 0.043
-//#define DEV_EXPONENT 0.29
-//#define DARK_EPSILON 0.46
-//#define ENHANCE_CONTRAST 0.61
-
-// optimized parkcity R = 2
-//#define DEPTH_VARIANCE  0.12
-//#define SPATIAL_VARIANCE 0.074
-//#define DEV_EXPONENT 0.516
-//#define DARK_EPSILON 0.15
-//#define ENHANCE_CONTRAST 0.95
-
+//#define DEV_EXPONENT 0.32
+//#define ENHANCE_CONTRAST 0.4
 
 
 #define BRIGHT(v) (v.x)
@@ -156,9 +126,9 @@ float4 main(BlurPSIn pIn) : SV_TARGET
         if (dir.y != 0) // second iteration
             sampleAOSq = getColor(uv).zw; // squared values will be in the last two channels
         
-        float importanceWeight = pow(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), IMPORTANCE_EXPONENT);
+        //float importanceWeight = pow(max(BRIGHT(sampleAO) - DARK(sampleAO), 0.0), IMPORTANCE_EXPONENT);
         //float importanceWeight = pow(saturate(1.0 - (BRIGHT(sampleAO) - DARK(sampleAO))), IMPORTANCE_EXPONENT);
-        //float importanceWeight = 1.0;
+        float importanceWeight = 1.0;
         //float relativeDepth = saturate(abs(getDepth(uv) / localDepth - 1.0)); // 0.0 = same depth
         float relativeDepth = min(abs(getDepth(uv) / localDepth - 1.0), 1.0); // 0.0 = same depth
         float depthWeight = kernel(relativeDepth, DEPTH_VARIANCE);

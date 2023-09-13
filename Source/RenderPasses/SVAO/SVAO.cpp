@@ -189,7 +189,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     case StochasticDepthImpl::Ray:
         sdDict["normalize"] = true;
         sdDict["depthFormat"] = ResourceFormat::R32Float;
-        sdDict["useRayPipeline"] = true; // performs better than raster //mUseRayPipeline;
+        sdDict["useRayPipeline"] = mUseRayPipeline;//true; // performs better than raster //mUseRayPipeline;
         pStochasticDepthPass = RenderPass::create("StochasticDepthMapRT", mpDevice, sdDict);    
         break;
     }
