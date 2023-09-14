@@ -38,6 +38,24 @@ float ViewDepthToRay(float3 rayDir, float viewDepth)
     return viewDepth / cosTheta;    
 }
 
+RayDesc initRayDesc(uint2 pixel, uint2 dim)
+{
+    RayDesc ray = gScene.camera.computeRayPinhole(pixel, dim).toRayDesc();
+    float epsilon = 0.1 * gScene.camera.data.nearZ; // small ray offset
+    ray.TMin = ViewDepthToRay(ray.Direction, depthInTex[pixel]) + epsilon; // start after first known hit
+
+    uint iRayMin = rayMinTex[pixel];
+    if (iRayMin != 0u) // test if valid values
+        ray.TMin = max(asfloat(iRayMin), ray.TMin);
+    
+    uint iRayMax = rayMaxTex[pixel];
+    if (iRayMax != 0u) // test if valid values
+        ray.TMax = min(asfloat(iRayMax), ray.TMax);
+    
+    return ray;
+}
+
+
 // abstract:
 #ifndef TEXTURE_LOD_T
 #define TEXTURE_LOD_T ImplicitLodTextureSampler

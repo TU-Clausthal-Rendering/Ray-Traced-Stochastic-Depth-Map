@@ -22,7 +22,7 @@ ExplicitRayConesLodTextureSampler computeLod(VertexData v, float3 rayDir)
 {
     RayCone rc = RayCone(0.0, RAY_CONE_SPREAD);
     rc = rc.propagateDistance(RayTCurrent());
-    float lambda = rc.computeLOD(v.coneTexLODValue, rayDir, v.normalW);
+    float lambda = rc.computeLOD(v.coneTexLODValue, rayDir, v.faceNormalW);
     return ExplicitRayConesLodTextureSampler(lambda);
 }
 
@@ -54,17 +54,7 @@ void rayGen()
     if (mask == 0u)
         return;
 
-    RayDesc ray = gScene.camera.computeRayPinhole(DispatchRaysIndex().xy, DispatchRaysDimensions().xy).toRayDesc();
-    float epsilon = 0.1 * gScene.camera.data.nearZ; // small ray offset
-    ray.TMin = ViewDepthToRay(ray.Direction, depthInTex[svPos]) + epsilon; // start after first known hit
-
-    uint iRayMin = rayMinTex[svPos];
-    if (iRayMin != 0u) // test if valid values
-        ray.TMin = max(asfloat(iRayMin), ray.TMin);
-    
-    uint iRayMax = rayMaxTex[svPos];
-    if(iRayMax != 0u) // test if valid values
-        ray.TMax = min(asfloat(iRayMax), ray.TMax);
+    RayDesc ray = initRayDesc(svPos, DispatchRaysDimensions().xy);
     
     RayData rayData;
     rayData.count = 0;

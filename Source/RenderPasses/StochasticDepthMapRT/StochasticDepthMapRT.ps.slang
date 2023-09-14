@@ -55,9 +55,7 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 
     int width, height;
     depthInTex.GetDimensions(width, height);
-    RayDesc ray = gScene.camera.computeRayPinhole(int2(svPos.xy), int2(width, height)).toRayDesc();
-    float epsilon = 0.01 * gScene.camera.data.nearZ; // small ray offset
-    ray.TMin = ViewDepthToRay(ray.Direction, depthInTex[int2(svPos.xy)]) + epsilon; // start after first known hit
+    RayDesc ray = initRayDesc(uint2(svPos.xy), uint2(width, height));
 
     RayQuery < RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER > rayQuery;
     rayQuery.TraceRayInline(gScene.rtAccel, RAY_FLAG_NONE, 0xff, ray);
