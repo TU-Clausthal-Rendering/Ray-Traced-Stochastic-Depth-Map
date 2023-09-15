@@ -73,6 +73,7 @@ private:
 
     ref<Buffer> mpStratifiedLookUpBuffer;
     ref<Buffer> mpStratifiedIndices;
+    ref<Buffer> mpMaterialAlphaTest;
 
     bool mClear = false;
     bool mUseRayPipeline = true;

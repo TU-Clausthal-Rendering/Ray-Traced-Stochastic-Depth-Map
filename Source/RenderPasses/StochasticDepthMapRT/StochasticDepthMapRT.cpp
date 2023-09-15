@@ -277,6 +277,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         mRayVars->getRootVar()["maskTex"] = pStencilMask;
         mRayVars->getRootVar()["rayMinTex"] = pRayMin;
         mRayVars->getRootVar()["rayMaxTex"] = pRayMax;
+        mRayVars->getRootVar()["materialAlphaTestLookup"] = mpMaterialAlphaTest;
 
         mpScene->raytrace(pRenderContext, mpRayProgram.get(), mRayVars, uint3(psDepths->getWidth(), psDepths->getHeight(), 1));
     
@@ -307,6 +308,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         mpRasterProgram->getRootVar()["depthInTex"] = pDepthIn;
         mpRasterProgram->getRootVar()["rayMinTex"] = pRayMin;
         mpRasterProgram->getRootVar()["rayMaxTex"] = pRayMax;
+        mpRasterProgram->getRootVar()["materialAlphaTestLookup"] = mpMaterialAlphaTest;
 
         // set gScene and raytracing data
         mpScene->setRaytracingShaderData(pRenderContext, mpRasterProgram->getRootVar());
@@ -342,5 +344,24 @@ void StochasticDepthMapRT::setScene(RenderContext* pRenderContext, const ref<Sce
     // recompile shaders
     mpRayProgram.reset();
     mpRasterProgram.reset();
+    mpMaterialAlphaTest.reset();
+
+    if(mpScene)
+    {
+        // fill mpMateralAlphaTest buffer with info about alpha tested materials
+        auto bufferSize = (mpScene->getMaterialCount() + 31) / 32;
+        bufferSize = std::max(bufferSize, 1u); // make sure we have at least one dword
+        std::vector<uint32_t> alphaTested(bufferSize, 0u);
+        for(size_t i = 0; i < mpScene->getMaterialCount(); i++)
+        {
+            auto dword = i / 32u;
+            auto bit = i % 32u;
+            if(mpScene->getMaterial(MaterialID(i))->getAlphaMode() == AlphaMode::Mask)
+                alphaTested[dword] |= 1u << bit; // set bit
+        }
+
+        //mpMaterialAlphaTest = Buffer::create(mpDevice, bufferSize * sizeof(uint32_t), Resource::BindFlags::ShaderResource, Buffer::CpuAccess::None, alphaTested.data());
+        mpMaterialAlphaTest = Buffer::createStructured(mpDevice, sizeof(uint32_t), bufferSize, Resource::BindFlags::ShaderResource, Buffer::CpuAccess::None, alphaTested.data(), false);
+    }
 }
 

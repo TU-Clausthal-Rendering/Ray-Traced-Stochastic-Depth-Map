@@ -6,6 +6,8 @@ Texture2D<uint> rayMaxTex; // contains float values: use asfloat()
 StructuredBuffer<uint> stratifiedIndices;
 StructuredBuffer<uint> stratifiedLookUpTable;
 
+StructuredBuffer<uint> materialAlphaTestLookup;
+
 #define DEFAULT_DEPTH (NORMALIZE ? 1.0 : 3.40282347E+37F)
 
 // Hash function from "Improved Alpha Testing Using Hashed Sampling"
@@ -90,7 +92,7 @@ bool algorithm(inout float depths[NUM_SAMPLES], inout uint count, float2 barycen
 
     //if (rayData.depths[slot] <= t)
     //    IgnoreHit();
-    for (uint i = 0; i < NUM_SAMPLES; ++i)
+    [unroll] for (uint i = 0; i < NUM_SAMPLES; ++i)
     {
         if (i == slot && depths[i] <= t)
             return false; // rejected due to depth test
@@ -99,16 +101,19 @@ bool algorithm(inout float depths[NUM_SAMPLES], inout uint count, float2 barycen
     #endif
 
     { // ALPHA test
-        TriangleHit hit;
-        hit.instanceID = instanceID;
-        hit.primitiveIndex = primitiveIndex;
-        hit.barycentrics = barycentrics;
-        const uint materialID = gScene.getMaterialID(hit.instanceID);
-        const MaterialHeader header = gScene.materials.materialData[materialID].header;
 
+        const uint materialID = gScene.getMaterialID(instanceID);
+        bool alphaTest = gScene.materials.materialData[materialID].header.getAlphaMode() == AlphaMode::Mask;
+        //bool alphaTest = (materialAlphaTestLookup[materialID / 32u] & (1u << (materialID % 32u))) != 0u; // not really faster
+        
         // needs alpha testing?
-        if (header.getAlphaMode() == AlphaMode::Mask)
+        if (alphaTest)
         {
+            TriangleHit hit;
+            hit.instanceID = instanceID;
+            hit.primitiveIndex = primitiveIndex;
+            hit.barycentrics = barycentrics;
+            
             const VertexData v = gScene.getVertexData(hit);
             if (gScene.materials.alphaTest(v, materialID, computeLod(v, rayDir)))  
                 return false; // alpha test failed => ignore this triangle
