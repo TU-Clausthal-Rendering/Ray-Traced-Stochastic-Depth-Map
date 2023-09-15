@@ -50,6 +50,9 @@ cbuffer PerFrameCB
     Camera gCamera;
     uint guardBand;
     bool useDepthLod;
+    uint frameIndex;
+    uint pixelSkipX; // = 1 for no skipping
+    uint pixelSkipY;
 }
 
 SamplerState gNoiseSampler;
@@ -325,6 +328,12 @@ struct BasicAOData
     bool denyRays()
     {
         return radiusInPixels <= gData.ssRadiusFadeEnd;
+    }
+
+    // will force denyRays() to return false
+    [mutating] void forceDenyRays()
+    {
+        radiusInPixels = 0.0;
     }
 };
 

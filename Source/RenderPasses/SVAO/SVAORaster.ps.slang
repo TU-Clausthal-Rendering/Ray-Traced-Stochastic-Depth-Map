@@ -32,6 +32,10 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         if (!s.Init(texC, data, i))
             continue;
 
+        uint skipId = (uint(svPos.x) % pixelSkipX) + (uint(svPos.y) % pixelSkipY) * pixelSkipX;
+        if (skipId != (frameIndex % (pixelSkipX * pixelSkipY)))
+            data.forceDenyRays();
+
         if (isSamePixel(texC, s.rasterSamplePosUV))
         {
             output.ao1 += (s.sphereStart - s.sphereEnd) / s.pdf;

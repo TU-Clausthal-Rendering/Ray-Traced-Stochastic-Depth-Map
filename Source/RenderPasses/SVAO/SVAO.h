@@ -114,6 +114,10 @@ private:
 
     float mLastGpuTime = 0.0;
 
+    int mFrameIndex = 0;
+    int mPixelSkipX = 1;
+    int mPixelSkipY = 1;
+
     //NeuralNetCollection mNeuralNet;
     //NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
 

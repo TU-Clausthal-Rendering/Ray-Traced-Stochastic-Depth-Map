@@ -202,6 +202,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
 void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     if (!mpScene) return;
+    mFrameIndex++;
 
     auto pNonLinearDepth = renderData[kGbufferDepth]->asTexture();
     auto pDepth = renderData[kDepth]->asTexture();
@@ -309,6 +310,9 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mpScene->setRaytracingShaderData(pRenderContext, var);
     }
     rasterVars["PerFrameCB"]["useDepthLod"] = mUseDepthLod ? 1 : 0;
+    rasterVars["PerFrameCB"]["frameIndex"] = mFrameIndex;
+    rasterVars["PerFrameCB"]["pixelSkipX"] = mPixelSkipX;
+    rasterVars["PerFrameCB"]["pixelSkipY"] = mPixelSkipY;
 
     setDepthTex(rasterVars, pDepth);
     rasterVars["gDepthTex2"] = pDepth2;
@@ -553,6 +557,11 @@ void SVAO::renderUI(Gui::Widgets& widget)
     widget.checkbox("Use Depth LOD", mUseDepthLod);
 
     if (widget.var("Depth Mipmap Count", mDepthTexMips, 1u, 14u)) reset = true;
+
+    widget.separator();
+
+    widget.var("Pixel Skip X", mPixelSkipX, 1, 8);
+    widget.var("Pixel Skip Y", mPixelSkipY, 1, 8);
 
     if (reset) requestRecompile();
 }
