@@ -288,6 +288,7 @@ struct BasicAOData
 
     float radiusInPixels;
     float rayRasterBlend;
+    //float linearDepth;
 
     // returns false if sample needs no shading (background)
     [mutating] bool Init(float2 texC)

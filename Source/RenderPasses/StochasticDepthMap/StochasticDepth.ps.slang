@@ -53,26 +53,25 @@ PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
     if (alphaTest(vsOut, triangleIndex, ImplicitLodTextureSampler()))
         discard;
     PsOut output;
-
+    
     // assume that a depth-map of the first layer is available => discard fragments with the same depth
     uint2 svPos = uint2(vsOut.posH.xy);
     float firstDepth = depthBuffer[svPos];
     if (vsOut.posH.z <= firstDepth)
         discard;
-    
+
+    //float dist = vsOut.posH.w;
+    float dist = distance(vsOut.posW.xyz, gScene.camera.getPosition());
+
     // use ray min from texture (can be bigger than depth buffer)
     uint iRayMin = rayMin[svPos];
-    if (iRayMin != 0u && vsOut.posH.w <= asfloat(iRayMin))
+    if (iRayMin != 0u && dist <= asfloat(iRayMin))
         discard;
     
     uint iRayMax = rayMax[svPos];
-    if (iRayMax != 0u && vsOut.posH.w >= asfloat(iRayMax))
+    if (iRayMax != 0u && dist >= asfloat(iRayMax))
         discard; // save bandwidth (cannot depth cull because of linearize...)
     
-    // #if NON_STOCHASTIC_FIRST_LAYER // Potentially, you could create the regular depth map in this same pass by never discarding the first sample
-    // 	if (gl_SampleID == 0) { return; } 
-    // #endif
-
     float rng = hash4D(float4(vsOut.posW.xyz, 1.438943289));
     
     #if RESERVOIR_SAMPLING
