@@ -487,8 +487,8 @@ float2 calcAO2(uint2 svPos, uint mask)
         
         if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
         {
-            float width, height;
-            gDepthTex.GetDimensions(width, height);
+            float width, height, elements;
+            gsDepthTex.GetDimensions(width, height, elements);
             
             int2 pixelCoord = int2(floor(s.rasterSamplePosUV * float2(width, height)));
 

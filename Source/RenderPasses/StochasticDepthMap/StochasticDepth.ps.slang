@@ -10,6 +10,7 @@ VSOut vsMain(VSIn vIn)
 StructuredBuffer<uint> stratifiedIndices;
 StructuredBuffer<uint> stratifiedLookUpTable;
 Texture2D<float> depthBuffer;
+SamplerState S; // linear sampler for downsampling depth on half res
 Texture2D<uint> rayMin; // additional texture for a more precise depth range
 Texture2D<uint> rayMax; // contains float values: use asfloat()
 
@@ -56,7 +57,8 @@ PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
     
     // assume that a depth-map of the first layer is available => discard fragments with the same depth
     uint2 svPos = uint2(vsOut.posH.xy);
-    float firstDepth = depthBuffer[svPos];
+    //float firstDepth = depthBuffer[svPos];
+    float firstDepth = depthBuffer.Sample(S, vsOut.posH.xy * INV_RESOLUTION);
     if (vsOut.posH.z <= firstDepth)
         discard;
 

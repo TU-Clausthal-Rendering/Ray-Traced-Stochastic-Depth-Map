@@ -67,8 +67,9 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             output.stencil |= 1u << i;
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
-            InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.posVLength - gData.radius - gData.thickness * gData.radius - s.sphereStart, 0.0)));
-            InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
+            uint sdDivisor = select(HALF_RES_STOCHASTIC, 2u, 1u);
+            InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / sdDivisor], /*rough estimate of depth*/asuint(max(data.posVLength - gData.radius - gData.thickness * gData.radius - s.sphereStart, 0.0)));
+            InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / sdDivisor], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
             //InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.linearDepth - gData.radius - gData.thickness * gData.radius - s.sphereStart, 0.0)));
             //InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.linearDepth - s.sphereEnd, 0.0)));
 #endif

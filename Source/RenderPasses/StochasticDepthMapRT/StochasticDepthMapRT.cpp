@@ -242,6 +242,8 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             desc.setShaderModel("6_5");
 
             mpRasterProgram = FullScreenPass::create(mpDevice, desc, defines);
+            auto vars = mpRasterProgram->getRootVar();
+            vars["S"] = Sampler::create(mpDevice, Sampler::Desc().setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear));
         }
 
         // ray pass
@@ -261,7 +263,9 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             sbt->setHitGroup(0, mpScene->getGeometryIDs(GeometryType::TriangleMesh), desc.addHitGroup("closestHit", "anyHit"));
             // TODO add remaining primitives
             mpRayProgram = RtProgram::create(mpDevice, desc, defines);
-            mRayVars = RtProgramVars::create(mpDevice, mpRayProgram, sbt);    
+            mRayVars = RtProgramVars::create(mpDevice, mpRayProgram, sbt);
+            auto vars = mRayVars->getRootVar();
+            vars["S"] = Sampler::create(mpDevice, Sampler::Desc().setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear));
         }
 
         mRayVars->getRootVar()["stratifiedIndices"] = mpStratifiedIndices;

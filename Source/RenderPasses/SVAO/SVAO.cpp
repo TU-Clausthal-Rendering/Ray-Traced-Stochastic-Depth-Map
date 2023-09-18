@@ -141,6 +141,13 @@ Properties SVAO::getProperties() const
 
 RenderPassReflection SVAO::reflect(const CompileData& compileData)
 {
+    auto internalMapsRes = compileData.defaultTexDims;
+    if(mHalfResMap)
+    {
+        internalMapsRes.x = (internalMapsRes.x + 1) / 2;
+        internalMapsRes.y = (internalMapsRes.y + 1) / 2;
+    }
+
     RenderPassReflection reflector;
     //reflector.addInput(kAoStencil, "(Depth-) Stencil Buffer for the ao mask").format(ResourceFormat::D32FloatS8X24);
     reflector.addInput(kGbufferDepth, "Non-Linear Depth from the G-Buffer").bindFlags(ResourceBindFlags::ShaderResource);
@@ -156,8 +163,8 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24);
     reflector.addOutput(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24).bindFlags(ResourceBindFlags::DepthStencil);
 
-    reflector.addOutput(kInternalRayMin, "internal ray min").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews);
-    reflector.addOutput(kInternalRayMax, "internal ray max").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews);
+    reflector.addOutput(kInternalRayMin, "internal ray min").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews).texture2D(internalMapsRes.x, internalMapsRes.y);
+    reflector.addOutput(kInternalRayMax, "internal ray max").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews).texture2D(internalMapsRes.x, internalMapsRes.y);
 
     return reflector;
 }
@@ -196,7 +203,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     mpStochasticDepthGraph->addPass(pStochasticDepthPass, "StochasticDepthMap");
     mpStochasticDepthGraph->markOutput("StochasticDepthMap.stochasticDepth");
     mpStochasticDepthGraph->setScene(mpScene);
-    lastSize = uint2(0);
+    mStochLastSize = uint2(0);
 }
 
 void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -240,6 +247,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("STOCHASTIC_DEPTH_IMPL", std::to_string(uint32_t(mStochasticDepthImpl)));
         defines.add("USE_DEPTH_LOD", mUseDepthLod ? "1" : "0");
         defines.add("DEPTH_MIPS", std::to_string(mDepthTexMips));
+        defines.add("HALF_RES_STOCHASTIC", mHalfResMap ? "1" : "0");
         defines.add(mpScene->getSceneDefines());
 
         // raster pass 1
@@ -385,10 +393,18 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMin", pInternalRayMin);
         mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMax", pInternalRayMax);
         //mpStochasticDepthGraph->setInput("StochasticDepthMap.stencilMask", pAccessStencil);
-        if(any(lastSize != uint2(pAoDst->getWidth(), pAoDst->getHeight())))
+        auto stochSize = uint2(pAoDst->getWidth(), pAoDst->getHeight());
+        if(mHalfResMap)
         {
-            mpStochasticDepthGraph->onResize(mpFbo.get());
-            lastSize = uint2(pAoDst->getWidth(), pAoDst->getHeight());
+            stochSize = (stochSize + uint2(1)) / uint2(2); 
+        }
+
+        if(any(mStochLastSize != stochSize))
+        {
+            auto stochFbo = Fbo::create2D(mpDevice, stochSize.x, stochSize.y, ResourceFormat::R32Float);
+            
+            mpStochasticDepthGraph->onResize(stochFbo.get());
+            mStochLastSize = stochSize;
         }
         
         mpStochasticDepthGraph->execute(pRenderContext);
@@ -527,6 +543,9 @@ void SVAO::renderUI(Gui::Widgets& widget)
         }
 
         if (widget.dropdown("St. Sample Count", kSampleCountList, mStochSamples))
+            reset = true;
+
+        if(widget.checkbox("Half Res St. Depth", mHalfResMap))
             reset = true;
     }
 

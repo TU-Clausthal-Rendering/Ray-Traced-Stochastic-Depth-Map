@@ -100,7 +100,7 @@ private:
 
     VAOData mData;
     bool mDirty = true;
-    uint2 lastSize;
+    uint2 mStochLastSize;
     DepthMode mPrimaryDepthMode = DepthMode::SingleDepth;
     DepthMode mSecondaryDepthMode = DepthMode::Raytraced;
     bool mUseRayPipeline = true;
@@ -124,4 +124,6 @@ private:
     StochasticDepthImpl mStochasticDepthImpl = StochasticDepthImpl::Ray;
 
     bool mHasDepthMipmap = false;
+
+    bool mHalfResMap = false; // half res stochastic depth map
 };

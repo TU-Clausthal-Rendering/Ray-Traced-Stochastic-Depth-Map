@@ -245,12 +245,16 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
         defines.add("NUM_SAMPLES", std::to_string(mSampleCount));
         defines.add("ALPHA", std::to_string(mAlpha));
         defines.add("RESERVOIR_SAMPLING", mUseReservoirSampling ? "1" : "0");
+        defines.add("INV_RESOLUTION", "float2(" + std::to_string(1.0f / mpFbo->getWidth()) + ", " + std::to_string(1.0f / mpFbo->getHeight()) + ")");
         if (mLinearizeDepth) defines.add("LINEARIZE");
         auto pProgram = GraphicsProgram::create(mpDevice, desc, defines);
 
         mpState = GraphicsState::create(mpDevice);
         mpState->setProgram(pProgram);
         mpVars = GraphicsVars::create(mpDevice, pProgram->getReflector());
+        auto vars = mpVars->getRootVar();
+        // linear sampler for downsampling depth buffer (if half res)
+        vars["S"] = Sampler::create(mpDevice, Sampler::Desc().setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear));
     }
 
     if (pStencilMask)
