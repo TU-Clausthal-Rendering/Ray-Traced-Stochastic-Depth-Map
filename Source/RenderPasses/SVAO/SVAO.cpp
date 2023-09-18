@@ -545,7 +545,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if (widget.dropdown("St. Sample Count", kSampleCountList, mStochSamples))
             reset = true;
 
-        if(widget.checkbox("Half Res St. Depth", mHalfResMap))
+        if(widget.checkbox("Half Res SD-Map", mHalfResMap))
             reset = true;
     }
 

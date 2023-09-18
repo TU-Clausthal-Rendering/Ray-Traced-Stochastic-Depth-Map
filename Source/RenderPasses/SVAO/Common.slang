@@ -83,11 +83,18 @@ float2 getScreenClampedUV(float2 uvstart, float2 uvend)
     return saturate(uvend); // this actually does not make much of a difference but costs a little bit more...
 }
 
+float2 getSnappedUV(float2 uv, float2 resolution)
+{
+    float2 pixelCoord = floor(uv * resolution);
+    return float2((pixelCoord.x + 0.5f) / resolution.x, (pixelCoord.y + 0.5f) / resolution.y);
+}
+
 float2 getSnappedUV(float2 uv)
 {
-    float2 pixelCoord = floor(uv * gData.resolution);
-    return float2((pixelCoord.x + 0.5f) / gData.resolution.x, (pixelCoord.y + 0.5f) / gData.resolution.y);
+    return getSnappedUV(uv, gData.resolution);
 }
+
+
 
 bool isSamePixel(float2 uv1, float2 uv2)
 {
@@ -487,10 +494,11 @@ float2 calcAO2(uint2 svPos, uint mask)
         
         if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
         {
-            float width, height, elements;
-            gsDepthTex.GetDimensions(width, height, elements);
-            
-            int2 pixelCoord = int2(floor(s.rasterSamplePosUV * float2(width, height)));
+            float sdwidth, sdheight, elements;
+            gsDepthTex.GetDimensions(sdwidth, sdheight, elements);
+
+            int2 pixelCoord = int2(floor(s.rasterSamplePosUV * float2(sdwidth, sdheight)));
+            float2 sdSampleUV = getSnappedUV(s.rasterSamplePosUV, float2(sdwidth, sdheight));
 
             const float depthRange = gCamera.data.farZ - gCamera.data.nearZ;
             const float depthOffset = gCamera.data.nearZ;
@@ -501,7 +509,7 @@ float2 calcAO2(uint2 svPos, uint mask)
                 float linearSampleDepth = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
                 // linearSampleDepth is in [0, 1] => scale accordingly
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
-                float3 samplePosV = UVToViewSpace(s.rasterSamplePosUV, linearSampleDepth);
+                float3 samplePosV = UVToViewSpace(sdSampleUV, linearSampleDepth);
                 float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
                 if (objectSpaceZ <= gData.radius + gData.thickness * gData.radius && objectSpaceZ >= -gData.radius)
                     stochInside = true;
