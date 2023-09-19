@@ -39,7 +39,7 @@ struct VAOData
     float exponent = 1.6f;
     float thickness = 0.5f;
     float classifyThreshold = 0.0f; // sigmoid^-1(probability)
-    float ssRadiusFadeEnd = 8.0f; // radius in pixels where the ray tracing result is completely faded and only rasterization remains
+    float ssRadiusFadeEnd = 4.0f; // radius in pixels where the ray tracing result is completely faded and only rasterization remains
     float ssRadiusFadeSize = 2.0f; // size of the fade area in pixels
     float importanceThreshold = 0.0f; // lower importance will be discarded
 };
