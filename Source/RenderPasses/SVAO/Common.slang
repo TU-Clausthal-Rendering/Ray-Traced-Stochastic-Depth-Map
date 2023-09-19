@@ -250,7 +250,7 @@ float2 ViewSpaceRadiusToUVRadius(float z, float r)
     //const float2 imageScale = 0.5 * float2(gCamera.data.frameWidth / gCamera.data.focalLength, gCamera.data.frameHeight / gCamera.data.focalLength);
     //float2 ndc = float2(r) / (imageScale * z); // radius in normalized device coordinates
     //return ndc * 0.5; // scale to uv radius
-    return float2(r * gCamera.data.focalLength) * gData.resolution / (float2(gCamera.data.frameWidth, gCamera.data.frameHeight) * z); // radius in normalized device coordinates
+    return float2(r * gCamera.data.focalLength) / (float2(gCamera.data.frameWidth, gCamera.data.frameHeight) * z); // radius in normalized device coordinates
 }
 
 float GetAORadiusInPixels(float ViewDepth)
@@ -516,6 +516,7 @@ float2 calcAO2(uint2 svPos, uint mask)
                 float newVisibility = calcVisibility(objectSpaceZ, s.sphereStart, s.sphereEnd, s.pdf);
                 curVisibility = COMBINE_VIS(curVisibility, newVisibility);
             }
+            curVisibility = lerp(s.visibility, curVisibility, data.rayRasterBlend);
             // if (!stochInside) visibility.y -= curVisibility; // keep dark term dark (+= curVisibility will be performed at the end)
 
         }

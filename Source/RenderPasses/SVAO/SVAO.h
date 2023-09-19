@@ -124,6 +124,6 @@ private:
     StochasticDepthImpl mStochasticDepthImpl = StochasticDepthImpl::Ray;
 
     bool mHasDepthMipmap = false;
-
-    bool mHalfResMap = false; // half res stochastic depth map
+    
+    uint mStochMapDivisor = 1; // 1 = same resolution, 2 = half resolution etc.
 };

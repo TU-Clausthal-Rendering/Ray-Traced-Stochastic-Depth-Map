@@ -62,6 +62,7 @@ namespace
     const std::string kThickness = "thickness";
     const std::string kImportanceThreshold = "importanceThreshold";
     const std::string kTargetTime = "targetTime";
+    const std::string kStochMapDivisor = "stochMapDivisor"; // stochastic depth map resolution divisor
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -120,6 +121,7 @@ ref<SVAO> SVAO::create(ref<Device> pDevice, const Properties& dict)
         else if (key == kThickness) pPass->mData.thickness = value;
         else if (key == kImportanceThreshold) pPass->mData.importanceThreshold = value;
         else if (key == kTargetTime) pPass->mTargetTimeMs = value;
+        else if (key == kStochMapDivisor) pPass->mStochMapDivisor = value;
         else logWarning("Unknown field '" + key + "' in a VAONonInterleaved dictionary");
     }
     return pPass;
@@ -136,16 +138,17 @@ Properties SVAO::getProperties() const
     d[kThickness] = mData.thickness;
     d[kImportanceThreshold] = mData.importanceThreshold;
     d[kTargetTime] = mTargetTimeMs;
+    d[kStochMapDivisor] = mStochMapDivisor;
     return d;
 }
 
 RenderPassReflection SVAO::reflect(const CompileData& compileData)
 {
     auto internalMapsRes = compileData.defaultTexDims;
-    if(mHalfResMap)
+    if(mStochMapDivisor > 1)
     {
-        internalMapsRes.x = (internalMapsRes.x + 1) / 2;
-        internalMapsRes.y = (internalMapsRes.y + 1) / 2;
+        internalMapsRes.x = (internalMapsRes.x + mStochMapDivisor - 1) / mStochMapDivisor;
+        internalMapsRes.y = (internalMapsRes.y + mStochMapDivisor - 1) / mStochMapDivisor;
     }
 
     RenderPassReflection reflector;
@@ -247,7 +250,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("STOCHASTIC_DEPTH_IMPL", std::to_string(uint32_t(mStochasticDepthImpl)));
         defines.add("USE_DEPTH_LOD", mUseDepthLod ? "1" : "0");
         defines.add("DEPTH_MIPS", std::to_string(mDepthTexMips));
-        defines.add("HALF_RES_STOCHASTIC", mHalfResMap ? "1" : "0");
+        defines.add("STOCH_MAP_DIVISOR", std::to_string(mStochMapDivisor) + "u");
         defines.add(mpScene->getSceneDefines());
 
         // raster pass 1
@@ -394,9 +397,9 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMax", pInternalRayMax);
         //mpStochasticDepthGraph->setInput("StochasticDepthMap.stencilMask", pAccessStencil);
         auto stochSize = uint2(pAoDst->getWidth(), pAoDst->getHeight());
-        if(mHalfResMap)
+        if(mStochMapDivisor > 1u)
         {
-            stochSize = (stochSize + uint2(1)) / uint2(2); 
+            stochSize = (stochSize + uint2(mStochMapDivisor - 1)) / uint2(mStochMapDivisor); 
         }
 
         if(any(mStochLastSize != stochSize))
@@ -545,8 +548,13 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if (widget.dropdown("St. Sample Count", kSampleCountList, mStochSamples))
             reset = true;
 
-        if(widget.checkbox("Half Res SD-Map", mHalfResMap))
+        if(widget.var("SD-Map Divisor", mStochMapDivisor, 1u, 4u, 1u))
             reset = true;
+
+        if (mpFbo->getWidth() % mStochMapDivisor != 0)
+            widget.text("Warning: SD-Map Divisor does not divide width of screen");
+        if (mpFbo->getHeight() % mStochMapDivisor != 0)
+            widget.text("Warning: SD-Map Divisor does not divide height of screen");
     }
 
     if (widget.checkbox("Ray Pipeline", mUseRayPipeline)) reset = true;
