@@ -338,19 +338,23 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     rasterVars["gMatDoubleSided"] = pMatDoubleSided;
     rasterVars["gColor"] = pColor;
     //mpRasterPass["gDepthAccess"] = pAccessStencil;
-    if(mSecondaryDepthMode == DepthMode::StochasticDepth)
-    {
-        pRenderContext->clearUAV(pInternalRayMin->getUAV().get(), uint4(asuint(std::numeric_limits<float>::max())));
-        pRenderContext->clearUAV(pInternalRayMax->getUAV().get(), uint4(0u));
-        rasterVars["gRayMinAccess"] = pInternalRayMin;
-        rasterVars["gRayMaxAccess"] = pInternalRayMax;
-    }
+
     
     auto& dict = renderData.getDictionary();
     auto guardBand = dict.getValue("guardBand", 0);
     setGuardBandScissors(*mpRasterPass->getState(), renderData.getDefaultTextureDims(), guardBand);
     {
         FALCOR_PROFILE(pRenderContext, "AO 1");
+
+        if (mSecondaryDepthMode == DepthMode::StochasticDepth)
+        {
+            FALCOR_PROFILE(pRenderContext, "Clear RayMinMax");
+            pRenderContext->clearUAV(pInternalRayMin->getUAV().get(), uint4(asuint(std::numeric_limits<float>::max())));
+            pRenderContext->clearUAV(pInternalRayMax->getUAV().get(), uint4(0u));
+            rasterVars["gRayMinAccess"] = pInternalRayMin;
+            rasterVars["gRayMaxAccess"] = pInternalRayMax;
+        }
+
         mpRasterPass->execute(pRenderContext, mpFbo, false);
     }
 
