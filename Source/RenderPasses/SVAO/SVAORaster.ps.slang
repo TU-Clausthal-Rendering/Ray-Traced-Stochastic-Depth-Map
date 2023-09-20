@@ -3,7 +3,7 @@ import Scene.RaytracingInline;
 
 struct PSOut
 {
-    float2 ao1 : SV_TARGET0;
+    ao_t ao1 : SV_TARGET0;
     uint stencil : SV_TARGET1;
 };
 
@@ -23,8 +23,10 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         return output;
     }
 
+    #if USE_IMPORTANCE
     float3 color = saturate(gColor.SampleLevel(gTextureSampler, texC, 0).xyz); // for pixel importance
-    
+    #endif
+
     float visibility = 0.0f;    
     [unroll] for (uint i = 0; i < NUM_DIRECTIONS; i++)
     {
@@ -57,12 +59,11 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         if (!data.denyRays() && (s.requireRay || forceRay))
         {
             // calc pixel importance
+            #if USE_IMPORTANCE
             float sampleImportance = calcSampleImportance(sampleRadius[i] * gData.radius, gDepthTex.SampleLevel(gTextureSampler, s.rasterSamplePosUV, 0.0), s.sphereStart, s.sphereEnd, s.objectSpaceZ, color);
-            if (sampleImportance <= gData.importanceThreshold)
-            {
-                continue;
-            }
-            
+            if (sampleImportance <= gData.importanceThreshold) continue;
+            #endif
+
             // remember that this was a hybrid ray
             output.stencil |= 1u << i;
             
@@ -75,7 +76,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         }
         else
         {
-            output.ao1.y += s.visibility; // also add on dark if no ray is required (reference solution)
+            darkmap(output.ao1.y += s.visibility); // also add on dark if no ray is required (reference solution)
         }
     }
 

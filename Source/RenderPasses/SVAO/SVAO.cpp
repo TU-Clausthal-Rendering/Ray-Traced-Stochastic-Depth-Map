@@ -63,6 +63,7 @@ namespace
     const std::string kImportanceThreshold = "importanceThreshold";
     const std::string kTargetTime = "targetTime";
     const std::string kStochMapDivisor = "stochMapDivisor"; // stochastic depth map resolution divisor
+    const std::string kDualAo = "dualAO";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -122,6 +123,7 @@ ref<SVAO> SVAO::create(ref<Device> pDevice, const Properties& dict)
         else if (key == kImportanceThreshold) pPass->mData.importanceThreshold = value;
         else if (key == kTargetTime) pPass->mTargetTimeMs = value;
         else if (key == kStochMapDivisor) pPass->mStochMapDivisor = value;
+        else if (key == kDualAo) pPass->mDualAo = value;
         else logWarning("Unknown field '" + key + "' in a VAONonInterleaved dictionary");
     }
     return pPass;
@@ -139,6 +141,7 @@ Properties SVAO::getProperties() const
     d[kImportanceThreshold] = mData.importanceThreshold;
     d[kTargetTime] = mTargetTimeMs;
     d[kStochMapDivisor] = mStochMapDivisor;
+    d[kDualAo] = mDualAo;
     return d;
 }
 
@@ -160,7 +163,9 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     reflector.addInput(kNormals, "World space normals, [0, 1] range").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kMatDoubleSided, "Material double sided flag").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kColor, "Color for pixel importance").bindFlags(ResourceBindFlags::ShaderResource);
-    reflector.addOutput(kAmbientMap, "Ambient Occlusion (bright/dark)").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::RenderTarget).format(ResourceFormat::RG8Unorm);
+    auto aoFormat = ResourceFormat::R8Unorm;
+    if(mDualAo) aoFormat = ResourceFormat::RG8Unorm;
+    reflector.addOutput(kAmbientMap, "Ambient Occlusion (bright/dark if dualAO is enabled)").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::RenderTarget).format(aoFormat);
     reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kAoStencil2, "ping pong for stencil mask").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24);
@@ -251,6 +256,8 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("USE_DEPTH_LOD", mUseDepthLod ? "1" : "0");
         defines.add("DEPTH_MIPS", std::to_string(mDepthTexMips));
         defines.add("STOCH_MAP_DIVISOR", std::to_string(mStochMapDivisor) + "u");
+        defines.add("DUAL_AO", mDualAo ? "1" : "0");
+        defines.add("USE_IMPORTANCE", mImportanceEnabled ? "1" : "0");
         defines.add(mpScene->getSceneDefines());
 
         // raster pass 1
@@ -526,9 +533,14 @@ void SVAO::renderUI(Gui::Widgets& widget)
         reset = true;
     }
 
-    if (widget.slider("Importance Threshold", mData.importanceThreshold, 0.0f, 1.0f)) mDirty = true;
-    widget.var("Target Time", mTargetTimeMs, 0.0f, FLT_MAX, 0.1f);
-    widget.text("current time: " + std::to_string(mLastGpuTime) + " ms");
+    if(widget.checkbox("Importance Driven", mImportanceEnabled)) reset = true;
+    if(mImportanceEnabled)
+    {
+        if (widget.slider("Importance Threshold", mData.importanceThreshold, 0.0f, 1.0f)) mDirty = true;
+        widget.var("Target Time", mTargetTimeMs, 0.0f, FLT_MAX, 0.1f);
+        widget.text("current time: " + std::to_string(mLastGpuTime) + " ms");
+    }
+    
 
     uint32_t secondaryDepthMode = (uint32_t)mSecondaryDepthMode;
     if (widget.dropdown("Secondary Depth Mode", kSecondaryDepthModeDropdown, secondaryDepthMode)) {
@@ -580,6 +592,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
     if (widget.var("Fade Size (Screen Space Radius)", mData.ssRadiusFadeSize, 0.01f, 100.0f, 1.0f)) mDirty = true;
     widget.tooltip("The fade will be for a screen space radius in range [FadeEnd, FadeEnd + FadeSize]");
+
+    if(widget.checkbox("Output dual AO (bright/dark)", mDualAo)) reset = true;
 
     widget.checkbox("Use Depth LOD", mUseDepthLod);
 

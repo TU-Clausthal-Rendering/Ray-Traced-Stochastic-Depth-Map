@@ -34,6 +34,14 @@ import Scene.Shading;
 #define HALO_RADIUS sphereStart
 #define COMBINE_VIS(a,b) min(a,b)
 
+#if DUAL_AO == 0
+#define ao_t float
+#define darkmap(x)
+#else
+#define ao_t float2
+#define darkmap(x) x
+#endif
+
 #define NUM_DIRECTIONS 8
 // normalized radius for each of the NUM_DIRECTION samples (distributed with radical inverse => see SSAO::setKernel() radius)
 //static const float sampleRadius[NUM_DIRECTIONS] = { 0.608308673, 0.776627183, 0.417753726, 0.866025388, 0.518647850, 0.692805171, 0.291845083, 0.917883337 };
@@ -453,14 +461,14 @@ struct RayData // cannot be compressed to half floats => no diff in rendering ti
 
 void traceAORay(RayDesc ray, inout RayData rayData);
 
-float2 calcAO2(uint2 svPos, uint mask)
+ao_t calcAO2(uint2 svPos, uint mask)
 {
     float2 texC = (float2(svPos) + 0.5) * gData.invResolution;
 
     BasicAOData data;
     data.Init(texC);
 
-    float2 visibility = 0.0f;
+    ao_t visibility = 0.0;
 
     uint i = 0;
     //[loop] while(mask != 0u)

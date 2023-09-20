@@ -126,4 +126,7 @@ private:
     bool mHasDepthMipmap = false;
     
     uint mStochMapDivisor = 1; // 1 = same resolution, 2 = half resolution etc.
+
+    bool mDualAo = false; // if true, AO will be two channel, one for bright and one for dark
+    bool mImportanceEnabled = false;
 };
