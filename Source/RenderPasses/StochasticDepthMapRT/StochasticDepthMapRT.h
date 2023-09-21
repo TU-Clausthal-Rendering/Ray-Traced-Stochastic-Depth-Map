@@ -77,4 +77,5 @@ private:
 
     bool mClear = false;
     bool mUseRayPipeline = true;
+    bool mAlphaTest = true;
 };

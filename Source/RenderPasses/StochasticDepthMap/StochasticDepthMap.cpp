@@ -43,7 +43,7 @@ namespace
     const std::string kStencil = "stencilMask";
     const std::string kRayMin = "rayMin"; // ray T values for Ray.TMin
     const std::string kRayMax = "rayMax"; // ray T values for Ray.TMax
-
+    const std::string kAlphaTest = "AlphaTest";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -156,6 +156,7 @@ ref<StochasticDepthMap> StochasticDepthMap::create(ref<Device> pDevice, const Pr
         else if (key == kLinearize) pPass->mLinearizeDepth = value;
         else if (key == kDepthFormat) pPass->mDepthFormat = value;
         else if (key == kReservoirSampling) pPass->mUseReservoirSampling = value;
+        else if (key == kAlphaTest) pPass->mAlphaTest = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMap dictionary");
     }
     return pPass;
@@ -170,6 +171,7 @@ Properties StochasticDepthMap::getProperties() const
     d[kLinearize] = mLinearizeDepth;
     d[kDepthFormat] = mDepthFormat;
     d[kReservoirSampling] = mUseReservoirSampling;
+    d[kAlphaTest] = mAlphaTest;
     return d;
 }
 
@@ -246,6 +248,7 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
         defines.add("ALPHA", std::to_string(mAlpha));
         defines.add("RESERVOIR_SAMPLING", mUseReservoirSampling ? "1" : "0");
         defines.add("INV_RESOLUTION", "float2(" + std::to_string(1.0f / mpFbo->getWidth()) + ", " + std::to_string(1.0f / mpFbo->getHeight()) + ")");
+        defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
         if (mLinearizeDepth) defines.add("LINEARIZE");
         auto pProgram = GraphicsProgram::create(mpDevice, desc, defines);
 
@@ -309,6 +312,9 @@ void StochasticDepthMap::renderUI(Gui::Widgets& widget)
         { (uint32_t)ResourceFormat::D24UnormS8, "D24UnormS8" },
         //{ (uint32_t)ResourceFormat::D32FloatS8X24, "D32FloatS8X24" },
     };
+
+    if (widget.checkbox("Alpha Test", mAlphaTest))
+        requestRecompile();
 
     uint32_t depthFormat = (uint32_t)mDepthFormat;
     if (widget.dropdown("Buffer Format", kDepthFormats, depthFormat))

@@ -64,6 +64,7 @@ namespace
     const std::string kTargetTime = "targetTime";
     const std::string kStochMapDivisor = "stochMapDivisor"; // stochastic depth map resolution divisor
     const std::string kDualAo = "dualAO";
+    const std::string kAlphaTest = "alphaTest";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -124,7 +125,8 @@ ref<SVAO> SVAO::create(ref<Device> pDevice, const Properties& dict)
         else if (key == kTargetTime) pPass->mTargetTimeMs = value;
         else if (key == kStochMapDivisor) pPass->mStochMapDivisor = value;
         else if (key == kDualAo) pPass->mDualAo = value;
-        else logWarning("Unknown field '" + key + "' in a VAONonInterleaved dictionary");
+        else if (key == kAlphaTest) pPass->mAlphaTest = value;
+        else logWarning("Unknown field '" + key + "' in a SVAO dictionary");
     }
     return pPass;
 }
@@ -142,6 +144,7 @@ Properties SVAO::getProperties() const
     d[kTargetTime] = mTargetTimeMs;
     d[kStochMapDivisor] = mStochMapDivisor;
     d[kDualAo] = mDualAo;
+    d[kAlphaTest] = mAlphaTest;
     return d;
 }
 
@@ -191,6 +194,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     Properties sdDict;
     sdDict["SampleCount"] = mStochSamples;
     sdDict["CullMode"] = RasterizerState::CullMode::Back;
+    sdDict["AlphaTest"] = mAlphaTest;
     mpStochasticDepthGraph = RenderGraph::create(mpDevice, "Stochastic Depth");
     ref<RenderPass> pStochasticDepthPass;
     switch(mStochasticDepthImpl)
@@ -258,6 +262,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("STOCH_MAP_DIVISOR", std::to_string(mStochMapDivisor) + "u");
         defines.add("DUAL_AO", mDualAo ? "1" : "0");
         defines.add("USE_IMPORTANCE", mImportanceEnabled ? "1" : "0");
+        defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
         defines.add(mpScene->getSceneDefines());
 
         // raster pass 1
@@ -531,6 +536,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
     widget.checkbox("Enabled", mEnabled);
     if (!mEnabled) return;
 
+    if (widget.checkbox("Alpha Test", mAlphaTest)) reset = true;
+
     uint32_t primaryDepthMode = (uint32_t)mPrimaryDepthMode;
     if (widget.dropdown("Primary Depth Mode", kPrimaryDepthModeDropdown, primaryDepthMode)) {
         mPrimaryDepthMode = (DepthMode)primaryDepthMode;
@@ -564,7 +571,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if (widget.dropdown("St. Sample Count", kSampleCountList, mStochSamples))
             reset = true;
 
-        if(widget.var("SD-Map Divisor", mStochMapDivisor, 1u, 4u, 1u))
+        if(widget.var("SD-Map Divisor", mStochMapDivisor, 1u, 16u, 1u))
             reset = true;
 
         if (mpFbo->getWidth() % mStochMapDivisor != 0)

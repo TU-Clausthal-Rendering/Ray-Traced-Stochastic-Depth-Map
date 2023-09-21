@@ -129,4 +129,5 @@ private:
 
     bool mDualAo = false; // if true, AO will be two channel, one for bright and one for dark
     bool mImportanceEnabled = false;
+    bool mAlphaTest = true; // use alpha test in raytracing or stochastic depth passes
 };

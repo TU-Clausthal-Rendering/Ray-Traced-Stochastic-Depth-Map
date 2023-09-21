@@ -51,8 +51,10 @@ struct PsOut
 // [earlydepthstencil] <- do not force this, it makes it slower
 PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
 {
+#if USE_ALPHA_TEST
     if (alphaTest(vsOut, triangleIndex, ImplicitLodTextureSampler()))
         discard;
+#endif
     PsOut output;
     
     // assume that a depth-map of the first layer is available => discard fragments with the same depth

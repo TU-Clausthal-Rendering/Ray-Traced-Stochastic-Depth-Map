@@ -588,6 +588,7 @@ uint aoAnyHit(inout RayData rayData, float t, const TriangleHit hit, bool frontF
     const uint materialID = gScene.getMaterialID(hit.instanceID);
     const MaterialHeader header = gScene.materials.materialData[materialID].header;
 
+#if USE_ALPHA_TEST
     bool isAlphaTested = header.getAlphaMode() == AlphaMode::Mask;
 
     // needs alpha testing?
@@ -597,8 +598,10 @@ uint aoAnyHit(inout RayData rayData, float t, const TriangleHit hit, bool frontF
         if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
             return AO_HIT_IGNORE; // alpha test failed => ignore this triangle
     }
+    frontFace = frontFace || isAlphaTested;
+#endif
 
-    frontFace = frontFace || isAlphaTested || header.isDoubleSided();
+    frontFace = frontFace || header.isDoubleSided();
     if (!frontFace)
         return AO_HIT_IGNORE; // this is just for rasterizer compability
 

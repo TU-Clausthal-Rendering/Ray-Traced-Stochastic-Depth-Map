@@ -46,6 +46,7 @@ namespace
     const std::string kDepthFormat = "depthFormat";
     const std::string kNormalize = "normalize";
     const std::string kUseRayPipeline = "useRayPipeline";
+    const std::string kAlphaTest = "AlphaTest";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -156,6 +157,7 @@ ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, cons
         else if (key == kDepthFormat) pPass->mDepthFormat = value;
         else if (key == kNormalize) pPass->mNormalize = value;
         else if (key == kUseRayPipeline) pPass->mUseRayPipeline = value;
+        else if (key == kAlphaTest) pPass->mAlphaTest = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMapRT dictionary");
     }
     return pPass;
@@ -168,6 +170,7 @@ Properties StochasticDepthMapRT::getProperties() const
     d[kCullMode] = mCullMode;
     d[kDepthFormat] = mDepthFormat;
     d[kNormalize] = mNormalize;
+    d[kAlphaTest] = mAlphaTest;
     //d[kUseRayPipeline] = mUseRayPipeline;
     return d;
 }
@@ -232,6 +235,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         defines.add("NORMALIZE", mNormalize ? "1" : "0");
         auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
+        defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
 
         // raster pass
         {
@@ -336,6 +340,9 @@ void StochasticDepthMapRT::renderUI(Gui::Widgets& widget)
         requestRecompile(); // reload pass (recreate texture)
 
     if (widget.checkbox("Normalize Depths", mNormalize))
+        requestRecompile();
+
+    if (widget.checkbox("Alpha Test", mAlphaTest))
         requestRecompile();
 
     //if (widget.checkbox("Use Ray Pipeline", mUseRayPipeline))

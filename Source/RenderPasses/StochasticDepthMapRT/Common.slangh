@@ -103,6 +103,7 @@ bool algorithm(inout float depths[NUM_SAMPLES], inout uint count, float2 barycen
 
     #endif
 
+    #if USE_ALPHA_TEST
     { // ALPHA test
 
         const uint materialID = gScene.getMaterialID(instanceID);
@@ -122,7 +123,7 @@ bool algorithm(inout float depths[NUM_SAMPLES], inout uint count, float2 barycen
                 return false; // alpha test failed => ignore this triangle
         }
     }
-    
+    #endif
 
     
     
