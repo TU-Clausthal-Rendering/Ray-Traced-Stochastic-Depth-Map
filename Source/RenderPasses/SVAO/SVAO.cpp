@@ -38,7 +38,6 @@ namespace
     const std::string kDepth = "depth";
     const std::string kDepth2 = "depth2";
     const std::string kNormals = "normals";
-    const std::string kMatDoubleSided = "doubleSided";
     const std::string kColor = "color";
 
     const std::string kInternalStencil = "internalStencil";
@@ -164,7 +163,6 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
         .texture2D(0, 0, 1, 0, 1); // allow mipmaps
     reflector.addInput(kDepth2, "Linear Depth-buffer of second layer").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kNormals, "World space normals, [0, 1] range").bindFlags(ResourceBindFlags::ShaderResource);
-    reflector.addInput(kMatDoubleSided, "Material double sided flag").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kColor, "Color for pixel importance").bindFlags(ResourceBindFlags::ShaderResource);
     auto aoFormat = ResourceFormat::R8Unorm;
     if(mDualAo) aoFormat = ResourceFormat::RG8Unorm;
@@ -230,7 +228,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     auto pNormal = renderData[kNormals]->asTexture();
     auto pAoDst = renderData[kAmbientMap]->asTexture();
     auto pDepth2 = renderData[kDepth2]->asTexture();
-    auto pMatDoubleSided = renderData[kMatDoubleSided]->asTexture();
     auto pColor = renderData[kColor]->asTexture();
 
     auto pAoMask = renderData[kAoStencil]->asTexture();
@@ -341,7 +338,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     setDepthTex(rasterVars, pDepth);
     rasterVars["gDepthTex2"] = pDepth2;
     rasterVars["gNormalTex"] = pNormal;
-    rasterVars["gMatDoubleSided"] = pMatDoubleSided;
     rasterVars["gColor"] = pColor;
     //mpRasterPass["gDepthAccess"] = pAccessStencil;
 
@@ -447,7 +443,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         rayVars["gNormalTex"] = pNormal;
         rayVars["gsDepthTex"] = pStochasticDepthMap;
         rayVars["aoMask"] = pAoMask;
-        rayVars["gMatDoubleSided"] = pMatDoubleSided;
         //mRayVars["aoPrev"] = pAoDst; // src view
         rayVars["output"] = pAoDst; // uav view
 
@@ -486,7 +481,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         rasterVars2["gDepthTex2"] = pDepth2;
         rasterVars2["gNormalTex"] = pNormal;
         rasterVars2["gsDepthTex"] = pStochasticDepthMap;
-        rasterVars2["gMatDoubleSided"] = pMatDoubleSided;
         rasterVars2["aoMask"] = pAoMask;
         rasterVars2["aoPrev"] = pAoDst;
 

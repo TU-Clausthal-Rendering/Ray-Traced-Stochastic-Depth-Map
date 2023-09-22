@@ -82,10 +82,6 @@ Texture2D<float4> gColor;
 Texture2D gNormalTex;
 Texture2D<float> gNoiseTex;
 
-
-#define MTL_DOUBLE_SIDED 1
-Texture2D<uint> gMatDoubleSided; // double sided flag
-
 float2 getScreenClampedUV(float2 uvstart, float2 uvend)
 {
     return saturate(uvend); // this actually does not make much of a difference but costs a little bit more...
