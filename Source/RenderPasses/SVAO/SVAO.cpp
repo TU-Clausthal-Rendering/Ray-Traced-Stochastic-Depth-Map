@@ -202,7 +202,8 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     case StochasticDepthImpl::Raster:
         sdDict["linearize"] = true;
         sdDict["depthFormat"] = ResourceFormat::D32FloatS8X24;
-        sdDict["Alpha"] = 0.375f; // for 4 samples => ALPHA * 4 = 1.5 => 1.5 + rng will save 1-2 samples per pixel
+        //sdDict["Alpha"] = 0.375f; // for 4 samples => ALPHA * 4 = 1.5 => 1.5 + rng will save 1-2 samples per pixel
+        sdDict["Alpha"] = 1.5 / mStochSamples;
         pStochasticDepthPass = RenderPass::create("StochasticDepthMap", mpDevice, sdDict);
         break;
     case StochasticDepthImpl::Ray:
