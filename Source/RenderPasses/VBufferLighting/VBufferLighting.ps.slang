@@ -4,6 +4,7 @@ import Rendering.Lights.LightHelpers;
 import Scene.Intersection;
 import Utils.Math.MathHelpers;
 import Scene.Intersection;
+import Rendering.Materials.Fresnel;
 
 Texture2D<float> visibilityBuffer;
 Texture2D<PackedHitInfo> vbuffer;
@@ -78,20 +79,21 @@ float4 main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
         float3 viewDir = -gScene.camera.computeRayPinhole(pixel, frameDim).dir;
         VertexData v = { };
         uint materialID = { };
-        ITextureSampler lod = ExplicitLodTextureSampler(0.f);
-        if (hit.getType() == HitType::Triangle)
-        {
-            const TriangleHit triangleHit = hit.getTriangleHit();
-            v = gScene.getVertexData(triangleHit);
-            materialID = gScene.getMaterialID(triangleHit.instanceID);
+        if (hit.getType() != HitType::Triangle)
+            return 0.0;
+        
+        const TriangleHit triangleHit = hit.getTriangleHit();
+        v = gScene.getVertexData(triangleHit);
+        materialID = gScene.getMaterialID(triangleHit.instanceID);
 
-            // ray differentials: (Implicit does not work with vbuffer, because of different triangles per pixels)
-            float2 ddx, ddy;
-            float hitT = distance(v.posW, gScene.camera.data.posW);
-            computeRayDifferentials(triangleHit, -viewDir, hitT, gScene.camera, float2(frameDim), ddx, ddy);
-            lod = ExplicitGradientTextureSampler(ddx, ddy);
-        }
-        else return 0.0; // not implemented geometry type
+        // ray differentials: (Implicit does not work with vbuffer, because of different triangles per pixels)
+        float2 ddx, ddy;
+        float hitT = distance(v.posW, gScene.camera.data.posW);
+        computeRayDifferentials(triangleHit, -viewDir, hitT, gScene.camera, float2(frameDim), ddx, ddy);
+        let lod = ExplicitGradientTextureSampler(ddx, ddy);
+        //let lod = ImplicitLodTextureSampler();
+        //let lod = ExplicitLodTextureSampler(1000.0);
+        
         
         ShadingData sd = gScene.materials.prepareShadingData(v, materialID, viewDir, lod);
 
@@ -110,10 +112,14 @@ float4 main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
         float diffLod = roughnessToLod(bsdf.roughness * 2.0);
         float specLod = roughnessToLod(bsdf.roughness);
         float envMaxIntensity = roughnessToIntensity(bsdf.roughness);
+        float F = evalFresnelSchlick(0.3, 1.0, max(0.0, dot(viewDir, bsdf.guideNormal)));
         color += gEnvMapIntensity * bsdf.diffuseReflectionAlbedo * min(gScene.envMap.eval(lerp(sd.frame.N, sd.faceN, 0.8), diffLod), 1.0);
-        color += gEnvMapIntensity * bsdf.specularReflectionAlbedo * min(gScene.envMap.eval(R, specLod), envMaxIntensity);
-    
-    
+        color += F * gEnvMapIntensity * bsdf.specularReflectionAlbedo * min(gScene.envMap.eval(R, specLod), envMaxIntensity);
+
+        // perfect mirror
+        if(bsdf.roughness < 0.08)
+            color += F * gScene.envMap.eval(R, specLod);
+        
         TinyUniformSampleGenerator sg = TinyUniformSampleGenerator(pixel, 0);
 
         // Direct lighting from analytic light sources

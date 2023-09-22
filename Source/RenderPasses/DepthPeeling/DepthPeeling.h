@@ -64,4 +64,5 @@ private:
 
     ResourceFormat mDepthFormat = ResourceFormat::D32Float;
     float mMinSeparationDistance = 0.5f;
+    bool mEnabled = true;
 };

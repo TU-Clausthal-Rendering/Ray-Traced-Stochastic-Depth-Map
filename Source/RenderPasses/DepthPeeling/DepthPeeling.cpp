@@ -90,6 +90,8 @@ RenderPassReflection DepthPeeling::reflect(const CompileData& compileData)
 
 void DepthPeeling::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
+    if (!mEnabled) return;
+
     auto pDepthIn = renderData[kDepthIn]->asTexture();
     auto pDepthOut = renderData[kDepthOut]->asTexture();
 
@@ -114,6 +116,9 @@ void DepthPeeling::execute(RenderContext* pRenderContext, const RenderData& rend
 
 void DepthPeeling::renderUI(Gui::Widgets& widget)
 {
+    widget.checkbox("Enabled", mEnabled);
+    if (!mEnabled) return;
+
     widget.var("Min Separation Distance", mMinSeparationDistance, 0.0f, 100.0f, 0.01f);
 
     static const Gui::DropdownList kDepthFormats =

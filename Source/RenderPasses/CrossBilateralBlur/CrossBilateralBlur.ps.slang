@@ -35,7 +35,9 @@ void AddSample(float sampleAO, float sampleDepth, float depthSlope, uint d, inou
 
     sampleDepth -= depthSlope * d;
     float dz = abs(sampleDepth - gDepth) * Sharpness;
-
+    // make dz relative to actual depth
+    dz = dz * 12.0 / gDepth;
+    
     float w = exp2(-float(d * d)*BlurFalloff - dz * dz);
     //float w = exp2(- dz * dz);
     //float w = 1.0;

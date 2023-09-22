@@ -108,12 +108,16 @@ void CrossBilateralBlur::compile(RenderContext* pRenderContext, const CompileDat
 
 void CrossBilateralBlur::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
-    if (!mEnabled) return;
-
     auto pColor = renderData[kColor]->asTexture();
     auto pColorOut = renderData[kColorOut]->asTexture();
     auto pPingPong = renderData[kPingPong]->asTexture();
     auto pDepth = renderData[kDepth]->asTexture();
+
+    if (!mEnabled)
+    {
+        pRenderContext->blit(pColor->getSRV(), pColorOut->getRTV());
+        return;
+    }
 
     // set resources if they changed
     if (mpBlur->getRootVar()["gDepthTex"].getTexture() != pDepth)
