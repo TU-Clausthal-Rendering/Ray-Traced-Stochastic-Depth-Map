@@ -203,50 +203,11 @@ float4 getTexelPointWeight(float4 w)
     return res;
 }
 
-float calcObjectSpaceZ(float3 posV, float3 normal, float2 uv, Texture2D<float> depthTex, uint lod = 0u)
-{
-    float linearSampleDepth;
-    if (lod == 0u) linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
-    else // useGather
-    {
-        float2 gatherUV = calcGatherUV(uv, depthTex);
-        float4 d = depthTex.Gather(gTextureSampler, gatherUV);
-        float4 w = getTexelWeights(uv, depthTex);
 
-        // closest depth
-        float dRef = dot(getTexelPointWeight(w), d);
-        //float dRef = max(max(d[0], d[1]), max(d[2], d[3]));
-
-        float lowT = pow(0.9, lod);
-        float highT = pow(1.1, lod);
-        for (uint i = 0; i < 4; ++i)
-        {
-            if (d[i] < lowT * dRef || d[i] > highT * dRef)
-                w[i] = 0.0; // not similar enough => reject
-        }
-        w = w / (w[0] + w[1] + w[2] + w[3]);
-
-        linearSampleDepth = dot(w, d);
-        //linearSampleDepth = dRef;
-        //linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
-    }
-    
-    float3 samplePosV = UVToViewSpace(uv, linearSampleDepth);
-            // the object is the sphere centered at posV with the above tangent space (positive values are closer to the camera)
-    float objectSpaceZ = dot(samplePosV - posV, normal);
-    return objectSpaceZ;
-}
 
 float3 RayToViewSpace(RayDesc ray, float t)
 {
     return mul(gCamera.data.viewMat, float4(ray.Origin + ray.Direction * t, 1.0f)).xyz;
-}
-
-float calcObjectSpaceZ(float3 posV, float3 normal, RayDesc ray, float t)
-{
-    float3 samplePosV = RayToViewSpace(ray, t);
-    float objectSpaceZ = dot(samplePosV - posV, normal);
-    return objectSpaceZ;
 }
 
 // z: positive linear depth in view space
@@ -294,11 +255,12 @@ struct BasicAOData
 {
     float3 posV;
     float posVLength;
-    float3 normal;
-    float3 tangent; 
-    float3 bitangent;
-    float3 normalO; 
-
+    float3 normal; // view space: -posV
+    float3 tangent; // view space
+    float3 bitangent; // view space
+    float3 normalO; // sampling space (surface normal)
+    float3 normalV; // view space (surface normal)
+    
     float radiusInPixels;
     float radius; // world space radius. Usually gData.radius, but can be smaller if the screen space radius would be too large
     float rayRasterBlend;
@@ -327,7 +289,7 @@ struct BasicAOData
 
         // view space normal of current pixel
         float3 normalW = gNormalTex.SampleLevel(gTextureSampler, texC, 0).xyz;
-        float3 normalV = mul(float3x3(gCamera.data.viewMat), normalW);
+        normalV = mul(float3x3(gCamera.data.viewMat), normalW);
         if (dot(posV, normalV) > 0.0)
             normalV = -normalV;
 
@@ -375,6 +337,8 @@ struct SampleAOData
     bool requireRay;
 
     float initialSamplePosLength;
+    float3 initialSamplePosV;
+    
     float screenSpaceRadius;
     
     // returns false if the sample is invalid (below hemisphere)
@@ -405,7 +369,7 @@ struct SampleAOData
         }
         
         // sample position calculate uv position of sample
-        float3 initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
+        initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
         initialSamplePosLength = length(initialSamplePosV);
         samplePosUV = ViewSpaceToUV(initialSamplePosV);
         requireRay = false;
@@ -422,12 +386,59 @@ struct SampleAOData
         return true;
     }
 
+    // raster impl.
+    float calcObjectSpaceZ(BasicAOData data, float2 uv, Texture2D<float> depthTex, uint lod = 0u)
+    {
+        float linearSampleDepth;
+        if (lod == 0u)
+            linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
+        else // useGather
+        {
+            float2 gatherUV = calcGatherUV(uv, depthTex);
+            float4 d = depthTex.Gather(gTextureSampler, gatherUV);
+            float4 w = getTexelWeights(uv, depthTex);
+
+        // closest depth
+            float dRef = dot(getTexelPointWeight(w), d);
+        //float dRef = max(max(d[0], d[1]), max(d[2], d[3]));
+
+            float lowT = pow(0.9, lod);
+            float highT = pow(1.1, lod);
+            for (uint i = 0; i < 4; ++i)
+            {
+                if (d[i] < lowT * dRef || d[i] > highT * dRef)
+                    w[i] = 0.0; // not similar enough => reject
+            }
+            w = w / (w[0] + w[1] + w[2] + w[3]);
+
+            linearSampleDepth = dot(w, d);
+        //linearSampleDepth = dRef;
+        //linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
+        }
+    
+        float3 samplePosV = UVToViewSpace(uv, linearSampleDepth);
+        // adjust view space position
+        //samplePosV = initialSamplePosV + dot(data.normalV, samplePosV - initialSamplePosLength) * data.normalV;
+        
+            // the object is the sphere centered at posV with the above tangent space (positive values are closer to the camera)
+        float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
+        return objectSpaceZ;
+    }
+
+    // ray impl.
+    float calcObjectSpaceZ(float3 posV, float3 normal, RayDesc ray, float t)
+    {
+        float3 samplePosV = RayToViewSpace(ray, t);
+        float objectSpaceZ = dot(samplePosV - posV, normal);
+        return objectSpaceZ;
+    }
+
     [mutating] void evalPrimaryVisibility(BasicAOData data)
     {
         uint lod = 0;
         if (useDepthLod)
             lod = (uint)max(int(log2(screenSpaceRadius / 8.0) + 0.5), 0);
-        objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTexMips[lod], lod);
+        objectSpaceZ = calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTexMips[lod], lod);
         visibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius);
         requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
 
@@ -437,7 +448,7 @@ struct SampleAOData
             for (; lod < uint(DEPTH_MIPS); ++lod)
             {
                 // take min object space Z
-                objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTexMips[lod], lod));
+                objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTexMips[lod], lod));
                 visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius));
                 requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
                 if (!requireRay)
@@ -452,7 +463,7 @@ struct SampleAOData
         if (!requireRay)
             return; // not needed
         
-        objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex2));
+        objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTex2));
         visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius));
         requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
     }
