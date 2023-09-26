@@ -30,7 +30,7 @@ import Scene.Shading;
 #endif
 
 // area where the halo effect remains constant at 0.0
-#define CONST_RADIUS ((1.0 + gData.thickness) * gData.radius - sphereStart)
+#define CONST_RADIUS ((1.0 + gData.thickness) * data.radius - sphereStart)
 #define HALO_RADIUS sphereStart
 #define COMBINE_VIS(a,b) min(a,b)
 
@@ -143,9 +143,9 @@ float makeNonZero(float value, float epsilon)
 // introduce a linear falloff function that starts with 0.0 when the sample depth intersects the front sphere exactly,
 // and falls of to 1.0 when it gets further away from the sphere but closer to the camera.
 // this also includes the constant radius, where visibility remains 0
-float calcHaloVisibility(float objectSpaceZ, float sphereStart, float sphereEnd, float pdf)
+float calcHaloVisibility(float objectSpaceZ, float sphereStart, float sphereEnd, float pdf, float radius)
 {
-    return saturate((objectSpaceZ - sphereStart - CONST_RADIUS) / HALO_RADIUS)
+    return saturate((objectSpaceZ - (1.0 + gData.thickness) * radius) / HALO_RADIUS)
         * (sphereStart - sphereEnd) / pdf; // this adjust the visibility to the sampling (hemi-)sphere
 }
 
@@ -155,10 +155,10 @@ float calcSphereVisibility(float objectSpaceZ, float sphereStart, float sphereEn
     return sampleRange / pdf;
 }
 
-float calcVisibility(float objectSpaceZ, float sphereStart, float sphereEnd, float pdf)
+float calcVisibility(float objectSpaceZ, float sphereStart, float sphereEnd, float pdf, float radius)
 {
     return calcSphereVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf)
-         + calcHaloVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
+         + calcHaloVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, radius);
 }
 
 float2 calcGatherUV(float2 uv, Texture2D<float> tex)
@@ -298,6 +298,7 @@ struct BasicAOData
     float3 normalO; 
 
     float radiusInPixels;
+    float radius; // world space radius. Usually gData.radius, but can be smaller if the screen space radius would be too large
     float rayRasterBlend;
     //float linearDepth;
 
@@ -306,6 +307,14 @@ struct BasicAOData
     {
         float linearDepth = gDepthTex.SampleLevel(gTextureSampler, texC, 0);
         radiusInPixels = GetAORadiusInPixels(linearDepth);
+        radius = gData.radius;
+        float maxPixelRadius = 50.0;
+        // limit the pixel radius to maxPixelRadius to prevent samples from being distributed over the entire screen (bad for cache)
+        if(radiusInPixels > maxPixelRadius)
+        {
+            radius = radius / radiusInPixels * maxPixelRadius;
+            radiusInPixels = maxPixelRadius;
+        }
         rayRasterBlend = saturate((radiusInPixels - gData.ssRadiusFadeEnd) / gData.ssRadiusFadeSize);
         
         if (radiusInPixels < 0.5)
@@ -371,10 +380,10 @@ struct SampleAOData
     {
         // random angle on view space disc
         float alpha = (float(i) / NUM_DIRECTIONS) * 2.0 * 3.141;
-        float radius = sampleRadius[i] * gData.radius; // radius on sampling unit sphere * world space radius
+        float radius = sampleRadius[i] * data.radius; // radius on sampling unit sphere * world space radius
         float2 dir = radius * float2(sin(alpha), cos(alpha)); // world space direction
 
-        const float sphereHeight = sqrt(gData.radius * gData.radius - radius * radius);
+        const float sphereHeight = sqrt(data.radius * data.radius - radius * radius);
         pdf = 2.0 * sphereHeight;
         
         // determine distance within [-sphereHeight, +sphereHeight]
@@ -417,7 +426,7 @@ struct SampleAOData
         if (useDepthLod)
             lod = (uint)max(int(log2(screenSpaceRadius / 8.0) + 0.5), 0);
         objectSpaceZ = calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTexMips[lod], lod);
-        visibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf);
+        visibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius);
         requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
 
         if (PRIMARY_DEPTH_MODE == DEPTH_MODE_MIPMAPS)
@@ -427,7 +436,7 @@ struct SampleAOData
             {
                 // take min object space Z
                 objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTexMips[lod], lod));
-                visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf));
+                visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius));
                 requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
                 if (!requireRay)
                     break;
@@ -442,7 +451,7 @@ struct SampleAOData
             return; // not needed
         
         objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data.posV, data.normal, rasterSamplePosUV, gDepthTex2));
-        visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf));
+        visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius));
         requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
     }
 };
@@ -515,9 +524,9 @@ ao_t calcAO2(uint2 svPos, uint mask)
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(sdSampleUV, linearSampleDepth);
                 float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
-                if (objectSpaceZ <= gData.radius + gData.thickness * gData.radius && objectSpaceZ >= -gData.radius)
+                if (objectSpaceZ <= data.radius + gData.thickness * data.radius && objectSpaceZ >= -data.radius)
                     stochInside = true;
-                float newVisibility = calcVisibility(objectSpaceZ, s.sphereStart, s.sphereEnd, s.pdf);
+                float newVisibility = calcVisibility(objectSpaceZ, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
                 curVisibility = COMBINE_VIS(curVisibility, newVisibility);
             }
             curVisibility = lerp(s.visibility, curVisibility, data.rayRasterBlend);
@@ -539,15 +548,15 @@ ao_t calcAO2(uint2 svPos, uint mask)
 
             // ray query or ray pipeline implementation
             RayData rayData;
-            rayData.tLastFrontFaceHalo = (data.posVLength - s.sphereStart - gData.radius - gData.thickness * gData.radius) * s.initialSamplePosLength / data.posVLength; // min (haloStart)
+            rayData.tLastFrontFaceHalo = (data.posVLength - s.sphereStart - data.radius - gData.thickness * data.radius) * s.initialSamplePosLength / data.posVLength; // min (haloStart)
             rayData.tFirstFrontFaceInside = (data.posVLength - s.sphereEnd) * s.initialSamplePosLength / data.posVLength; // max (sphereEnd)
-            rayData.tConstRadiusStart = (data.posVLength - gData.radius - gData.thickness * gData.radius) * s.initialSamplePosLength / data.posVLength;
+            rayData.tConstRadiusStart = (data.posVLength - data.radius - gData.thickness * data.radius) * s.initialSamplePosLength / data.posVLength;
             rayData.tSphereStart = (data.posVLength - s.sphereStart) * s.initialSamplePosLength / data.posVLength;
 
             ray.TMin = max(rayData.tLastFrontFaceHalo, 0.0);
             ray.TMax = rayData.tFirstFrontFaceInside; // sphereEnd
 
-            const float epsilon = gData.radius * 0.01;
+            const float epsilon = data.radius * 0.01;
             // include the value of the depth buffer when choosing TMin to save some traversal time
             if (s.isInScreen)
                 ray.TMin = max(ray.TMin, (data.posVLength - s.objectSpaceZ) * s.initialSamplePosLength / data.posVLength + epsilon);
@@ -556,8 +565,8 @@ ao_t calcAO2(uint2 svPos, uint mask)
             
             traceAORay(ray, rayData);
 
-            float sphereVisibility = calcVisibility(data.posVLength - rayData.tFirstFrontFaceInside * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf);
-            float haloVisibility = calcHaloVisibility(data.posVLength - rayData.tLastFrontFaceHalo * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf);
+            float sphereVisibility = calcVisibility(data.posVLength - rayData.tFirstFrontFaceInside * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
+            float haloVisibility = calcHaloVisibility(data.posVLength - rayData.tLastFrontFaceHalo * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
 
             float rayVisibility = min(curVisibility, min(sphereVisibility, haloVisibility));
             curVisibility = lerp(s.visibility, rayVisibility, data.rayRasterBlend);

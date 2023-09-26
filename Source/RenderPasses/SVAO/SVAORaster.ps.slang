@@ -60,7 +60,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         {
             // calc pixel importance
             #if USE_IMPORTANCE
-            float sampleImportance = calcSampleImportance(sampleRadius[i] * gData.radius, gDepthTex.SampleLevel(gTextureSampler, s.rasterSamplePosUV, 0.0), s.sphereStart, s.sphereEnd, s.objectSpaceZ, color);
+            float sampleImportance = calcSampleImportance(sampleRadius[i] * data.radius, gDepthTex.SampleLevel(gTextureSampler, s.rasterSamplePosUV, 0.0), s.sphereStart, s.sphereEnd, s.objectSpaceZ, color);
             if (sampleImportance <= gData.importanceThreshold) continue;
             #endif
 
@@ -68,9 +68,9 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             output.stencil |= 1u << i;
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
-            InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - gData.radius - gData.thickness * gData.radius - s.sphereStart, 0.0)));
+            InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - data.radius - gData.thickness * data.radius - s.sphereStart, 0.0)));
             InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
-            //InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.linearDepth - gData.radius - gData.thickness * gData.radius - s.sphereStart, 0.0)));
+            //InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.linearDepth - data.radius - gData.thickness * data.radius - s.sphereStart, 0.0)));
             //InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.linearDepth - s.sphereEnd, 0.0)));
 #endif
         }
