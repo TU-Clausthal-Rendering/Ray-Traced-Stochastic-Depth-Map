@@ -19,7 +19,7 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
     hit.primitiveIndex = PrimitiveIndex();
     hit.barycentrics = attribs.barycentrics;
     
-    uint res = aoAnyHit(rayData, t, hit, frontFace);
+    uint res = aoAnyHit(rayData, t, hit, frontFace, WorldRayDirection());
     if(res == AO_HIT_IGNORE)
         IgnoreHit();
     if (res == AO_HIT_ACCEPT_AND_END)

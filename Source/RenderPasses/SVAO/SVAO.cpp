@@ -261,6 +261,8 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("DUAL_AO", mDualAo ? "1" : "0");
         defines.add("USE_IMPORTANCE", mImportanceEnabled ? "1" : "0");
         defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
+        auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
+        defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add(mpScene->getSceneDefines());
 
         // raster pass 1

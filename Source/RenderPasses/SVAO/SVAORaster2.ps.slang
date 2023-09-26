@@ -24,7 +24,7 @@ void traceAORay(RayDesc ray, inout RayData rayData)
             bool frontFace = rayQuery.CandidateTriangleFrontFace();
             const TriangleHit hit = getCandidateTriangleHit(rayQuery);
 
-            uint res = aoAnyHit(rayData, t, hit, frontFace);
+            uint res = aoAnyHit(rayData, t, hit, frontFace, ray.Direction);
             if (res == AO_HIT_ACCEPT)
                 rayQuery.CommitNonOpaqueTriangleHit();
             if (res == AO_HIT_ACCEPT_AND_END)

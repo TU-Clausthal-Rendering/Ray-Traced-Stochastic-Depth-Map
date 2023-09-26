@@ -2,6 +2,8 @@ import Scene.Camera.Camera;
 import VAOData;
 import Scene.Intersection;
 import Scene.Shading;
+import Rendering.Materials.TexLODHelpers;
+import Rendering.Materials.TexLODTypes;
 
 //#include "Scene/Material/MaterialDefines.slangh"
 
@@ -587,26 +589,32 @@ ao_t calcAO2(uint2 svPos, uint mask)
 #define AO_HIT_ACCEPT 1
 #define AO_HIT_ACCEPT_AND_END 2
 
+ExplicitRayConesLodTextureSampler computeLod(VertexData v, float3 rayDir, float t)
+{
+    RayCone rc = RayCone(0.0, RAY_CONE_SPREAD);
+    rc = rc.propagateDistance(t);
+    float lambda = rc.computeLOD(v.coneTexLODValue, rayDir, v.faceNormalW);
+    return ExplicitRayConesLodTextureSampler(lambda);
+}
+
 // returns any of the above A0_HIT defines
-uint aoAnyHit(inout RayData rayData, float t, const TriangleHit hit, bool frontFace)
+uint aoAnyHit(inout RayData rayData, float t, const TriangleHit hit, bool frontFace, float3 rayDir)
 {
     const uint materialID = gScene.getMaterialID(hit.instanceID);
     const MaterialHeader header = gScene.materials.materialData[materialID].header;
 
-#if USE_ALPHA_TEST
     bool isAlphaTested = header.getAlphaMode() == AlphaMode::Mask;
-
-    // needs alpha testing?
+#if USE_ALPHA_TEST
     if (isAlphaTested)
     {
         const VertexData v = gScene.getVertexData(hit);
-        if (gScene.materials.alphaTest(v, materialID, 0.0)) // TODO correct lod?   
+        //if (gScene.materials.alphaTest(v, materialID, computeLod(v, rayDir, t)))
+        if (gScene.materials.alphaTest(v, materialID, 0.0)) // no lods
             return AO_HIT_IGNORE; // alpha test failed => ignore this triangle
     }
-    frontFace = frontFace || isAlphaTested;
 #endif
 
-    frontFace = frontFace || header.isDoubleSided();
+    frontFace = frontFace || header.isDoubleSided() || isAlphaTested;
     if (!frontFace)
         return AO_HIT_IGNORE; // this is just for rasterizer compability
 
