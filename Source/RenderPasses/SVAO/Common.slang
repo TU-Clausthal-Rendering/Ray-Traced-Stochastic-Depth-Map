@@ -337,7 +337,8 @@ struct SampleAOData
     bool requireRay;
 
     float initialSamplePosLength;
-    float3 initialSamplePosV;
+    float radius; // world space radius of sample
+    //float3 initialSamplePosV;
     
     float screenSpaceRadius;
     
@@ -346,7 +347,7 @@ struct SampleAOData
     {
         // random angle on view space disc
         float alpha = (float(i) / NUM_DIRECTIONS) * 2.0 * 3.141;
-        float radius = sampleRadius[i] * data.radius; // radius on sampling unit sphere * world space radius
+        radius = sampleRadius[i] * data.radius; // radius on sampling unit sphere * world space radius
         float2 dir = radius * float2(sin(alpha), cos(alpha)); // world space direction
 
         const float sphereHeight = sqrt(data.radius * data.radius - radius * radius);
@@ -369,7 +370,7 @@ struct SampleAOData
         }
         
         // sample position calculate uv position of sample
-        initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
+        float3 initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
         initialSamplePosLength = length(initialSamplePosV);
         samplePosUV = ViewSpaceToUV(initialSamplePosV);
         requireRay = false;
@@ -386,6 +387,14 @@ struct SampleAOData
         return true;
     }
 
+    float rectifyObjectSpaceZ(BasicAOData data, float objectSpaceZ, float3 samplePosV)
+    {
+        float3 projSamplePosV = samplePosV - objectSpaceZ * data.normal; // project to sampling plane
+        float originalSampleDist = radius; // == sampleRadius[i] * data.radius
+        float rasterSampleDist = distance(data.posV, projSamplePosV);
+        return objectSpaceZ * originalSampleDist / rasterSampleDist;
+    }
+    
     // raster impl.
     float calcObjectSpaceZ(BasicAOData data, float2 uv, Texture2D<float> depthTex, uint lod = 0u)
     {
@@ -422,6 +431,9 @@ struct SampleAOData
         
             // the object is the sphere centered at posV with the above tangent space (positive values are closer to the camera)
         float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
+        // correct the objectSpaceZPos
+        //objectSpaceZ = rectifyObjectSpaceZ(data, objectSpaceZ, samplePosV);
+        
         return objectSpaceZ;
     }
 
@@ -537,6 +549,7 @@ ao_t calcAO2(uint2 svPos, uint mask)
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(sdSampleUV, linearSampleDepth);
                 float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
+                //objectSpaceZ = s.rectifyObjectSpaceZ(data, objectSpaceZ, samplePosV);
                 if (objectSpaceZ <= data.radius + gData.thickness * data.radius && objectSpaceZ >= -data.radius)
                     stochInside = true;
                 float newVisibility = calcVisibility(objectSpaceZ, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
