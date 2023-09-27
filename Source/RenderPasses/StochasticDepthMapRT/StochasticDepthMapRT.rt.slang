@@ -69,6 +69,6 @@ void rayGen()
         ray, rayData
     );
 
-    for (uint i = 0; i < NUM_SAMPLES; ++i)
+    [unroll(NUM_SAMPLES)] for (uint i = 0; i < NUM_SAMPLES; ++i)
         depthOutTex[uint3(svPos, i)] = rayData.depths[i];
 }

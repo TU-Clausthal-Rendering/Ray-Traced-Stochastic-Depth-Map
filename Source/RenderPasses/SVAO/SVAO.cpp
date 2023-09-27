@@ -601,6 +601,9 @@ void SVAO::renderUI(Gui::Widgets& widget)
     if (widget.var("Fade Size (Screen Space Radius)", mData.ssRadiusFadeSize, 0.01f, 100.0f, 1.0f)) mDirty = true;
     widget.tooltip("The fade will be for a screen space radius in range [FadeEnd, FadeEnd + FadeSize]");
 
+    if (widget.var("Max Screen Space Radius", mData.ssMaxRadius)) mDirty = true;
+    widget.tooltip("Max screen space radius to gather samples from (smaller = faster)");
+
     if(widget.checkbox("Output dual AO (bright/dark)", mDualAo)) reset = true;
 
     widget.checkbox("Use Depth LOD", mUseDepthLod);

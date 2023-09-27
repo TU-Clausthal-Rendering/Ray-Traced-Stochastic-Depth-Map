@@ -272,12 +272,11 @@ struct BasicAOData
         float linearDepth = gDepthTex.SampleLevel(gTextureSampler, texC, 0);
         radiusInPixels = GetAORadiusInPixels(linearDepth);
         radius = gData.radius;
-        float maxPixelRadius = 50.0;
         // limit the pixel radius to maxPixelRadius to prevent samples from being distributed over the entire screen (bad for cache)
-        if(radiusInPixels > maxPixelRadius)
+        if (radiusInPixels > gData.ssMaxRadius)
         {
-            radius = radius / radiusInPixels * maxPixelRadius;
-            radiusInPixels = maxPixelRadius;
+            radius = radius / radiusInPixels * gData.ssMaxRadius;
+            radiusInPixels = gData.ssMaxRadius;
         }
         rayRasterBlend = saturate((radiusInPixels - gData.ssRadiusFadeEnd) / gData.ssRadiusFadeSize);
         
@@ -549,9 +548,10 @@ ao_t calcAO2(uint2 svPos, uint mask)
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(sdSampleUV, linearSampleDepth);
                 float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
-                //objectSpaceZ = s.rectifyObjectSpaceZ(data, objectSpaceZ, samplePosV);
-                if (objectSpaceZ <= data.radius + gData.thickness * data.radius && objectSpaceZ >= -data.radius)
-                    stochInside = true;
+                objectSpaceZ = s.rectifyObjectSpaceZ(data, objectSpaceZ, samplePosV);
+                
+                //if (objectSpaceZ <= data.radius + gData.thickness * data.radius && objectSpaceZ >= -data.radius)
+                //    stochInside = true;
                 float newVisibility = calcVisibility(objectSpaceZ, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
                 curVisibility = COMBINE_VIS(curVisibility, newVisibility);
             }
