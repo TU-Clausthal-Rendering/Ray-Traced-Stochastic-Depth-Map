@@ -67,7 +67,6 @@ private:
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back;
     uint32_t mSampleCount = 4;
     bool mNormalize = true; // normalize to range [0, 1] (based on [near, far])
-    ResourceFormat mDepthFormat = ResourceFormat::R32Float;
 
     ref<Scene> mpScene;
 
@@ -78,4 +77,8 @@ private:
     bool mClear = false;
     bool mUseRayPipeline = true;
     bool mAlphaTest = true;
+
+    bool mUse16Bit = false; // compresses depth to 16 bit, otherwise 32 bit
+    bool mStoreNormals = false; // adds normals to each sample point
+    bool mJitter = false; // jitter the pixel positions, can help with aliasing
 };

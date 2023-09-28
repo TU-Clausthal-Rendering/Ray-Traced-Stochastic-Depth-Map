@@ -77,6 +77,18 @@ struct Camera
         return ndc.x * data.cameraU + ndc.y * data.cameraV + data.cameraW;
     }
 
+    // same as above with explicit jitter in [-0.5, 0.5]
+    float3 computeNonNormalizedRayDirPinhole(uint2 pixel, uint2 frameDim, float2 jitter)
+    {
+        // Compute sample position in screen space in [0,1] with origin at the top-left corner.
+        // The camera jitter offsets the sample by +-0.5 pixels from the pixel center.
+        float2 p = (pixel + jitter) / frameDim;
+        float2 ndc = float2(2, -2) * p + float2(-1, 1);
+
+        // Compute the non-normalized ray direction assuming a pinhole camera.
+        return ndc.x * data.cameraU + ndc.y * data.cameraV + data.cameraW;
+    }
+
 
     /** Computes a camera ray for a given pixel assuming a thin-lens camera model.
         The camera jitter is taken into account to compute the sample position on the image plane.

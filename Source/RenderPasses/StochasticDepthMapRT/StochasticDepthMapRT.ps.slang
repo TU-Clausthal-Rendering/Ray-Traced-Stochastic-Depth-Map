@@ -49,6 +49,7 @@ ImplicitLodTextureSampler computeLod(VertexData v, float3 rayDir)
 PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 {    
     float depths[NUM_SAMPLES];
+    float3 normals[NUM_SAMPLES];
     uint count = 0;
     for (uint i = 0; i < NUM_SAMPLES; ++i)
         depths[i] = DEFAULT_DEPTH;
@@ -63,7 +64,7 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     {
         if (rayQuery.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE)
         {
-            bool commit = algorithm(depths, count,
+            bool commit = algorithm(depths, normals, count,
                 rayQuery.CandidateTriangleBarycentrics(),
                 rayQuery.CandidateTriangleRayT(),
                 GeometryInstanceID(rayQuery.CandidateInstanceID(), rayQuery.CandidateGeometryIndex()),

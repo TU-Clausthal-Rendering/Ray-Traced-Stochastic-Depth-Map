@@ -206,8 +206,11 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
         break;
     case StochasticDepthImpl::Ray:
         sdDict["normalize"] = true;
-        sdDict["depthFormat"] = ResourceFormat::R32Float;
+        //sdDict["depthFormat"] = ResourceFormat::R32Float;
+        sdDict["depthFormat"] = ResourceFormat::RGBA32Float;
         sdDict["useRayPipeline"] = true; // performs better than raster //mUseRayPipeline;
+        sdDict["StoreNormals"] = mStochMapNormals;
+        sdDict["Jitter"] = mStochMapJitter;
         pStochasticDepthPass = RenderPass::create("StochasticDepthMapRT", mpDevice, sdDict);    
         break;
     }
@@ -258,6 +261,8 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("USE_DEPTH_LOD", mUseDepthLod ? "1" : "0");
         defines.add("DEPTH_MIPS", std::to_string(mDepthTexMips));
         defines.add("STOCH_MAP_DIVISOR", std::to_string(mStochMapDivisor) + "u");
+        defines.add("STOCH_MAP_NORMALS", mStochMapNormals ? "1" : "0");
+        defines.add("STOCH_MAP_JITTER", mStochMapJitter ? "1" : "0");
         defines.add("DUAL_AO", mDualAo ? "1" : "0");
         defines.add("USE_IMPORTANCE", mImportanceEnabled ? "1" : "0");
         defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
@@ -569,6 +574,12 @@ void SVAO::renderUI(Gui::Widgets& widget)
             reset = true;
 
         if(widget.var("SD-Map Divisor", mStochMapDivisor, 1u, 16u, 1u))
+            reset = true;
+
+        if (widget.checkbox("SD-Map Normals", mStochMapNormals))
+            reset = true;
+
+        if (widget.checkbox("SD-Map Jitter", mStochMapJitter))
             reset = true;
 
         if (mpFbo->getWidth() % mStochMapDivisor != 0)

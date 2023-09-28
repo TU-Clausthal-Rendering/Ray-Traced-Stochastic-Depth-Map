@@ -1,3 +1,5 @@
+import Utils.Math.PackedFormats;
+
 Texture2D<float> depthInTex;
 SamplerState S; // linear sampler for downsampling depth on half res
 
@@ -10,6 +12,18 @@ StructuredBuffer<uint> stratifiedLookUpTable;
 StructuredBuffer<uint> materialAlphaTestLookup;
 
 #define DEFAULT_DEPTH (NORMALIZE ? 1.0 : 3.40282347E+37F)
+
+#ifndef sd_t
+#define sd_t float2
+#endif
+#ifndef SD_USE_NORMALS
+#define SD_USE_NORMALS 1
+#endif
+#if SD_USE_NORMALS
+#define SD_NORMALS(x) x
+#else
+#define SD_NORMALS(x)
+#endif
 
 // Hash function from "Improved Alpha Testing Using Hashed Sampling"
 float hash(float2 v)
@@ -41,14 +55,43 @@ float ViewDepthToRay(float3 rayDir, float viewDepth)
     return viewDepth / cosTheta;    
 }
 
+uint2 pcg2d(uint2 v)
+{
+    v = v * 1664525u + 1013904223u;
+
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+
+    v = v ^ (v >> 16u);
+
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+
+    v = v ^ (v >> 16u);
+
+    return v;
+}
+
+float2 randomJitter(uint2 pixel)
+{
+#if SD_JITTER
+    uint2 rnd = pcg2d(pixel);
+    return float2(rnd % 2048u) / 2048.0;
+#else
+    return float2(0.5);
+#endif
+}
+
 RayDesc initRayDesc(uint2 pixel, uint2 dim)
 {
     RayDesc ray = gScene.camera.computeRayPinhole(pixel, dim).toRayDesc();
+    ray.Direction = normalize(gScene.camera.computeNonNormalizedRayDirPinhole(pixel, dim, randomJitter(pixel)));
+    
     float epsilon = 0.1 * gScene.camera.data.nearZ; // small ray offset
     float depth = depthInTex.SampleLevel(S, (pixel + 0.5) / dim, 0);
     //float depth = depthInTex[pixel];
     ray.TMin = ViewDepthToRay(ray.Direction, depth) + epsilon; // start after first known hit
-
+    
     uint iRayMin = rayMinTex[pixel];
     if (iRayMin != 0u) // test if valid values
         ray.TMin = max(asfloat(iRayMin), ray.TMin);
@@ -68,7 +111,11 @@ RayDesc initRayDesc(uint2 pixel, uint2 dim)
 TEXTURE_LOD_T computeLod(VertexData v, float3 rayDir);
 
 // returns true if the ray sample can be commited
-bool algorithm(inout float depths[NUM_SAMPLES], inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, uint primitiveIndex, float3 rayDir)
+bool algorithm(inout float depths[NUM_SAMPLES],
+#if SD_USE_NORMALS
+inout uint normals[NUM_SAMPLES],
+#endif
+inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, uint primitiveIndex, float3 rayDir)
 {
 #define SD_VERSION 2
 #define MAX_COUNT (2 * NUM_SAMPLES)
@@ -128,10 +175,24 @@ bool algorithm(inout float depths[NUM_SAMPLES], inout uint count, float2 barycen
     
     
 #if SD_VERSION == 2
+    #if SD_USE_NORMALS
+        TriangleHit hit;
+        hit.instanceID = instanceID;
+        hit.primitiveIndex = primitiveIndex;
+        hit.barycentrics = barycentrics;
+            
+        const VertexData v = gScene.getVertexData(hit);
+        float3 viewNormal = mul(float3x3(gScene.camera.data.viewMat), v.faceNormalW);
+    #endif
+
     for (uint i = 0; i < NUM_SAMPLES; ++i)
     {
         if (i == slot)
+        {
             depths[i] = t;
+            SD_NORMALS(normals[i] = encodeNormal2x16(viewNormal));
+        }
+            
     }
 
     if (count > MAX_COUNT)

@@ -2,7 +2,7 @@ import Scene.Raytracing;
 import Rendering.Materials.TexLODHelpers;
 import Rendering.Materials.TexLODTypes;
 
-RWTexture2DArray<float> depthOutTex;
+RWTexture2DArray<sd_t> depthOutTex;
 Texture2D<uint> maskTex;
 
 // Note: using lods (ray cones) is about 20% faster than sampling lod 0 (no lod)
@@ -13,6 +13,9 @@ Texture2D<uint> maskTex;
 struct RayData // cannot be compressed to half floats => no diff in rendering time + insufficient visual quality
 {
     float depths[NUM_SAMPLES];
+    #if SD_USE_NORMALS
+    uint normals[NUM_SAMPLES];
+    #endif
     uint count; // number of processed samples
 };
 
@@ -29,7 +32,11 @@ ExplicitRayConesLodTextureSampler computeLod(VertexData v, float3 rayDir)
 [shader("anyhit")]
 void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs)
 {
-    bool commit = algorithm(rayData.depths, rayData.count, attribs.barycentrics, RayTCurrent(), getGeometryInstanceID(), PrimitiveIndex(), WorldRayDirection());
+    bool commit = algorithm(rayData.depths,
+        #if SD_USE_NORMALS
+        rayData.normals,
+        #endif
+        rayData.count, attribs.barycentrics, RayTCurrent(), getGeometryInstanceID(), PrimitiveIndex(), WorldRayDirection());
     if (!commit)
         IgnoreHit();
 }
@@ -59,7 +66,11 @@ void rayGen()
     RayData rayData;
     rayData.count = 0;
     for (uint i = 0; i < NUM_SAMPLES; ++i)
+    {
         rayData.depths[i] = DEFAULT_DEPTH;
+        SD_NORMALS(rayData.normals[i] = 0);
+    }
+        
     
     // TODO custom culling?
     TraceRay(
@@ -70,5 +81,10 @@ void rayGen()
     );
 
     [unroll(NUM_SAMPLES)] for (uint i = 0; i < NUM_SAMPLES; ++i)
-        depthOutTex[uint3(svPos, i)] = rayData.depths[i];
+    {
+        sd_t data;
+        data.x = rayData.depths[i];
+        SD_NORMALS(data.y = asfloat(rayData.normals[i]));
+        depthOutTex[uint3(svPos, i)] = data;
+    }
 }

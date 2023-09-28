@@ -43,10 +43,12 @@ namespace
     
     const std::string kSampleCount = "SampleCount";
     const std::string kCullMode = "CullMode";
-    const std::string kDepthFormat = "depthFormat";
     const std::string kNormalize = "normalize";
     const std::string kUseRayPipeline = "useRayPipeline";
     const std::string kAlphaTest = "AlphaTest";
+    const std::string kUse16Bit = "Use16Bit";
+    const std::string kStoreNormals = "StoreNormals";
+    const std::string kJitter = "Jitter";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -154,10 +156,12 @@ ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, cons
     {
         if (key == kSampleCount) pPass->mSampleCount = value;
         else if (key == kCullMode) pPass->mCullMode = value;
-        else if (key == kDepthFormat) pPass->mDepthFormat = value;
         else if (key == kNormalize) pPass->mNormalize = value;
         else if (key == kUseRayPipeline) pPass->mUseRayPipeline = value;
         else if (key == kAlphaTest) pPass->mAlphaTest = value;
+        else if (key == kUse16Bit) pPass->mUse16Bit = value;
+        else if (key == kStoreNormals) pPass->mStoreNormals = value;
+        else if (key == kJitter) pPass->mJitter = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMapRT dictionary");
     }
     return pPass;
@@ -168,21 +172,31 @@ Properties StochasticDepthMapRT::getProperties() const
     Properties d;
     d[kSampleCount] = mSampleCount;
     d[kCullMode] = mCullMode;
-    d[kDepthFormat] = mDepthFormat;
     d[kNormalize] = mNormalize;
     d[kAlphaTest] = mAlphaTest;
     //d[kUseRayPipeline] = mUseRayPipeline;
+    d[kUse16Bit] = mUse16Bit;
+    d[kStoreNormals] = mStoreNormals;
+    d[kJitter] = mJitter;
     return d;
 }
 
 RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileData)
 {
+    auto depthFormat = ResourceFormat::R32Float;
+    if (mUse16Bit) depthFormat = ResourceFormat::R16Float;
+    if(mStoreNormals)
+    {
+        depthFormat = ResourceFormat::RG32Float;
+        //if (mUse16Bit) depthFormat = ResourceFormat::RG16Uint; // TODO
+    }
+
     RenderPassReflection reflector;
     reflector.addInput(kDepthIn, "non-linear (primary) depth map").bindFlags(ResourceBindFlags::ShaderResource);
     reflector.addInput(kStencil, "(optional) stencil-mask").format(ResourceFormat::R8Uint).flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addInput(kRayMin, "min ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addInput(kRayMax, "max ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
-    reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(mDepthFormat).texture2D(0, 0, 1, 1, mSampleCount);
+    reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(depthFormat).texture2D(0, 0, 1, 1, mSampleCount);
     reflector.addInternal(kInternalStencil, "stencil-mask").bindFlags(ResourceBindFlags::DepthStencil).format(ResourceFormat::D32FloatS8X24);
     return reflector;
 }
@@ -227,7 +241,8 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     pRenderContext->clearTexture(psDepths.get()); // for debug, clear the texture first to better see what is written
 #endif
     
-    if(!mpRayProgram || !mpRasterProgram)
+    //if(!mpRayProgram || !mpRasterProgram)
+    if (!mpRayProgram)
     {
         auto defines = mpScene->getSceneDefines();
         defines.add("NUM_SAMPLES", std::to_string(mSampleCount));
@@ -236,9 +251,12 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
+        defines.add("sd_t", mStoreNormals ? "float2" : "float");
+        defines.add("SD_USE_NORMALS", mStoreNormals ? "1" : "0");
+        defines.add("SD_JITTER", mJitter ? "1" : "0");
 
         // raster pass
-        {
+        /* {
             Program::Desc desc;
             desc.addShaderModules(mpScene->getShaderModules());
             desc.addShaderLibrary(kRasterShader).psEntry("main");
@@ -248,14 +266,18 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             mpRasterProgram = FullScreenPass::create(mpDevice, desc, defines);
             auto vars = mpRasterProgram->getRootVar();
             vars["S"] = Sampler::create(mpDevice, Sampler::Desc().setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear));
-        }
+
+            mpRasterProgram->getRootVar()["stratifiedIndices"] = mpStratifiedIndices;
+            mpRasterProgram->getRootVar()["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
+        }*/
 
         // ray pass
         {
             RtProgram::Desc desc;
             desc.addShaderModules(mpScene->getShaderModules());
             desc.addShaderLibrary(kRayShader);
-            desc.setMaxPayloadSize((mSampleCount + 1) * sizeof(float));
+            uint32_t normalsCount = mStoreNormals ? mSampleCount : 0;
+            desc.setMaxPayloadSize((mSampleCount + normalsCount + 1) * sizeof(float));
             desc.setMaxAttributeSize(mpScene->getRaytracingMaxAttributeSize());
             desc.setMaxTraceRecursionDepth(1);
             desc.addTypeConformances(mpScene->getTypeConformances());
@@ -270,12 +292,10 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
             mRayVars = RtProgramVars::create(mpDevice, mpRayProgram, sbt);
             auto vars = mRayVars->getRootVar();
             vars["S"] = Sampler::create(mpDevice, Sampler::Desc().setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear));
-        }
 
-        mRayVars->getRootVar()["stratifiedIndices"] = mpStratifiedIndices;
-        mRayVars->getRootVar()["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
-        mpRasterProgram->getRootVar()["stratifiedIndices"] = mpStratifiedIndices;
-        mpRasterProgram->getRootVar()["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
+            mRayVars->getRootVar()["stratifiedIndices"] = mpStratifiedIndices;
+            mRayVars->getRootVar()["stratifiedLookUpTable"] = mpStratifiedLookUpBuffer;
+        }
     }
 
     if (mUseRayPipeline)
@@ -292,6 +312,9 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     }
     else // raster pipeline
     {
+        assert(false);
+        __debugbreak();
+        return; // needs to be updated!!:
         if(pStencilMask)
         {
             FALCOR_PROFILE(pRenderContext, "Stencil Clear&Copy");

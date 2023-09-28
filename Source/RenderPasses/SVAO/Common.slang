@@ -4,7 +4,7 @@ import Scene.Intersection;
 import Scene.Shading;
 import Rendering.Materials.TexLODHelpers;
 import Rendering.Materials.TexLODTypes;
-
+import Utils.Math.PackedFormats;
 //#include "Scene/Material/MaterialDefines.slangh"
 
 // single depth texture
@@ -21,13 +21,15 @@ import Rendering.Materials.TexLODTypes;
 // use mipmaps to estimate depth, when mip0 is ambiguous
 #define DEPTH_MODE_MIPMAPS 7 
 
+#define sd_map_t float2
+
 #define STOCHASTIC_DEPTH_RASTER 0
 #define STOCHASTIC_DEPTH_RAY 1
 #if STOCHASTIC_DEPTH_IMPL == STOCHASTIC_DEPTH_RASTER
-#define STOCHASTIC_DEPTH_MAP Texture2DMS<float>
+#define STOCHASTIC_DEPTH_MAP Texture2DMS<sd_map_t>
 #define LOAD_STOCHASTIC_SAMPLE(tex, xy, i) tex.Load(xy, i)
 #else
-#define STOCHASTIC_DEPTH_MAP Texture2DArray<float>
+#define STOCHASTIC_DEPTH_MAP Texture2DArray<sd_map_t>
 #define LOAD_STOCHASTIC_SAMPLE(tex, xy, i) tex.Load(int4(xy, i, /*mipmap*/0))
 #endif
 
@@ -83,6 +85,34 @@ Texture2D<float4> gColor;
 
 Texture2D gNormalTex;
 Texture2D<float> gNoiseTex;
+
+// stochastic depth map jitter:
+uint2 pcg2d(uint2 v)
+{
+    v = v * 1664525u + 1013904223u;
+
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+
+    v = v ^ (v >> 16u);
+
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+
+    v = v ^ (v >> 16u);
+
+    return v;
+}
+
+float2 randomJitter(uint2 pixel)
+{
+#if STOCH_MAP_JITTER
+    uint2 rnd = pcg2d(pixel);
+    return float2(rnd % 2048u) / 2048.0;
+#else
+    return float2(0.5);
+#endif
+}
 
 float2 getScreenClampedUV(float2 uvstart, float2 uvend)
 {
@@ -337,7 +367,7 @@ struct SampleAOData
 
     float initialSamplePosLength;
     float radius; // world space radius of sample
-    //float3 initialSamplePosV;
+    float3 initialSamplePosV;
     
     float screenSpaceRadius;
     
@@ -369,7 +399,7 @@ struct SampleAOData
         }
         
         // sample position calculate uv position of sample
-        float3 initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
+        initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
         initialSamplePosLength = length(initialSamplePosV);
         samplePosUV = ViewSpaceToUV(initialSamplePosV);
         requireRay = false;
@@ -442,6 +472,18 @@ struct SampleAOData
         float3 samplePosV = RayToViewSpace(ray, t);
         float objectSpaceZ = dot(samplePosV - posV, normal);
         return objectSpaceZ;
+    }
+
+    float calcObjectSpaceZFromPlane(BasicAOData data, float3 samplePosV, float3 sampleNormalV)
+    {
+        // ray-plane intersection:
+        // plane: samplePosV, sampleNormalV
+        // ray: initialSamplePosV, data.normal
+        float denom = dot(sampleNormalV, data.normal);
+        if (abs(denom) < 1e-6) // almost perpendicular
+            return dot(samplePosV - data.posV, data.normal); // default computation
+
+        return dot(samplePosV - initialSamplePosV, sampleNormalV) / denom;
     }
 
     [mutating] void evalPrimaryVisibility(BasicAOData data)
@@ -535,20 +577,37 @@ ao_t calcAO2(uint2 svPos, uint mask)
             gsDepthTex.GetDimensions(sdwidth, sdheight, elements);
 
             int2 pixelCoord = int2(floor(s.rasterSamplePosUV * float2(sdwidth, sdheight)));
-            float2 sdSampleUV = getSnappedUV(s.rasterSamplePosUV, float2(sdwidth, sdheight));
+            //float2 sdSampleUV = getSnappedUV(s.rasterSamplePosUV, float2(sdwidth, sdheight));
+            float2 sdSampleUV = (pixelCoord + randomJitter(pixelCoord)) / float2(sdwidth, sdheight);
 
+            /*if (dot(sdSampleUV - texC, s.samplePosUV - texC) <= 0.0)
+            {
+                return -10.0;
+                float pxSize = 1.0 / max(sdwidth, sdheight);
+                float2 dir = sdSampleUV - texC;
+                float2 newUV = texC + dir * pxSize * 1.45;
+                newUV = getScreenClampedUV(texC, newUV);
+                pixelCoord = int2(floor(newUV * float2(sdwidth, sdheight)));
+                sdSampleUV = (pixelCoord + randomJitter(pixelCoord)) / float2(sdwidth, sdheight);
+            }*/
+            
             const float depthRange = gCamera.data.farZ - gCamera.data.nearZ;
             const float depthOffset = gCamera.data.nearZ;
             bool stochInside = false;
             [unroll]
             for (uint i = 0; i < MSAA_SAMPLES; ++i)
             {
-                float linearSampleDepth = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
+                float2 sd_data = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
+                float linearSampleDepth = sd_data.x;
                 // linearSampleDepth is in [0, 1] => scale accordingly
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(sdSampleUV, linearSampleDepth);
                 float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
-                objectSpaceZ = s.rectifyObjectSpaceZ(data, objectSpaceZ, samplePosV);
+                //objectSpaceZ = s.rectifyObjectSpaceZ(data, objectSpaceZ, samplePosV);
+                #if STOCH_MAP_NORMALS
+                float3 sd_normal = decodeNormal2x16(asuint(sd_data.y));
+                objectSpaceZ = s.calcObjectSpaceZFromPlane(data, samplePosV, sd_normal);
+                #endif
                 
                 //if (objectSpaceZ <= data.radius + gData.thickness * data.radius && objectSpaceZ >= -data.radius)
                 //    stochInside = true;
