@@ -1,10 +1,17 @@
 import Scene.RaytracingInline;
 #include "Common.slang"
 
+#if SECONDARY_DEPTH_MODE == DEPTH_MODE_SINGLE
+// disable all stencil operations if no secondary pass exists
+#define STENCIL(x) 
+#else
+#define STENCIL(x) x
+#endif
+
 struct PSOut
 {
     ao_t ao1 : SV_TARGET0;
-    uint stencil : SV_TARGET1;
+    STENCIL(uint stencil : SV_TARGET1);
 };
 
 RWTexture2D<uint> gRayMinAccess;
@@ -14,7 +21,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 {
     PSOut output;
     output.ao1 = 0.0;
-    output.stencil = 0;
+    STENCIL(output.stencil = 0);
 
     BasicAOData data;
     if (!data.Init(texC))
@@ -23,20 +30,12 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         return output;
     }
 
-    #if USE_IMPORTANCE
-    float3 color = saturate(gColor.SampleLevel(gTextureSampler, texC, 0).xyz); // for pixel importance
-    #endif
-
     float visibility = 0.0f;    
     [unroll] for (uint i = 0; i < NUM_DIRECTIONS; i++)
     {
         SampleAOData s;
         if (!s.Init(texC, data, i))
             continue;
-
-        uint skipId = (uint(svPos.x) % pixelSkipX) + (uint(svPos.y) % pixelSkipY) * pixelSkipX;
-        if (skipId != (frameIndex % (pixelSkipX * pixelSkipY)))
-            data.forceDenyRays();
 
         if (isSamePixel(texC, s.rasterSamplePosUV))
         {
@@ -58,14 +57,8 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
         output.ao1.x += s.visibility; // only on bright       
         if (!data.denyRays() && (s.requireRay || forceRay))
         {
-            // calc pixel importance
-            #if USE_IMPORTANCE
-            float sampleImportance = calcSampleImportance(sampleRadius[i] * data.radius, gDepthTex.SampleLevel(gTextureSampler, s.rasterSamplePosUV, 0.0), s.sphereStart, s.sphereEnd, s.objectSpaceZ, color);
-            if (sampleImportance <= gData.importanceThreshold) continue;
-            #endif
-
             // remember that this was a hybrid ray
-            output.stencil |= 1u << i;
+            STENCIL(output.stencil |= 1u << i);
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
             #if USE_RAY_INTERVAL
@@ -84,9 +77,13 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 
     output.ao1 *= 2.0 / float(NUM_DIRECTIONS);
 
+    #if SECONDARY_DEPTH_MODE == DEPTH_MODE_SINGLE
+    output.ao1 = pow(output.ao1, gData.exponent); // there will be no second shader
+    #else
     // apply exponent
     if(output.stencil == 0)
         output.ao1 = pow(output.ao1, gData.exponent);
+    #endif
     
     return output;
 }

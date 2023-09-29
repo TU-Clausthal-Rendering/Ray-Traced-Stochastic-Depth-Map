@@ -63,8 +63,6 @@ cbuffer PerFrameCB
     uint guardBand;
     bool useDepthLod;
     uint frameIndex;
-    uint pixelSkipX; // = 1 for no skipping
-    uint pixelSkipY;
 }
 
 SamplerState gNoiseSampler;

@@ -59,8 +59,6 @@ namespace
     const std::string kExponent = "exponent";
     const std::string kUseRayPipeline = "rayPipeline";
     const std::string kThickness = "thickness";
-    const std::string kImportanceThreshold = "importanceThreshold";
-    const std::string kTargetTime = "targetTime";
     const std::string kStochMapDivisor = "stochMapDivisor"; // stochastic depth map resolution divisor
     const std::string kDualAo = "dualAO";
     const std::string kAlphaTest = "alphaTest";
@@ -120,8 +118,6 @@ ref<SVAO> SVAO::create(ref<Device> pDevice, const Properties& dict)
         else if (key == kExponent) pPass->mData.exponent = value;
         else if (key == kUseRayPipeline) pPass->mUseRayPipeline = value;
         else if (key == kThickness) pPass->mData.thickness = value;
-        else if (key == kImportanceThreshold) pPass->mData.importanceThreshold = value;
-        else if (key == kTargetTime) pPass->mTargetTimeMs = value;
         else if (key == kStochMapDivisor) pPass->mStochMapDivisor = value;
         else if (key == kDualAo) pPass->mDualAo = value;
         else if (key == kAlphaTest) pPass->mAlphaTest = value;
@@ -139,8 +135,6 @@ Properties SVAO::getProperties() const
     d[kExponent] = mData.exponent;
     d[kUseRayPipeline] = mUseRayPipeline;
     d[kThickness] = mData.thickness;
-    d[kImportanceThreshold] = mData.importanceThreshold;
-    d[kTargetTime] = mTargetTimeMs;
     d[kStochMapDivisor] = mStochMapDivisor;
     d[kDualAo] = mDualAo;
     d[kAlphaTest] = mAlphaTest;
@@ -267,7 +261,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("STOCH_MAP_NORMALS", mStochMapNormals ? "1" : "0");
         defines.add("STOCH_MAP_JITTER", mStochMapJitter ? "1" : "0");
         defines.add("DUAL_AO", mDualAo ? "1" : "0");
-        defines.add("USE_IMPORTANCE", mImportanceEnabled ? "1" : "0");
         defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
         defines.add("USE_RAY_INTERVAL", mUseRayInterval ? "1" : "0");
         auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
@@ -329,8 +322,8 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     }
 
     mpFbo->attachColorTarget(pAoDst, 0);
-    mpFbo->attachColorTarget(pAoMask, 1);
-    //mpFbo->attachColorTarget(mEnableRayFilter ? pAoMask2 : pAoMask, 1);
+    if(mSecondaryDepthMode != DepthMode::SingleDepth)
+        mpFbo->attachColorTarget(pAoMask, 1);
 
     auto pCamera = mpScene->getCamera().get();
     pCamera->setShaderData(rasterVars["PerFrameCB"]["gCamera"]);
@@ -343,8 +336,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     }
     rasterVars["PerFrameCB"]["useDepthLod"] = mUseDepthLod ? 1 : 0;
     rasterVars["PerFrameCB"]["frameIndex"] = mFrameIndex;
-    rasterVars["PerFrameCB"]["pixelSkipX"] = mPixelSkipX;
-    rasterVars["PerFrameCB"]["pixelSkipY"] = mPixelSkipY;
 
     setDepthTex(rasterVars, pDepth);
     rasterVars["gDepthTex2"] = pDepth2;
@@ -376,39 +367,11 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mpRasterPass->execute(pRenderContext, mpFbo, false);
     }
 
-    //if(mEnableRayFilter)
-    //{
-    //    FALCOR_PROFILE("RayFilter");
-    //    mpRayFilter->execute(pRenderContext, pAoMask2, pAoMask); // result should be in pAoMask finally
-    //}
+    if (mSecondaryDepthMode == DepthMode::SingleDepth) return; // already finished
 
     ref<Texture> pStochasticDepthMap;
 
     FALCOR_PROFILE(pRenderContext, "AORefine");
-
-    auto profiler = pRenderContext->getProfiler();
-    if (profiler && profiler->isEnabled())
-    {
-        auto event = profiler->findEvent("/onFrameRender/RenderGraphExe::execute()/SVAO/AORefine");
-        if (event)
-        {
-            //auto timeMs = event->getGpuTimeAverage();
-            auto timeMs = event->getGpuTime();
-            mLastGpuTime = std::clamp(timeMs, mLastGpuTime * 0.99f, (mLastGpuTime + 0.01f) * 1.01f);
-
-            if(mLastGpuTime > mTargetTimeMs * 1.05f)
-            {
-                // we spent too much time, increase the importance threshold
-                mData.importanceThreshold = std::min(mData.importanceThreshold + 0.001f, 1.0f);
-            }
-            else if (mLastGpuTime < mTargetTimeMs * 0.7f)
-            {
-                // we can spend more time, lower the importance threshold
-                mData.importanceThreshold = std::max(mData.importanceThreshold - 0.001f, 0.0f);
-            }
-            mDirty = true;
-        }
-    }
 
     //  execute stochastic depth map
     if (mSecondaryDepthMode == DepthMode::StochasticDepth)
@@ -523,6 +486,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
     const Gui::DropdownList kSecondaryDepthModeDropdown =
     {
+        { (uint32_t)DepthMode::SingleDepth, "Disabled" },
         { (uint32_t)DepthMode::StochasticDepth, "StochasticDepth" },
         { (uint32_t)DepthMode::Raytraced, "Raytraced" },
     };
@@ -553,14 +517,6 @@ void SVAO::renderUI(Gui::Widgets& widget)
     if (widget.dropdown("Primary Depth Mode", kPrimaryDepthModeDropdown, primaryDepthMode)) {
         mPrimaryDepthMode = (DepthMode)primaryDepthMode;
         reset = true;
-    }
-
-    if(widget.checkbox("Importance Driven", mImportanceEnabled)) reset = true;
-    if(mImportanceEnabled)
-    {
-        if (widget.slider("Importance Threshold", mData.importanceThreshold, 0.0f, 1.0f)) mDirty = true;
-        widget.var("Target Time", mTargetTimeMs, 0.0f, FLT_MAX, 0.1f);
-        widget.text("current time: " + std::to_string(mLastGpuTime) + " ms");
     }
     
     widget.separator();
@@ -601,7 +557,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if (mpFbo->getHeight() % mStochMapDivisor != 0)
             widget.text("Warning: SD-Map Divisor does not divide height of screen");
     }
-    else
+    else if (mSecondaryDepthMode == DepthMode::Raytraced)
     {
         if (widget.checkbox("Ray Pipeline", mUseRayPipeline)) reset = true;
     }
@@ -638,11 +594,6 @@ void SVAO::renderUI(Gui::Widgets& widget)
     widget.checkbox("Use Depth LOD", mUseDepthLod);
 
     if (widget.var("Depth Mipmap Count", mDepthTexMips, 1u, 14u)) reset = true;
-
-    widget.separator();
-
-    widget.var("Pixel Skip X", mPixelSkipX, 1, 8);
-    widget.var("Pixel Skip Y", mPixelSkipY, 1, 8);
 
     if (reset) requestRecompile();
 }

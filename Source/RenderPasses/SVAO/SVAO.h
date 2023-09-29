@@ -113,11 +113,7 @@ private:
     bool mUseDepthLod = false;
     uint mDepthTexMips = 8;
 
-    float mLastGpuTime = 0.0;
-
     int mFrameIndex = 0;
-    int mPixelSkipX = 1;
-    int mPixelSkipY = 1;
 
     //NeuralNetCollection mNeuralNet;
     //NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
@@ -131,7 +127,6 @@ private:
     bool mStochMapJitter = false;
 
     bool mDualAo = false; // if true, AO will be two channel, one for bright and one for dark
-    bool mImportanceEnabled = false;
     bool mAlphaTest = true; // use alpha test in raytracing or stochastic depth passes
     StochasticDepthImplementation mStochasticDepthImplementation = StochasticDepthImplementation::Default;
     bool mUseRayInterval = true; // stochastic depth ray interval optimization
