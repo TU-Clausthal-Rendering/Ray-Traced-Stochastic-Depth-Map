@@ -72,14 +72,17 @@ PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
     //float dist = vsOut.posH.w;
     float dist = distance(vsOut.posW.xyz, gScene.camera.getPosition());
 
-    // use ray min from texture (can be bigger than depth buffer)
-    uint iRayMin = rayMin[svPos];
-    if (iRayMin != 0u && dist <= asfloat(iRayMin))
-        discard;
+    if (USE_RAY_INTERVAL)
+    {
+        // use ray min from texture (can be bigger than depth buffer)
+        uint iRayMin = rayMin[svPos];
+        if (iRayMin != 0u && dist <= asfloat(iRayMin))
+            discard;
     
-    uint iRayMax = rayMax[svPos];
-    if (iRayMax != 0u && dist >= asfloat(iRayMax))
-        discard; // save bandwidth (cannot depth cull because of linearize...)
+        uint iRayMax = rayMax[svPos];
+        if (iRayMax != 0u && dist >= asfloat(iRayMax))
+            discard; // save bandwidth (cannot depth cull because of linearize...)
+    }
     
     float rng = hash4D(float4(vsOut.posW.xyz, 1.438943289));
     

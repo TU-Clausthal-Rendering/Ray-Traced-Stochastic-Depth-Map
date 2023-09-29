@@ -44,6 +44,7 @@ namespace
     const std::string kRayMax = "rayMax"; // ray T values for Ray.TMax
     const std::string kAlphaTest = "AlphaTest";
     const std::string kImplementation = "Implementation";
+    const std::string kRayInterval = "RayInterval";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -166,6 +167,7 @@ ref<StochasticDepthMap> StochasticDepthMap::create(ref<Device> pDevice, const Pr
         else if (key == kDepthFormat) pPass->mDepthFormat = value;
         else if (key == kAlphaTest) pPass->mAlphaTest = value;
         else if (key == kImplementation) pPass->mImplementation = value;
+        else if (key == kRayInterval) pPass->mUseRayInterval = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMap dictionary");
     }
     return pPass;
@@ -258,6 +260,7 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
         defines.add("INV_RESOLUTION", "float2(" + std::to_string(1.0f / mpFbo->getWidth()) + ", " + std::to_string(1.0f / mpFbo->getHeight()) + ")");
         defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
         defines.add("IMPLEMENTATION", std::to_string(uint32_t(mImplementation)));
+        defines.add("USE_RAY_INTERVAL", mUseRayInterval ? "1" : "0");
         if (mLinearizeDepth) defines.add("LINEARIZE");
         auto pProgram = GraphicsProgram::create(mpDevice, desc, defines);
 

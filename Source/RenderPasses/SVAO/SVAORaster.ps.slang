@@ -68,10 +68,12 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             output.stencil |= 1u << i;
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
+            #if USE_RAY_INTERVAL
             InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - data.radius - gData.thickness * data.radius - s.sphereStart, 0.0)));
             InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
-            //InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.linearDepth - data.radius - gData.thickness * data.radius - s.sphereStart, 0.0)));
-            //InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution)], /*rough estimate of depth*/asuint(max(data.linearDepth - s.sphereEnd, 0.0)));
+            #else // no interval (only set flag)
+            gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR] = 1u;
+            #endif          
 #endif
         }
         else

@@ -84,4 +84,5 @@ private:
     bool mJitter = false; // jitter the pixel positions, can help with aliasing
     StochasticDepthImplementation mImplementation = StochasticDepthImplementation::Default;
     float mAlpha = 0.2f; // for coverage mask implementation
+    bool mUseRayInterval = true; // ray interval optimization
 };

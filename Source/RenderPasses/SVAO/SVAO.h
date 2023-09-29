@@ -134,4 +134,5 @@ private:
     bool mImportanceEnabled = false;
     bool mAlphaTest = true; // use alpha test in raytracing or stochastic depth passes
     StochasticDepthImplementation mStochasticDepthImplementation = StochasticDepthImplementation::Default;
+    bool mUseRayInterval = true; // stochastic depth ray interval optimization
 };

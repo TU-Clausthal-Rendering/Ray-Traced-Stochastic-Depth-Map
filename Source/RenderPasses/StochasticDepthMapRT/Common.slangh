@@ -95,14 +95,17 @@ RayDesc initRayDesc(uint2 pixel, uint2 dim)
     float depth = depthInTex.SampleLevel(S, (pixel + 0.5) / dim, 0);
     //float depth = depthInTex[pixel];
     ray.TMin = ViewDepthToRay(ray.Direction, depth) + epsilon; // start after first known hit
+
+    if (USE_RAY_INTERVAL)
+    {
+        uint iRayMin = rayMinTex[pixel];
+        if (iRayMin != 0u) // test if valid values
+            ray.TMin = max(asfloat(iRayMin), ray.TMin);
     
-    uint iRayMin = rayMinTex[pixel];
-    if (iRayMin != 0u) // test if valid values
-        ray.TMin = max(asfloat(iRayMin), ray.TMin);
-    
-    uint iRayMax = rayMaxTex[pixel];
-    if (iRayMax != 0u) // test if valid values
-        ray.TMax = min(asfloat(iRayMax), ray.TMax);
+        uint iRayMax = rayMaxTex[pixel];
+        if (iRayMax != 0u) // test if valid values
+            ray.TMax = min(asfloat(iRayMax), ray.TMax);
+    }
     
     return ray;
 }

@@ -196,6 +196,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     sdDict["Implementation"] = mStochasticDepthImplementation;
     //sdDict["Alpha"] = 0.375f; // for 4 samples => ALPHA * 4 = 1.5 => 1.5 + rng will save 1-2 samples per pixel
     sdDict["Alpha"] = 1.5 / mStochSamples;
+    sdDict["RayInterval"] = mUseRayInterval;
     mpStochasticDepthGraph = RenderGraph::create(mpDevice, "Stochastic Depth");
     ref<RenderPass> pStochasticDepthPass;
     switch(mStochasticDepthImpl)
@@ -268,6 +269,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("DUAL_AO", mDualAo ? "1" : "0");
         defines.add("USE_IMPORTANCE", mImportanceEnabled ? "1" : "0");
         defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
+        defines.add("USE_RAY_INTERVAL", mUseRayInterval ? "1" : "0");
         auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add(mpScene->getSceneDefines());
@@ -360,10 +362,15 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         if (mSecondaryDepthMode == DepthMode::StochasticDepth)
         {
             FALCOR_PROFILE(pRenderContext, "Clear RayMinMax");
-            pRenderContext->clearUAV(pInternalRayMin->getUAV().get(), uint4(asuint(std::numeric_limits<float>::max())));
+            // ray max will always be used as a mask (even without ray interval, it will contain only 0 and 1)
             pRenderContext->clearUAV(pInternalRayMax->getUAV().get(), uint4(0u));
-            rasterVars["gRayMinAccess"] = pInternalRayMin;
             rasterVars["gRayMaxAccess"] = pInternalRayMax;
+            if(mUseRayInterval)
+            {
+                // ray min is required for proper ray interval
+                pRenderContext->clearUAV(pInternalRayMin->getUAV().get(), uint4(asuint(std::numeric_limits<float>::max())));
+                rasterVars["gRayMinAccess"] = pInternalRayMin;
+            }
         }
 
         mpRasterPass->execute(pRenderContext, mpFbo, false);
@@ -576,6 +583,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
         if (widget.dropdown("St. Sample Count", kSampleCountList, mStochSamples))
             reset = true;
+
+        if (widget.checkbox("SD-Map Ray Interval", mUseRayInterval)) reset = true;
 
         if(widget.var("SD-Map Divisor", mStochMapDivisor, 1u, 16u, 1u))
             reset = true;

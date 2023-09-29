@@ -73,6 +73,7 @@ private:
     float mLastZFar = 0.0f;
     float mAlpha = 0.2f;
     bool mAlphaTest = true;
+    bool mUseRayInterval = true; // ray interval optimization
 
     bool mLinearizeDepth = true;
 

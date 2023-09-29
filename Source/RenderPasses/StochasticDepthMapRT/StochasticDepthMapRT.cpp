@@ -51,6 +51,7 @@ namespace
     const std::string kJitter = "Jitter";
     const std::string kImplementation = "Implementation";
     const std::string kAlpha = "Alpha";
+    const std::string kRayInterval = "RayInterval";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -166,6 +167,7 @@ ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, cons
         else if (key == kJitter) pPass->mJitter = value;
         else if (key == kImplementation) pPass->mImplementation = value;
         else if (key == kAlpha) pPass->mAlpha = value;
+        else if (key == kRayInterval) pPass->mUseRayInterval = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMapRT dictionary");
     }
     return pPass;
@@ -261,6 +263,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         defines.add("SD_USE_NORMALS", mStoreNormals ? "1" : "0");
         defines.add("SD_JITTER", mJitter ? "1" : "0");
         defines.add("IMPLEMENTATION", std::to_string(uint32_t(mImplementation)));
+        defines.add("USE_RAY_INTERVAL", mUseRayInterval ? "1" : "0");
 
         // raster pass
         /* {
