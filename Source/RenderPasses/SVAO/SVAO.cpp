@@ -443,7 +443,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         pStochasticDepthMap = mpStochasticDepthGraph->getOutput("StochasticDepthMap.stochasticDepth")->asTexture();
     }
 
-    if (mUseRayPipeline) // RAY PIPELINE
+    if (mUseRayPipeline && mSecondaryDepthMode != DepthMode::StochasticDepth) // RAY PIPELINE
     {
         // set raytracing data
         //mpScene->setRaytracingShaderData(pRenderContext, mRayVars);
@@ -466,7 +466,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         uint3 dims = uint3(pAoDst->getWidth() - 2 * guardBand, pAoDst->getHeight() - 2 * guardBand, 1);
         mpScene->raytrace(pRenderContext, mpRayProgram.get(), mRayVars, uint3{ pAoDst->getWidth(), pAoDst->getHeight(), 1 });
     }
-    else // RASTER PIPELINE
+    else // RASTER PIPELINE or stochastic depths
     {
         // copy stencil
         {
@@ -563,6 +563,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
         widget.text("current time: " + std::to_string(mLastGpuTime) + " ms");
     }
     
+    widget.separator();
 
     uint32_t secondaryDepthMode = (uint32_t)mSecondaryDepthMode;
     if (widget.dropdown("Secondary Depth Mode", kSecondaryDepthModeDropdown, secondaryDepthMode)) {
@@ -600,8 +601,12 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if (mpFbo->getHeight() % mStochMapDivisor != 0)
             widget.text("Warning: SD-Map Divisor does not divide height of screen");
     }
+    else
+    {
+        if (widget.checkbox("Ray Pipeline", mUseRayPipeline)) reset = true;
+    }
 
-    if (widget.checkbox("Ray Pipeline", mUseRayPipeline)) reset = true;
+    widget.separator();
 
     if (widget.var("Sample Radius", mData.radius, 0.01f, FLT_MAX, 0.01f)) mDirty = true;
 
