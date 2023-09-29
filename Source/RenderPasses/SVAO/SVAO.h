@@ -32,6 +32,7 @@
 #include "VAOData.slang"
 #include "NeuralNet.h"
 #include "Core/Pass/FullScreenPass.h"
+#include "../StochasticDepthMap/StochasticDepthImplementation.h"
 
 using namespace Falcor;
 
@@ -132,4 +133,5 @@ private:
     bool mDualAo = false; // if true, AO will be two channel, one for bright and one for dark
     bool mImportanceEnabled = false;
     bool mAlphaTest = true; // use alpha test in raytracing or stochastic depth passes
+    StochasticDepthImplementation mStochasticDepthImplementation = StochasticDepthImplementation::Default;
 };

@@ -193,6 +193,9 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     sdDict["SampleCount"] = mStochSamples;
     sdDict["CullMode"] = RasterizerState::CullMode::Back;
     sdDict["AlphaTest"] = mAlphaTest;
+    sdDict["Implementation"] = mStochasticDepthImplementation;
+    //sdDict["Alpha"] = 0.375f; // for 4 samples => ALPHA * 4 = 1.5 => 1.5 + rng will save 1-2 samples per pixel
+    sdDict["Alpha"] = 1.5 / mStochSamples;
     mpStochasticDepthGraph = RenderGraph::create(mpDevice, "Stochastic Depth");
     ref<RenderPass> pStochasticDepthPass;
     switch(mStochasticDepthImpl)
@@ -200,8 +203,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     case StochasticDepthImpl::Raster:
         sdDict["linearize"] = true;
         sdDict["depthFormat"] = ResourceFormat::D32FloatS8X24;
-        //sdDict["Alpha"] = 0.375f; // for 4 samples => ALPHA * 4 = 1.5 => 1.5 + rng will save 1-2 samples per pixel
-        sdDict["Alpha"] = 1.5 / mStochSamples;
+
         pStochasticDepthPass = RenderPass::create("StochasticDepthMap", mpDevice, sdDict);
         break;
     case StochasticDepthImpl::Ray:
@@ -569,6 +571,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
             mStochasticDepthImpl = (StochasticDepthImpl)stochasticImpl;
             reset = true;
         }
+
+        if (widget.dropdown("Technique", mStochasticDepthImplementation)) reset = true;
 
         if (widget.dropdown("St. Sample Count", kSampleCountList, mStochSamples))
             reset = true;

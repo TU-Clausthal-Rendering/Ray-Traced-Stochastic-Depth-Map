@@ -13,6 +13,10 @@ StructuredBuffer<uint> materialAlphaTestLookup;
 
 #define DEFAULT_DEPTH (NORMALIZE ? 1.0 : 3.40282347E+37F)
 
+#define IMPLEMENTATION_DEFAULT 0
+#define IMPLEMENTATION_COVERAGE_MASK 1
+#define IMPLEMENTATION_RESERVOIR_SAMPLING 2
+
 #ifndef sd_t
 #define sd_t float2
 #endif
@@ -121,8 +125,28 @@ inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, u
 #define MAX_COUNT (2 * NUM_SAMPLES)
 
     float rng = hash(barycentrics);
+
+    // adjust t to view depth
+    t = RayToViewDepth(rayDir, t); // convert to view depth
+    if (NORMALIZE)
+        t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
     
-#if SD_VERSION == 2
+#if IMPLEMENTATION == IMPLEMENTATION_COVERAGE_MASK
+    int R = int(floor(ALPHA * NUM_SAMPLES + rng));
+    //int R = 1.5 + rng;
+    uint coverageMask = 0;
+    
+    if (R >= NUM_SAMPLES)
+    {
+        coverageMask = 0xffff; // maximum 32 samples
+    }
+    else if (R != 0)
+    {
+        float rng2 = hash3D(float3(barycentrics, t));
+        int index = int(lerp(stratifiedIndices[R], stratifiedIndices[R + 1], rng2));
+        coverageMask = stratifiedLookUpTable[index];
+    }
+#else // default
     uint slot = count; // insertion slot
     if (count >= NUM_SAMPLES)
         slot = uint(rng * count); // slot in [0, count - 1]
@@ -135,13 +159,7 @@ inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, u
         return false; // no commit, further traverses
     }
 
-    // accepted => do (early) depth test
-    t = RayToViewDepth(rayDir, t); // convert to view depth
-    if (NORMALIZE)
-        t = saturate((t - gScene.camera.data.nearZ) / (gScene.camera.data.farZ - gScene.camera.data.nearZ));
-
-    //if (rayData.depths[slot] <= t)
-    //    IgnoreHit();
+    // early depth test (if alpha hash)
     [unroll] for (uint i = 0; i < NUM_SAMPLES; ++i)
     {
         if (i == slot && depths[i] <= t)
@@ -173,17 +191,40 @@ inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, u
     #endif
 
     
-    
-#if SD_VERSION == 2
+
     #if SD_USE_NORMALS
-        TriangleHit hit;
-        hit.instanceID = instanceID;
-        hit.primitiveIndex = primitiveIndex;
-        hit.barycentrics = barycentrics;
+    TriangleHit hit;
+    hit.instanceID = instanceID;
+    hit.primitiveIndex = primitiveIndex;
+    hit.barycentrics = barycentrics;
             
-        const VertexData v = gScene.getVertexData(hit);
-        float3 viewNormal = mul(float3x3(gScene.camera.data.viewMat), v.faceNormalW);
+    const VertexData v = gScene.getVertexData(hit);
+    float3 viewNormal = mul(float3x3(gScene.camera.data.viewMat), v.faceNormalW);
     #endif
+    
+    #if IMPLEMENTATION == IMPLEMENTATION_COVERAGE_MASK
+
+
+    float maxT = 0.0;
+    [unroll]
+    for (uint i = 0; i < NUM_SAMPLES; ++i)
+    {
+        if (coverageMask & (1 << i))
+        {
+            if(t < depths[i]) // z-test
+            {
+                depths[i] = t;
+                SD_NORMALS(normals[i] = encodeNormal2x16(viewNormal));
+            }
+        }
+        maxT = max(maxT, depths[i]);
+    }
+
+    if (t < maxT)
+        return false; // keep looking for hits, otherwise start to terminate
+    return true;
+
+    #else // default
 
     for (uint i = 0; i < NUM_SAMPLES; ++i)
     {
@@ -203,32 +244,5 @@ inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, u
     //if (rng2 < 0.2) // small chance to keep traversal going
     //if(rayData.count < 5)
     //    IgnoreHit(); 
-#endif
-#if SD_VERSION == 1
-    int R = int(floor(ALPHA * NUM_SAMPLES + rng));
-    uint coverageMask = 0;
-    
-    if (R >= NUM_SAMPLES)
-    {
-        coverageMask = 0xffff; // maximum 32 samples
-    }
-    else if (R != 0)
-    {
-        float rng2 = hash3D(float3(attribs.barycentrics, t));
-        int index = int(lerp(stratifiedIndices[R], stratifiedIndices[R + 1], rng2));
-        coverageMask = stratifiedLookUpTable[index];
-    }
-
-    float maxT = 0.0;
-    [unroll]
-    for (uint i = 0; i < NUM_SAMPLES; ++i)
-    {
-        if (coverageMask & (1 << i))
-            rayData.depths[i] = min(rayData.depths[i], t); // z-test enabled
-        maxT = max(maxT, rayData.depths[i]);
-    }
-
-    if (t < maxT)
-        IgnoreHit(); // keep looking for hits, otherwise start to terminate
 #endif
 }

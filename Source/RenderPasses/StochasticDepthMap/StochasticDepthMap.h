@@ -27,6 +27,7 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
+#include "StochasticDepthImplementation.h"
 #include "Core/Pass/FullScreenPass.h"
 #include "RenderGraph/RenderPass.h"
 
@@ -71,10 +72,10 @@ private:
     float mLastZNear = 0.0f;
     float mLastZFar = 0.0f;
     float mAlpha = 0.2f;
-    bool mUseReservoirSampling = false;
     bool mAlphaTest = true;
 
     bool mLinearizeDepth = true;
 
     ResourceFormat mDepthFormat = ResourceFormat::D32Float;
+    StochasticDepthImplementation mImplementation = StochasticDepthImplementation::Default;
 };

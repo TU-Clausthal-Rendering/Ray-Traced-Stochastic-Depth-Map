@@ -5,6 +5,10 @@ VSOut vsMain(VSIn vIn)
     return defaultVS(vIn);
 }
 
+#define IMPLEMENTATION_DEFAULT 0
+#define IMPLEMENTATION_COVERAGE_MASK 1
+#define IMPLEMENTATION_RESERVOIR_SAMPLING 2
+
 //static const uint stratifiedIndices[] = { 0, 1, 17, 137, 697, 2517, 6885, 14893, 26333, 39203, 50643, 58651, 63019, 64839, 65399, 65519, 65535, };
 //static const uint stratifiedIndices[] = { 0, 1, 9, 37, 93, 163, 219, 247, 255 };
 StructuredBuffer<uint> stratifiedIndices;
@@ -14,7 +18,8 @@ SamplerState S; // linear sampler for downsampling depth on half res
 Texture2D<uint> rayMin; // additional texture for a more precise depth range
 Texture2D<uint> rayMax; // contains float values: use asfloat()
 
-RWTexture2D<uint> counter; // for reservoir sampling
+RWTexture2D<uint> counter; // for reservoir sampling: atomic operations cause flickering due to unordered access with atomics
+//RasterizerOrderedTexture2D<uint> counter; // times increase by ~x5 if using rasterizer ordered views (but no flickering)
 
 cbuffer CameraCB
 {
@@ -78,10 +83,11 @@ PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
     
     float rng = hash4D(float4(vsOut.posW.xyz, 1.438943289));
     
-    #if RESERVOIR_SAMPLING
+    #if IMPLEMENTATION == IMPLEMENTATION_RESERVOIR_SAMPLING
 
     uint slot = 0;
     InterlockedAdd(counter[svPos], 1u, slot);
+    //slot = counter[svPos]++;
     if(slot >= NUM_SAMPLES)
         slot = uint(rng * slot);
     if(slot >= NUM_SAMPLES) // rejected
@@ -89,7 +95,7 @@ PsOut psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID)
 
     output.SampleMask[0] = 1u << slot;
     
-    #else
+    #else // COVERAGE_MASK
     
     int R = int(floor(ALPHA * NUM_SAMPLES + rng));
 

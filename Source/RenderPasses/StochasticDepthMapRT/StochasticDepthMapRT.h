@@ -29,6 +29,7 @@
 #include "Falcor.h"
 #include "Core/Pass/FullScreenPass.h"
 #include "RenderGraph/RenderPass.h"
+#include "../StochasticDepthMap/StochasticDepthImplementation.h"
 
 using namespace Falcor;
 
@@ -81,4 +82,6 @@ private:
     bool mUse16Bit = false; // compresses depth to 16 bit, otherwise 32 bit
     bool mStoreNormals = false; // adds normals to each sample point
     bool mJitter = false; // jitter the pixel positions, can help with aliasing
+    StochasticDepthImplementation mImplementation = StochasticDepthImplementation::Default;
+    float mAlpha = 0.2f; // for coverage mask implementation
 };

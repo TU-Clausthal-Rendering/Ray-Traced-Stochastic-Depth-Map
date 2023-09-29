@@ -36,7 +36,6 @@ namespace
     const std::string kStencilFile = "RenderPasses/StochasticDepthMap/Stencil.ps.slang";
     const std::string kSampleCount = "SampleCount";
     const std::string kAlpha = "Alpha";
-    const std::string kReservoirSampling = "ReservoirSampling";
     const std::string kCullMode = "CullMode";
     const std::string kLinearize = "linearize";
     const std::string kDepthFormat = "depthFormat";
@@ -44,6 +43,7 @@ namespace
     const std::string kRayMin = "rayMin"; // ray T values for Ray.TMin
     const std::string kRayMax = "rayMax"; // ray T values for Ray.TMax
     const std::string kAlphaTest = "AlphaTest";
+    const std::string kImplementation = "Implementation";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -113,9 +113,18 @@ void generateStratifiedLookupTable(int n, std::vector<int>& indices, std::vector
     }
 }
 
+static void regEnum(pybind11::module& m)
+{
+    pybind11::enum_<Falcor::StochasticDepthImplementation> sdimpl(m, "StochasticDepthImplementation");
+    sdimpl.value("Default", Falcor::StochasticDepthImplementation::Default);
+    sdimpl.value("CoverageMask", Falcor::StochasticDepthImplementation::CoverageMask);
+    sdimpl.value("ReservoirSampling", Falcor::StochasticDepthImplementation::ReservoirSampling);
+}
+
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
     registry.registerClass<RenderPass, StochasticDepthMap>();
+    ScriptBindings::registerBinding(regEnum);
 }
 
 StochasticDepthMap::StochasticDepthMap(ref<Device> pDevice) : RenderPass(std::move(pDevice))
@@ -155,8 +164,8 @@ ref<StochasticDepthMap> StochasticDepthMap::create(ref<Device> pDevice, const Pr
         else if (key == kCullMode) pPass->mCullMode = value;
         else if (key == kLinearize) pPass->mLinearizeDepth = value;
         else if (key == kDepthFormat) pPass->mDepthFormat = value;
-        else if (key == kReservoirSampling) pPass->mUseReservoirSampling = value;
         else if (key == kAlphaTest) pPass->mAlphaTest = value;
+        else if (key == kImplementation) pPass->mImplementation = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMap dictionary");
     }
     return pPass;
@@ -170,8 +179,8 @@ Properties StochasticDepthMap::getProperties() const
     d[kCullMode] = mCullMode;
     d[kLinearize] = mLinearizeDepth;
     d[kDepthFormat] = mDepthFormat;
-    d[kReservoirSampling] = mUseReservoirSampling;
     d[kAlphaTest] = mAlphaTest;
+    d[kImplementation] = mImplementation;
     return d;
 }
 
@@ -246,9 +255,9 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
         auto defines = mpScene->getSceneDefines();
         defines.add("NUM_SAMPLES", std::to_string(mSampleCount));
         defines.add("ALPHA", std::to_string(mAlpha));
-        defines.add("RESERVOIR_SAMPLING", mUseReservoirSampling ? "1" : "0");
         defines.add("INV_RESOLUTION", "float2(" + std::to_string(1.0f / mpFbo->getWidth()) + ", " + std::to_string(1.0f / mpFbo->getHeight()) + ")");
         defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
+        defines.add("IMPLEMENTATION", std::to_string(uint32_t(mImplementation)));
         if (mLinearizeDepth) defines.add("LINEARIZE");
         auto pProgram = GraphicsProgram::create(mpDevice, desc, defines);
 
@@ -282,7 +291,7 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
         var["rayMin"] = pRayMin;
         var["rayMax"] = pRayMax;
 
-        if (mUseReservoirSampling)
+        if (mImplementation == StochasticDepthImplementation::ReservoirSampling)
         {
             pRenderContext->clearUAV(pReservoirCounter->getUAV().get(), uint4(0));
             var["counter"] = pReservoirCounter;

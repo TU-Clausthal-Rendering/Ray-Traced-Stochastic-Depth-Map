@@ -49,6 +49,8 @@ namespace
     const std::string kUse16Bit = "Use16Bit";
     const std::string kStoreNormals = "StoreNormals";
     const std::string kJitter = "Jitter";
+    const std::string kImplementation = "Implementation";
+    const std::string kAlpha = "Alpha";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -162,6 +164,8 @@ ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, cons
         else if (key == kUse16Bit) pPass->mUse16Bit = value;
         else if (key == kStoreNormals) pPass->mStoreNormals = value;
         else if (key == kJitter) pPass->mJitter = value;
+        else if (key == kImplementation) pPass->mImplementation = value;
+        else if (key == kAlpha) pPass->mAlpha = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMapRT dictionary");
     }
     return pPass;
@@ -178,6 +182,8 @@ Properties StochasticDepthMapRT::getProperties() const
     d[kUse16Bit] = mUse16Bit;
     d[kStoreNormals] = mStoreNormals;
     d[kJitter] = mJitter;
+    d[kImplementation] = mImplementation;
+    d[kAlpha] = mAlpha;
     return d;
 }
 
@@ -246,7 +252,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     {
         auto defines = mpScene->getSceneDefines();
         defines.add("NUM_SAMPLES", std::to_string(mSampleCount));
-        defines.add("ALPHA", std::to_string(0.2f));
+        defines.add("ALPHA", std::to_string(mAlpha));
         defines.add("NORMALIZE", mNormalize ? "1" : "0");
         auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
@@ -254,6 +260,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         defines.add("sd_t", mStoreNormals ? "float2" : "float");
         defines.add("SD_USE_NORMALS", mStoreNormals ? "1" : "0");
         defines.add("SD_JITTER", mJitter ? "1" : "0");
+        defines.add("IMPLEMENTATION", std::to_string(uint32_t(mImplementation)));
 
         // raster pass
         /* {

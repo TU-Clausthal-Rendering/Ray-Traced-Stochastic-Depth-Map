@@ -5,6 +5,7 @@ target_sources(StochasticDepthMap PRIVATE
     StochasticDepthMap.h
     StochasticDepth.ps.slang
     Stencil.ps.slang
+    StochasticDepthImplementation.h
 )
 
 target_copy_shaders(StochasticDepthMap RenderPasses/StochasticDepthMap)
