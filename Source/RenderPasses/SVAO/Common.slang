@@ -81,8 +81,15 @@ STOCHASTIC_DEPTH_MAP gsDepthTex;
 
 Texture2D<float4> gColor;
 
-Texture2D gNormalTex;
+Texture2D<uint> gNormalTex;
 Texture2D<float> gNoiseTex;
+
+float3 loadNormal(float2 texC)
+{
+    uint packedNormal = gNormalTex[texC * gData.resolution];
+    //return decodeNormal2x16(packedNormal);
+    return decodeNormal2x8(packedNormal);
+}
 
 // stochastic depth map jitter:
 uint2 pcg2d(uint2 v)
@@ -315,8 +322,7 @@ struct BasicAOData
         posVLength = length(posV);
 
         // view space normal of current pixel
-        float3 normalW = gNormalTex.SampleLevel(gTextureSampler, texC, 0).xyz;
-        normalV = mul(float3x3(gCamera.data.viewMat), normalW);
+        normalV = loadNormal(texC);
         if (dot(posV, normalV) > 0.0)
             normalV = -normalV;
 
@@ -421,6 +427,18 @@ struct SampleAOData
         float rasterSampleDist = distance(data.posV, projSamplePosV);
         return objectSpaceZ * originalSampleDist / rasterSampleDist;
     }
+
+    float calcObjectSpaceZFromPlane(BasicAOData data, float3 samplePosV, float3 sampleNormalV)
+    {
+        // ray-plane intersection:
+        // plane: samplePosV, sampleNormalV
+        // ray: initialSamplePosV, data.normal
+        float denom = dot(sampleNormalV, data.normal);
+        if (abs(denom) < 1e-6) // almost perpendicular
+            return dot(samplePosV - data.posV, data.normal); // default computation
+
+        return dot(samplePosV - initialSamplePosV, sampleNormalV) / denom;
+    }
     
     // raster impl.
     float calcObjectSpaceZ(BasicAOData data, float2 uv, Texture2D<float> depthTex, uint lod = 0u)
@@ -456,10 +474,13 @@ struct SampleAOData
         // adjust view space position
         //samplePosV = initialSamplePosV + dot(data.normalV, samplePosV - initialSamplePosLength) * data.normalV;
         
-            // the object is the sphere centered at posV with the above tangent space (positive values are closer to the camera)
+        // the object is the sphere centered at posV with the above tangent space (positive values are closer to the camera)
         float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
         // correct the objectSpaceZPos
         //objectSpaceZ = rectifyObjectSpaceZ(data, objectSpaceZ, samplePosV);
+        // this is usually too expensive (x1.5) and only distant samples benefit from it
+        //float3 sampleNormalV = loadNormal(uv); //gNormalTex.SampleLevel(gTextureSampler, uv, 0.0).xyz);
+        //objectSpaceZ = calcObjectSpaceZFromPlane(data, samplePosV, sampleNormalV);
         
         return objectSpaceZ;
     }
@@ -472,17 +493,7 @@ struct SampleAOData
         return objectSpaceZ;
     }
 
-    float calcObjectSpaceZFromPlane(BasicAOData data, float3 samplePosV, float3 sampleNormalV)
-    {
-        // ray-plane intersection:
-        // plane: samplePosV, sampleNormalV
-        // ray: initialSamplePosV, data.normal
-        float denom = dot(sampleNormalV, data.normal);
-        if (abs(denom) < 1e-6) // almost perpendicular
-            return dot(samplePosV - data.posV, data.normal); // default computation
 
-        return dot(samplePosV - initialSamplePosV, sampleNormalV) / denom;
-    }
 
     [mutating] void evalPrimaryVisibility(BasicAOData data)
     {
