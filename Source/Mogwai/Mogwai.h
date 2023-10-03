@@ -174,7 +174,7 @@ namespace Mogwai
 
         std::vector<std::string> getGraphOutputs(const ref<RenderGraph>& pGraph);
         void graphOutputsGui(Gui::Widgets& widget);
-        bool renderDebugWindow(Gui::Widgets& widget, const Gui::DropdownList& dropdown, DebugWindow& data, const uint2& winSize); // Returns false if the window was closed
+        bool renderDebugWindow(Gui::Widgets& widget, const Gui::DropdownList& dropdown, DebugWindow& data, const uint2& winSize, size_t index); // Returns false if the window was closed
         void renderOutputUI(Gui::Widgets& widget, const Gui::DropdownList& dropdown, std::string& selectedOutput);
         void addDebugWindow();
         void eraseDebugWindow(size_t id);
@@ -188,6 +188,7 @@ namespace Mogwai
         uint32_t mActiveGraph = 0;
         ref<Sampler> mpSampler = nullptr;
         std::filesystem::path mScriptPath;
+        std::vector<ref<Texture>> mDebugWindowTextureCache;
 
         // Editor stuff
         void openEditor();

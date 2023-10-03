@@ -61,6 +61,12 @@ VsOut vsMain(float4 posS: POSITION, float2 texC: TEXCOORD)
     return vOut;
 }
 
+#if NO_ALPHA
+#define SET_ALPHA(x) x
+#else
+#define SET_ALPHA(x)
+#endif
+
 #if DST_INT
 uint4 psMain(float2 texC: TEXCOORD) : SV_TARGET
 #else
@@ -84,6 +90,7 @@ float4 psMain(float2 texC: TEXCOORD) : SV_TARGET
     res.b = dot(gCompTransformB, srcB);
     res.a = dot(gCompTransformA, srcA);
 
+    SET_ALPHA(res.a = 1.0);
     return res;
 #endif
 #else // !COMPLEX_BLIT
@@ -92,6 +99,7 @@ float4 psMain(float2 texC: TEXCOORD) : SV_TARGET
 #else
     float4 res = gTex.Sample(gSampler, texC);
 #endif
+    SET_ALPHA(res.a = 1);
     return res;
 #endif
 
@@ -115,6 +123,7 @@ float4 psMain(float2 texC: TEXCOORD) : SV_TARGET
     }
 
     c /= SAMPLE_COUNT;
+    SET_ALPHA(c.a = 1);
     return c;
 #endif
 #endif

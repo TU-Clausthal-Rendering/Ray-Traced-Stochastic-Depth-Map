@@ -43,6 +43,7 @@ BlitContext::BlitContext(Device* pDevice)
         {"COMPLEX_BLIT", "0"},
         {"SRC_INT", "0"},
         {"DST_INT", "0"},
+        {"NO_ALPHA", "0"}
     };
     Program::Desc d;
     d.addShaderLibrary("Core/API/BlitReduction.3d.slang").vsEntry("vsMain").psEntry("psMain");

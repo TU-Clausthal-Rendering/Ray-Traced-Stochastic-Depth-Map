@@ -207,7 +207,8 @@ void RenderContext::blit(
     const ref<RenderTargetView>& pDst,
     uint4 srcRect,
     uint4 dstRect,
-    Sampler::Filter filter
+    Sampler::Filter filter,
+    bool noAlpha
 )
 {
     const Sampler::ReductionMode componentsReduction[] = {
@@ -216,7 +217,7 @@ void RenderContext::blit(
     const float4 componentsTransform[] = {
         float4(1.0f, 0.0f, 0.0f, 0.0f), float4(0.0f, 1.0f, 0.0f, 0.0f), float4(0.0f, 0.0f, 1.0f, 0.0f), float4(0.0f, 0.0f, 0.0f, 1.0f)};
 
-    blit(pSrc, pDst, srcRect, dstRect, filter, componentsReduction, componentsTransform);
+    blit(pSrc, pDst, srcRect, dstRect, filter, componentsReduction, componentsTransform, noAlpha);
 }
 
 void RenderContext::blit(
@@ -226,7 +227,8 @@ void RenderContext::blit(
     uint4 dstRect,
     Sampler::Filter filter,
     const Sampler::ReductionMode componentsReduction[4],
-    const float4 componentsTransform[4]
+    const float4 componentsTransform[4],
+    bool noAlpha
 )
 {
     FALCOR_ASSERT(mpBlitContext);
@@ -281,7 +283,7 @@ void RenderContext::blit(
     const bool dstFullRect = dstRect.x == 0 && dstRect.y == 0 && dstRect.z == dstSize.x && dstRect.w == dstSize.y;
 
     const bool fullCopy = !complexBlit && isFullView(pSrc, pSrcTexture) && srcFullRect && isFullView(pDst, pDstTexture) && dstFullRect &&
-                          pSrcTexture->compareDesc(pDstTexture);
+                          pSrcTexture->compareDesc(pDstTexture) && noAlpha == false;
 
     // Take fast path to copy the entire resource if possible. This has many requirements;
     // the source/dest must have identical size/format/etc. and the views and rects must cover the full resources.
@@ -320,6 +322,7 @@ void RenderContext::blit(
     blitCtx.pPass->addDefine("COMPLEX_BLIT", complexBlit ? "1" : "0");
     blitCtx.pPass->addDefine("SRC_INT", isIntegerFormat(pSrcTexture->getFormat()) ? "1" : "0");
     blitCtx.pPass->addDefine("DST_INT", isIntegerFormat(pDstTexture->getFormat()) ? "1" : "0");
+    blitCtx.pPass->addDefine("NO_ALPHA", noAlpha ? "1" : "0");
 
     if (complexBlit)
     {

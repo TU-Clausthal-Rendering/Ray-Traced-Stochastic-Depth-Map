@@ -250,13 +250,15 @@ public:
      * @param[in] pDst Target view to copy to.
      * @param[in] srcRect Source rectangle to blit from, specified by [left, up, right, down].
      * @param[in] dstRect Target rectangle to blit to, specified by [left, up, right, down].
+     * @param[in] noAlpha If true, alpha channel will not be copied and set to 1
      */
     void blit(
         const ref<ShaderResourceView>& pSrc,
         const ref<RenderTargetView>& pDst,
         uint4 srcRect = kMaxRect,
         uint4 dstRect = kMaxRect,
-        Sampler::Filter = Sampler::Filter::Linear
+        Sampler::Filter = Sampler::Filter::Linear,
+        bool noAlpha = false
     );
 
     /**
@@ -270,6 +272,7 @@ public:
      * @param[in] componentsReduction Reduction mode for each of the input components (Standard, Min, Max). Comparison reduction mode is not
      * supported.
      * @param[in] componentsTransform Linear combination factors of the input components for each output component.
+     * @param[in] noAlpha If true, alpha channel will not be copied and set to 1
      */
     void blit(
         const ref<ShaderResourceView>& pSrc,
@@ -278,7 +281,8 @@ public:
         uint4 dstRect,
         Sampler::Filter filter,
         const Sampler::ReductionMode componentsReduction[4],
-        const float4 componentsTransform[4]
+        const float4 componentsTransform[4],
+        bool noAlpha = false
     );
 
     /**

@@ -226,7 +226,7 @@ namespace Mogwai
         }
     }
 
-    bool Renderer::renderDebugWindow(Gui::Widgets& widget, const Gui::DropdownList& dropdown, DebugWindow& data, const uint2& winSize)
+    bool Renderer::renderDebugWindow(Gui::Widgets& widget, const Gui::DropdownList& dropdown, DebugWindow& data, const uint2& winSize, size_t index)
     {
         // Get the current output, in case `renderOutputUI()` unmarks it
         ref<Texture> pTex = mGraphs[mActiveGraph].pGraph->getOutput(data.currentOutput)->asTexture();
@@ -245,7 +245,21 @@ namespace Mogwai
             renderOutputUI(widget, dropdown, data.currentOutput);
             debugWindow.separator();
 
-            debugWindow.image(label.c_str(), pTex.get());
+            // get texture cache
+            if(mDebugWindowTextureCache.size() <= index) mDebugWindowTextureCache.resize(index + 1);
+            auto pCacheTex = mDebugWindowTextureCache[index];
+            if(pCacheTex == nullptr ||
+                pCacheTex->getWidth() != pTex->getWidth() || pCacheTex->getHeight() != pTex->getHeight())
+            {
+                // create new texture with fitting size
+                mDebugWindowTextureCache[index] = pCacheTex = Texture::create2D(getDevice(), pTex->getWidth(), pTex->getHeight(), ResourceFormat::RGBA8UnormSrgb, 1, 1, nullptr, ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource);
+            }
+
+            auto pRenderContext = getRenderContext();
+            pRenderContext->blit(pTex->getSRV(0, 1, 0, 1), pCacheTex->getRTV(), RenderContext::kMaxRect, RenderContext::kMaxRect, Sampler::Filter::Linear, true);
+    
+            debugWindow.image(label.c_str(), pCacheTex.get());
+
             debugWindow.release();
             return true;
         }
@@ -275,7 +289,7 @@ namespace Mogwai
 
             for (size_t i = 0; i < mGraphs[mActiveGraph].debugWindows.size();)
             {
-                if (renderDebugWindow(widget, graphOuts, mGraphs[mActiveGraph].debugWindows[i], dims) == false)
+                if (renderDebugWindow(widget, graphOuts, mGraphs[mActiveGraph].debugWindows[i], dims, i) == false)
                 {
                     eraseDebugWindow(i);
                 }
