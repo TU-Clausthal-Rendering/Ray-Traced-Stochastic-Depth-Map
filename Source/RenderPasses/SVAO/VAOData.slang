@@ -36,12 +36,12 @@ struct VAOData
     float2 resolution;
     float2 invResolution;
     float radius = 0.5f;
-    float exponent = 1.6f;
-    float thickness = 0.5f;
-    float classifyThreshold = 0.0f; // sigmoid^-1(probability)
-    float ssRadiusFadeEnd = 4.0f; // radius in pixels where the ray tracing result is completely faded and only rasterization remains
-    float ssRadiusFadeSize = 2.0f; // size of the fade area in pixels
-    float ssMaxRadius = 50.0f; // max screen space radius to gather samples from (setting this to a smaller number can improve performance due to increased cache hits)
+    float exponent = 2.0f;
+    float thickness = 0.0f;
+    float classifyThreshold = 0.0f; // sigmoid^-1(probability) DEPRECATED
+    float ssRadiusFadeEnd = 6.0f; // radius in pixels where the ray tracing result is completely faded and only rasterization remains
+    float ssRadiusFadeSize = 0.01f; // size of the fade area in pixels (nonzero)
+    float ssMaxRadius = 64.0f; // max screen space radius to gather samples from (setting this to a smaller number can improve performance due to increased cache hits)
 };
 
 END_NAMESPACE_FALCOR

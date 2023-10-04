@@ -298,7 +298,7 @@ struct BasicAOData
     
     float radiusInPixels;
     float radius; // world space radius. Usually gData.radius, but can be smaller if the screen space radius would be too large
-    float rayRasterBlend;
+    float _rayRasterBlend;
     //float linearDepth;
 
     // returns false if sample needs no shading (background)
@@ -313,7 +313,7 @@ struct BasicAOData
             radius = radius / radiusInPixels * gData.ssMaxRadius;
             radiusInPixels = gData.ssMaxRadius;
         }
-        rayRasterBlend = saturate((radiusInPixels - gData.ssRadiusFadeEnd) / gData.ssRadiusFadeSize);
+        _rayRasterBlend = saturate((radiusInPixels - gData.ssRadiusFadeEnd) / gData.ssRadiusFadeSize);
         
         if (radiusInPixels < 0.5)
             return false;
@@ -367,13 +367,13 @@ struct SampleAOData
 
     float visibility;
     float objectSpaceZ;
-    bool requireRay;
 
     float initialSamplePosLength;
     float radius; // world space radius of sample
     float3 initialSamplePosV;
     
     float screenSpaceRadius;
+    float rayRasterBlend; // sample ray raster blend
     
     // returns false if the sample is invalid (below hemisphere)
     [mutating] bool Init(float2 texC, BasicAOData data, uint i)
@@ -406,10 +406,11 @@ struct SampleAOData
         initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
         initialSamplePosLength = length(initialSamplePosV);
         samplePosUV = ViewSpaceToUV(initialSamplePosV);
-        requireRay = false;
         visibility = 0.0;
         objectSpaceZ = 0.0;
         screenSpaceRadius = length(float2((texC - samplePosUV) * gData.resolution));
+        rayRasterBlend = saturate((screenSpaceRadius - gData.ssRadiusFadeEnd) / gData.ssRadiusFadeSize);
+        //rayRasterBlend = data._rayRasterBlend;
         
         float2 screenUv = getScreenClampedUV(texC, samplePosUV); // clip to screen border
         isInScreen = all(samplePosUV == screenUv);
@@ -493,7 +494,10 @@ struct SampleAOData
         return objectSpaceZ;
     }
 
-
+    bool requireRay(BasicAOData data)
+    {
+        return objectSpaceZ > sphereStart + CONST_RADIUS && rayRasterBlend > 0.0;
+    }
 
     [mutating] void evalPrimaryVisibility(BasicAOData data)
     {
@@ -502,7 +506,6 @@ struct SampleAOData
             lod = (uint)max(int(log2(screenSpaceRadius / 8.0) + 0.5), 0);
         objectSpaceZ = calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTexMips[lod], lod);
         visibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius);
-        requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
 
         if (PRIMARY_DEPTH_MODE == DEPTH_MODE_MIPMAPS)
         {
@@ -512,8 +515,7 @@ struct SampleAOData
                 // take min object space Z
                 objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTexMips[lod], lod));
                 visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius));
-                requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
-                if (!requireRay)
+                if (!requireRay(data))
                     break;
             }
 
@@ -522,12 +524,11 @@ struct SampleAOData
 
     [mutating] void evalDualVisibility(BasicAOData data)
     {
-        if (!requireRay)
+        if (!requireRay(data))
             return; // not needed
         
         objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTex2));
         visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius));
-        requireRay = objectSpaceZ > sphereStart + CONST_RADIUS;
     }
 };
 
@@ -623,7 +624,7 @@ ao_t calcAO2(uint2 svPos, uint mask)
                 float newVisibility = calcVisibility(objectSpaceZ, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
                 curVisibility = COMBINE_VIS(curVisibility, newVisibility);
             }
-            curVisibility = lerp(s.visibility, curVisibility, data.rayRasterBlend);
+            curVisibility = lerp(s.visibility, curVisibility, s.rayRasterBlend);
             // if (!stochInside) visibility.y -= curVisibility; // keep dark term dark (+= curVisibility will be performed at the end)
 
         }
@@ -663,7 +664,7 @@ ao_t calcAO2(uint2 svPos, uint mask)
             float haloVisibility = calcHaloVisibility(data.posVLength - rayData.tLastFrontFaceHalo * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
 
             float rayVisibility = min(curVisibility, min(sphereVisibility, haloVisibility));
-            curVisibility = lerp(s.visibility, rayVisibility, data.rayRasterBlend);
+            curVisibility = lerp(s.visibility, rayVisibility, s.rayRasterBlend);
         }
 
         visibility += curVisibility;

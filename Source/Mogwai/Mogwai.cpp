@@ -256,7 +256,7 @@ namespace Mogwai
             }
 
             auto pRenderContext = getRenderContext();
-            pRenderContext->blit(pTex->getSRV(0, 1, 0, 1), pCacheTex->getRTV(), RenderContext::kMaxRect, RenderContext::kMaxRect, Sampler::Filter::Linear, true);
+            pRenderContext->blit(pTex->getSRV(0, 1, 0, 1), pCacheTex->getRTV(), RenderContext::kMaxRect, RenderContext::kMaxRect, Sampler::Filter::Point, true);
     
             debugWindow.image(label.c_str(), pCacheTex.get());
 

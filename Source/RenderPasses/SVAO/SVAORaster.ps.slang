@@ -55,7 +55,7 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 
         // always add computed visibility from raster
         output.ao1.x += s.visibility; // only on bright       
-        if (!data.denyRays() && (s.requireRay || forceRay))
+        if (!data.denyRays() && (s.requireRay(data) || forceRay))
         {
             // remember that this was a hybrid ray
             STENCIL(output.stencil |= 1u << i);

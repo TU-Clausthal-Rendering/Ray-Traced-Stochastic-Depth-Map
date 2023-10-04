@@ -560,6 +560,10 @@ void SVAO::renderUI(Gui::Widgets& widget)
     else if (mSecondaryDepthMode == DepthMode::Raytraced)
     {
         if (widget.checkbox("Ray Pipeline", mUseRayPipeline)) reset = true;
+
+        if (widget.checkbox("Trace Out of Screen", mTraceOutOfScreen)) reset = true;
+        widget.tooltip("If a sample point is outside of the screen, a ray is traced. Otherwise the closest sample from the border is used.");
+
     }
 
     widget.separator();
@@ -577,9 +581,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
     widget.separator();
     //if(mEnableRayFilter) mpRayFilter->renderUI(widget);
 
-    if (widget.checkbox("Trace Out of Screen", mTraceOutOfScreen)) reset = true;
-    widget.tooltip("If a sample point is outside of the screen, a ray is traced. Otherwise the closest sample from the border is used.");
-
+    
     if (widget.var("Fade End (Screen Space Radius)", mData.ssRadiusFadeEnd, 0.0f, 100.0f, 1.0f)) mDirty = true;
     widget.tooltip("radius in pixels where the ray tracing result is completely faded and only rasterization remains");
 
