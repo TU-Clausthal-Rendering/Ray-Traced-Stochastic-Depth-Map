@@ -575,7 +575,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
         //mData.exponent = glm::mix(1.6f, 1.0f, mData.thickness);
     }
 
-    if (widget.var("Power Exponent", mData.exponent, 1.0f, 4.0f, 0.1f)) mDirty = true;
+    if (widget.var("Power Exponent", mData.exponent, 1.0f, 16.0f, 0.1f)) mDirty = true;
 
 
     widget.separator();

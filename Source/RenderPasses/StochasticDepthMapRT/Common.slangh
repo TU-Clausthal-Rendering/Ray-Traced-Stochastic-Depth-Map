@@ -150,23 +150,20 @@ inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, u
         coverageMask = stratifiedLookUpTable[index];
     }
 #else // default
-    uint slot = count; // insertion slot
-    if (count >= NUM_SAMPLES)
+    uint slot = count++; // insertion slot
+    if (count > NUM_SAMPLES)
         slot = uint(rng * count); // slot in [0, count - 1]
     
-    count += 1;
     if (slot >= NUM_SAMPLES) // rejected?
     {
-        if (count > MAX_COUNT)
-            return true; // commit
-        return false; // no commit, further traverses
+        return count > MAX_COUNT; // commit ray if count exceeded
     }
 
     // early depth test (if alpha hash)
     [unroll] for (uint i = 0; i < NUM_SAMPLES; ++i)
     {
         if (i == slot && depths[i] <= t)
-            return false; // rejected due to depth test
+            return count > MAX_COUNT; // rejected due to depth test
     }
 
     #endif
@@ -188,7 +185,7 @@ inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, u
             
             const VertexData v = gScene.getVertexData(hit);
             if (gScene.materials.alphaTest(v, materialID, computeLod(v, rayDir)))  
-                return false; // alpha test failed => ignore this triangle
+                return count > MAX_COUNT; // alpha test failed => ignore this triangle
         }
     }
     #endif
@@ -239,9 +236,7 @@ inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, u
             
     }
 
-    if (count > MAX_COUNT)
-        return true; // commit => max count reached
-    return false; // further traverse
+    return count > MAX_COUNT; // further traverse
 
     //float rng2 = hash3D(float3(attribs.barycentrics, t));
     //if (rng2 < 0.2) // small chance to keep traversal going
