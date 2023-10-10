@@ -297,7 +297,7 @@ namespace Falcor
     {
         const float FOVrad = focalLengthToFovY(getFocalLength(), Camera::kDefaultFrameHeight);
         const float angle = std::atan(2.0f * std::tan(FOVrad * 0.5f) / winHeightPixels);
-        return angle;
+        return 2.0f * angle; // there is a factor of two missing in the paper... angle is only half the angle
     }
 
     Ray Camera::computeRayPinhole(uint2 pixel, uint2 frameDim, bool applyJitter) const

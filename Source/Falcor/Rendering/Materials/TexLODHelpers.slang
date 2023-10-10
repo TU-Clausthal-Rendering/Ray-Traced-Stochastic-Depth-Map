@@ -127,6 +127,39 @@ struct RayCone
         lambda += log2(distTerm / normalTerm);
         return lambda;
     }
+
+    // additional functions
+
+    // hit surface
+    RayCone hit(float3 rayDir, float3 normal)
+    {
+        return RayCone(getWidth() / abs(dot(rayDir, normal)), getSpreadAngle());
+    }
+
+    // reflect of a surface
+    RayCone reflect(float3 rayDir, float3 normal)
+    {
+        return RayCone(getWidth() * abs(dot(rayDir, normal)), getSpreadAngle());
+    }
+
+    // modify angle to be at focus at focusT
+    RayCone focus(float focusT)
+    {
+        return RayCone(getWidth(), -getWidth() / focusT);
+    }
+
+    // orthgonal projection: set spread angle = 0
+    RayCone orthogonalize()
+    {
+        return RayCone(getWidth(), 0);
+    }
+
+    // compute the texture dimension independent level of details based on ray cone:
+    // Note: propagate() and hit() should be called before this function in general.
+    float computeLOD(float triLODConstant)
+    {
+        return triLODConstant + log2(getWidth());
+    }
 };
 
 /** Compute the triangle LOD value based on triangle vertices and texture coordinates, used by ray cones.

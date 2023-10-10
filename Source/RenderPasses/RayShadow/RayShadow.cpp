@@ -32,6 +32,7 @@
 namespace
 {
     const std::string kPos = "posW";
+    const std::string kNormalW = "normalW";
     const std::string kVisibility = "visibility";
 
     const std::string kRasterShader = "RenderPasses/RayShadow/RayShadow.ps.slang";
@@ -65,6 +66,7 @@ RenderPassReflection RayShadow::reflect(const CompileData& compileData)
     
     reflector.addInput(kPos, "Pre-initialized scene depth buffer")
         .bindFlags(ResourceBindFlags::ShaderResource);
+    reflector.addInput(kNormalW, "Pre-initialized scene normal buffer").bindFlags(ResourceBindFlags::ShaderResource);
 
     reflector.addOutput(kVisibility, "Visibility map. Values are [0,1] where 0 means the pixel is completely shadowed and 1 means it's not shadowed at all")
         .format(ResourceFormat::R8Unorm)
@@ -76,6 +78,7 @@ RenderPassReflection RayShadow::reflect(const CompileData& compileData)
 void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     auto pPos = renderData[kPos]->asTexture();
+    auto pNormal = renderData[kNormalW]->asTexture();
     auto pVisibility = renderData[kVisibility]->asTexture();
     
     if (!RenderPassHelpers::isSameSize(pPos, pVisibility))
@@ -96,11 +99,16 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
         desc.addTypeConformances(mpScene->getTypeConformances());
         desc.setShaderModel("6_5");
         DefineList defines;
+        auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
+        defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add(mpScene->getSceneDefines());
         mpPass = FullScreenPass::create(mpDevice, desc, defines);
+
+
     }
 
     mpPass->getRootVar()["gPos"] = pPos;
+    mpPass->getRootVar()["gNormal"] = pNormal;
 
     // raytracing data
     auto var = mpPass->getRootVar();
