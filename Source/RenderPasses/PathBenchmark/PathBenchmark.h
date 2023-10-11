@@ -26,39 +26,36 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #pragma once
-#include "Core/Macros.h"
-#include <cstdint>
+#include "Falcor.h"
+#include "RenderGraph/RenderPass.h"
 
-namespace Falcor
+using namespace Falcor;
+
+class PathBenchmark : public RenderPass
 {
-/**
- * Flags to indicate what have changed since last frame.
- * One or more flags can be OR'ed together.
- */
-enum class RenderPassRefreshFlags : uint32_t
-{
-    None = 0x0,
-    LightingChanged = 0x1,      ///< Lighting has changed.
-    RenderOptionsChanged = 0x2, ///< Options that affect the rendering have changed.
+public:
+    FALCOR_PLUGIN_CLASS(PathBenchmark, "PathBenchmark", "Tool to record rendering times for points on the camera path + export");
+
+    static ref<PathBenchmark> create(ref<Device> pDevice, const Properties& props) { return make_ref<PathBenchmark>(pDevice, props); }
+
+    PathBenchmark(ref<Device> pDevice, const Properties& props);
+
+    virtual Properties getProperties() const override;
+    virtual RenderPassReflection reflect(const CompileData& compileData) override;
+    virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {}
+    virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
+    virtual void renderUI(Gui::Widgets& widget) override;
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
+    virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
+    virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
+
+private:
+    void reset();
+    void writeCsv(const std::string& filename) const;
+
+    Profiler* mpProfiler = nullptr;
+    std::unordered_map<std::string, bool> mEnabled;
+    std::vector<float> mTimestamps; // timestamps corresponding to the values in mTimes
+    std::unordered_map<std::string, std::vector<float>> mTimes;
+    float mLastTime = 0.0;
 };
-
-/**
- * The refresh flags above are passed to RenderPass::execute() via a
- * field with this name in the dictionary.
- */
-static const char kRenderPassRefreshFlags[] = "_refreshFlags";
-
-static const char kRenderPassTime[] = "_time";
-
-/**
- * First available preudorandom number generator dimension.
- */
-static const char kRenderPassPRNGDimension[] = "_prngDimension";
-
-/**
- * Adjust shading normals on primary hits.
- */
-static const char kRenderPassGBufferAdjustShadingNormals[] = "_gbufferAdjustShadingNormals";
-
-FALCOR_ENUM_CLASS_OPERATORS(RenderPassRefreshFlags);
-} // namespace Falcor

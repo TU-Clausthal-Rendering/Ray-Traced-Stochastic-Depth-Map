@@ -94,7 +94,7 @@ namespace Falcor
 
         /** Returns true if animations are currently globally looped.
         */
-        bool isLooped() { return mLoopAnimations; }
+        bool isLooped() const { return mLoopAnimations; }
 
         /** Mark a scene node as being edited externally.
             Ensures that all global matrices depending on this scene node are updated.
@@ -142,6 +142,7 @@ namespace Falcor
         */
         uint64_t getMemoryUsageInBytes() const;
 
+        double getGlobalAnimationLength() const { return mGlobalAnimationLength; }
     private:
         friend class SceneBuilder;
 
