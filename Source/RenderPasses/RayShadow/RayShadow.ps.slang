@@ -11,7 +11,7 @@ float calcVisibility(RayDesc ray, RayCone rc, float2 frameDim)
 {
     float visibility = 1.0;
 
-    float visibilityCutoff = 0.5;
+    float visibilityCutoff = 0.01;
     
     // TODO RAY_FLAG_CULL_BACK_FACING_TRIANGLES
     RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH > rayQuery;
@@ -34,9 +34,9 @@ float calcVisibility(RayDesc ray, RayCone rc, float2 frameDim)
             float lambda = newRc.computeLOD(v.coneTexLODValue);
             //lambda += 1.0; // small offset to make shadows a bit more soft
             let lod = ExplicitRayConesLodTextureSampler(lambda);
-            
+            //let lod = ExplicitLodTextureSamplers(0.0);
             float opacity = material.evalOpacity(gScene.materials, v, lod);
-
+            opacity = saturate(opacity * 2.0); // scale opacity because opacity > 0.5 is opaque for alpha test
             visibility = visibility * (1.0 - opacity);
             if (visibility < visibilityCutoff)
                 return 0.0;
