@@ -10,6 +10,8 @@ Texture2D<float4> gNormal;
 float calcVisibility(RayDesc ray, RayCone rc, float2 frameDim)
 {
     float visibility = 1.0;
+
+    float visibilityCutoff = 0.5;
     
     // TODO RAY_FLAG_CULL_BACK_FACING_TRIANGLES
     RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH > rayQuery;
@@ -36,7 +38,7 @@ float calcVisibility(RayDesc ray, RayCone rc, float2 frameDim)
             float opacity = material.evalOpacity(gScene.materials, v, lod);
 
             visibility = visibility * (1.0 - opacity);
-            if (visibility < 0.01)
+            if (visibility < visibilityCutoff)
                 return 0.0;
         }
         else
@@ -45,6 +47,9 @@ float calcVisibility(RayDesc ray, RayCone rc, float2 frameDim)
 
     if (rayQuery.CommittedStatus() != COMMITTED_NOTHING)
         visibility = 0.0;
+
+    // scale based on the cutoff
+    visibility = saturate((visibility - visibilityCutoff) / (1.0 - visibilityCutoff));
     
     return visibility;
 }
