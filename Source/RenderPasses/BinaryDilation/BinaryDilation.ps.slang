@@ -15,14 +15,27 @@ uint main(float2 uv : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
     // obtain screen size
     float2 dim;
     gInput.GetDimensions(dim.x, dim.y);
-    float2 invDim = 1.0f / dim;
-    uv = floor(svPos.xy) * invDim;
+    float2 duv = 0.5f / dim; // half pixel diff
+    //uv = floor(svPos.xy) * invDim;
 
     uint4 res;
-    res.x = Reduce(gInput.Gather(S, uv));
-    res.y = Reduce(gInput.Gather(S, uv + float2(invDim.x, 0.0)));
-    res.z = Reduce(gInput.Gather(S, uv + float2(0.0, invDim.y)));
-    res.w = Reduce(gInput.Gather(S, uv + invDim));
 
-    return Reduce(res);
+    // small radius
+    //res.x = Reduce(gInput.Gather(S, uv + float2(-duv.x, -duv.y)));
+    //res.y = Reduce(gInput.Gather(S, uv + float2(duv.x, -duv.y)));
+    //res.z = Reduce(gInput.Gather(S, uv + float2(-duv.x, duv.y)));
+    //res.w = Reduce(gInput.Gather(S, uv + float2(duv.x, duv.y)));
+
+    // bigger radius
+    res.x = Reduce(gInput.Gather(S, uv + float2(duv.x, 3.0 * duv.y)));
+    res.y = Reduce(gInput.Gather(S, uv + float2(3.0 * duv.x, -duv.y)));
+    res.z = Reduce(gInput.Gather(S, uv + float2(-duv.x, -3.0 * duv.y)));
+    res.w = Reduce(gInput.Gather(S, uv + float2(-3.0 * duv.x, duv.y)));
+    // add center
+    res.x = OP(res.x, Reduce(gInput.Gather(S, uv)));
+    
+    uint o = Reduce(res);
+    //o = WaveActiveBitAnd(o);
+
+    return o;
 }

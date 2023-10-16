@@ -84,6 +84,7 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     float prevDepth = -prevPosV.z;
 
     bool isStablePixel = gStableMask[int2(svPos.xy)] != 0;
+    //isStablePixel = false;
     if (RelativeDepth(depth, prevDepth) < 0.1 && !isStablePixel)
     {
         float prevAO = gPrevAO.SampleLevel(gAOSampler, texC + mvec, 0.0);

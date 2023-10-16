@@ -23,7 +23,12 @@ float3 MinDiff(float3 P, float3 Pr, float3 Pl)
 {
     float3 grad1 = Pr - P;
     float3 grad2 = P - Pl;
+    float3 grad3 = 0.5 * (Pr - Pl);
+    
     return (dot(grad1, grad1) < dot(grad2, grad2)) ? grad1 : grad2;
+
+    float3 grad = (dot(grad1, grad1) < dot(grad2, grad2)) ? grad1 : grad2;
+    return (dot(grad, grad) < dot(grad3, grad3)) ? grad : grad3;
 }
 
 #if COMPRESS

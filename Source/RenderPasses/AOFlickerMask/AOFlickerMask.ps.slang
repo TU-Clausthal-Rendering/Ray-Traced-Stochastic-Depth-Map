@@ -75,7 +75,7 @@ uint main(float2 uv : TEXCOORD, float4 svPos : SV_POSITION) : SV_TARGET
     float dx = min(PlaneDiff(PV, normalV, PV_right), PlaneDiff(PV, normalV, PV_left));
     float dy = min(PlaneDiff(PV, normalV, PV_down), PlaneDiff(PV, normalV, PV_up));
     //float threshold = gCamera.data.nearZ * 0.4;
-    float threshold = 0.2;
+    float threshold = 0.1;
     if (dx <= threshold && dy <= threshold)
         return 1;
     return 0;
