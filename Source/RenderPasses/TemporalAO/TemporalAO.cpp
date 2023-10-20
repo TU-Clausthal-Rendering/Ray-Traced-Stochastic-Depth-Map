@@ -38,6 +38,9 @@ namespace
     const std::string kStableMask = "stableMask"; // mask with stable pixels (1) and unstable (0). Unstable pixels will be filtered
 
     const std::string kShaderFilename = "RenderPasses/TemporalAO/TemporalAO.ps.slang";
+
+    const std::string kEnabled = "enabled";
+    const std::string kUseStableMask = "useStableMask";
     
 }
 
@@ -49,6 +52,13 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
 TemporalAO::TemporalAO(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
+    for(auto [key, value] : dict)
+    {
+        if (key == kEnabled) mEnabled = value;
+        else if (key == kUseStableMask) mUseStableMask = value;
+        else logWarning("Unknown field `" + key + "` in a TemporalAO dictionary");
+    }
+
     mpPass = FullScreenPass::create(mpDevice, kShaderFilename);
     mpFbo = Fbo::create(pDevice);
 
@@ -73,7 +83,10 @@ TemporalAO::TemporalAO(ref<Device> pDevice, const Properties& dict)
 
 Properties TemporalAO::getProperties() const
 {
-    return Properties();
+    Properties props;
+    props[kEnabled] = mEnabled;
+    props[kUseStableMask] = mUseStableMask;
+    return props;
 }
 
 RenderPassReflection TemporalAO::reflect(const CompileData& compileData)
@@ -107,7 +120,7 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
     auto pAOOut = renderData[kAOOut]->asTexture();
     auto pHistoryCount = renderData[kHistoryCount]->asTexture();
     ref<Texture> pStableMask;
-    if (renderData[kStableMask])
+    if (renderData[kStableMask] && mUseStableMask)
     {
         pStableMask = renderData[kStableMask]->asTexture();
     }
@@ -138,6 +151,7 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
     vars["gPrevAO"] = mpPrevAO;
     vars["gPrevHistory"] = mpPrevHistory;
     vars["gStableMask"] = pStableMask;
+
     mpScene->getCamera()->setShaderData(vars["PerFrameCB"]["gCamera"]);
     auto conversionMat = math::mul(mpScene->getCamera()->getViewMatrix(), math::inverse(mpScene->getCamera()->getPrevViewMatrix()));
     vars["PerFrameCB"]["prevViewToCurView"] = conversionMat;
@@ -157,6 +171,8 @@ void TemporalAO::execute(RenderContext* pRenderContext, const RenderData& render
 void TemporalAO::renderUI(Gui::Widgets& widget)
 {
     widget.checkbox("Enable", mEnabled);
+
+    widget.checkbox("Use stable mask", mUseStableMask);
 }
 
 void TemporalAO::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

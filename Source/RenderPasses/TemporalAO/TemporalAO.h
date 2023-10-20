@@ -62,4 +62,5 @@ private:
 
     ref<Scene> mpScene;
     bool mEnabled = true;
+    bool mUseStableMask = true;
 };
