@@ -30,6 +30,8 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RenderPassStandardFlags.h"
 
+#include <cstdio>
+
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
     registry.registerClass<RenderPass, VideoRecorder>();
@@ -155,6 +157,42 @@ PathPoint VideoRecorder::createFromCamera()
     return p;
 }
 
+namespace fs = std::filesystem;
+
+// file helper functions
+bool folderExists(const std::string& folderPath) {
+    return fs::is_directory(folderPath);
+}
+
+bool createFolder(const std::string& folderPath) {
+    try {
+        fs::create_directories(folderPath);
+        return true;
+    }
+    catch (const std::exception&) {
+        return false;
+    }
+}
+
+bool deleteFolder(const std::string& folderPath) {
+    try {
+        fs::remove_all(folderPath);
+        return true;
+    }
+    catch (const std::exception&) {
+        return false;
+    }
+}
+
+void deleteFile(const std::string& filePath) {
+    try {
+        if (fs::exists(filePath) && fs::is_regular_file(filePath)) {
+            fs::remove(filePath);
+        }
+    }
+    catch (const std::exception&) { }
+}
+
 void VideoRecorder::saveFrame()
 {
     if (!mSaveToFile) return;
@@ -170,8 +208,45 @@ void VideoRecorder::saveFrame()
         assert(tex);
         if(!tex) continue;
 
-        auto filename = "frame" + output->getName() + std::to_string(mReplayIndex) + ".bmp";
-        tex->captureToFile(0, 0, filename, Bitmap::FileFormat::BmpFile);
+        const auto& outputName = output->getName();
+
+        if(mReplayIndex <= 1) // replay index 1 == first frame, because this function is called after the camera update
+        {
+            // delete old content in the tmp output folder
+            deleteFolder(outputName);
+            createFolder(outputName);
+        }
+
+        auto filenameBase = outputName + "/frame" + outputName;
+        std::stringstream filename;
+        filename << filenameBase << std::setfill('0') << std::setw(4) << mReplayIndex << ".bmp";
+        tex->captureToFile(0, 0, filename.str(), Bitmap::FileFormat::BmpFile);
+
+
+        if (mReplayIndex >= mPathPoints.size())
+        {
+            char buffer[2048];
+            
+            int fps = 60;
+            std::string outputFilename = outputName + ".mp4";
+            deleteFile(outputFilename); // delete old file (otherwise ffmpeg will not write anything)
+            sprintf_s(buffer, "ffmpeg -r %d -i %s%%04d.bmp -c:v libx264 -preset medium -crf 12 -vf \"fps=%d,format=yuv420p\" \"%s\" 2>&1", fps, filenameBase.c_str(), fps, outputFilename.c_str());
+
+            // last frame, convert to video
+            FILE* ffmpeg = _popen(buffer, "w");
+            if (!ffmpeg)
+            {
+                logError("Cannot use popen to execute ffmpeg!");
+                continue;
+            }
+
+            auto err = _pclose(ffmpeg);
+            deleteFolder(outputName); // delete the temporary files
+            if(err)
+            {
+                logError("Error while executing ffmpeg:\n");
+            }
+        }
     }
 }
 
