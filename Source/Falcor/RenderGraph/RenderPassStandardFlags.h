@@ -50,6 +50,8 @@ static const char kRenderPassRefreshFlags[] = "_refreshFlags";
 
 static const char kRenderPassTime[] = "_time";
 
+static const char kRenderGraph[] = "_renderGraph";
+
 /**
  * First available preudorandom number generator dimension.
  */

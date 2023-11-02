@@ -27,6 +27,9 @@
  **************************************************************************/
 #include "VideoRecorder.h"
 
+#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RenderPassStandardFlags.h"
+
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
     registry.registerClass<RenderPass, VideoRecorder>();
@@ -53,12 +56,15 @@ RenderPassReflection VideoRecorder::reflect(const CompileData& compileData)
 
 void VideoRecorder::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
+    auto renderDict = renderData.getDictionary();
+    mpRenderGraph = (RenderGraph*)renderDict[kRenderGraph];
 
 }
 
 void VideoRecorder::renderUI(Gui::Widgets& widget)
 {
-    
+    saveFrame();
+
     if (mState == State::Recording)
     {
         if (widget.button("Record Stop"))
@@ -100,11 +106,39 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
             mState = State::Replaying;
             mReplayIndex = 0;
         }
-
     }
+
+    if(widget.checkbox("Replay Save To File", mSaveToFile))
+    {
+        // restart replay
+        if(mState == State::Replaying) mReplayIndex = 0;
+    }
+    if(mSaveToFile && mOutputs.empty()) widget.tooltip("No outputs selected. Nothing will be saved to file!");
 
     widget.text("Path Points: " + std::to_string(mPathPoints.size()));
 
+    // list all outputs
+    if(auto g = widget.group("Outputs"))
+    {
+        bool selectAll = false;
+
+        if (g.button("All")) selectAll = true;
+        if (g.button("None", true))
+        {
+            mOutputs.clear();
+        }
+        for(uint32_t i = 0; i < mpRenderGraph->getOutputCount(); i++)
+        {
+            auto name = mpRenderGraph->getOutputName(i);
+            bool selected = mOutputs.count(name) != 0;
+            if(g.checkbox(name.c_str(), selected))
+            {
+                if(selected) mOutputs.insert(name);
+                else mOutputs.erase(name);
+            }
+            if(selectAll) mOutputs.insert(name);
+        }
+    }
 
     // logic
     updateCamera();
@@ -119,6 +153,26 @@ PathPoint VideoRecorder::createFromCamera()
     p.dir = normalize(cam->getTarget() - p.pos);
 
     return p;
+}
+
+void VideoRecorder::saveFrame()
+{
+    if (!mSaveToFile) return;
+    if (mState != State::Replaying) return;
+    assert(mpRenderGraph);
+
+    for(const auto& target : mOutputs)
+    {
+        auto output = mpRenderGraph->getOutput(target);
+        if(!output) continue;
+
+        auto tex = output->asTexture();
+        assert(tex);
+        if(!tex) continue;
+
+        auto filename = "frame" + output->getName() + std::to_string(mReplayIndex) + ".bmp";
+        tex->captureToFile(0, 0, filename, Bitmap::FileFormat::BmpFile);
+    }
 }
 
 void VideoRecorder::updateCamera()

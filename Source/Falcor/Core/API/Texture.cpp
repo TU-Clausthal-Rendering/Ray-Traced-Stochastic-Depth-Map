@@ -649,7 +649,19 @@ void Texture::captureToFile(
         return;
     }
 
-    if (type == FormatType::Float && channels < 3)
+    if(format == Bitmap::FileFormat::BmpFile || format == Bitmap::FileFormat::JpegFile || format == Bitmap::FileFormat::PngFile || format == Bitmap::FileFormat::TgaFile)
+    {
+        // use 8 bit staging format
+        resourceFormat = ResourceFormat::BGRA8UnormSrgb;
+        ref<Texture> pOther = Texture::create2D(
+            mpDevice, getWidth(mipLevel), getHeight(mipLevel), resourceFormat, 1, 1, nullptr,
+            ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource
+        );
+        pContext->blit(getSRV(mipLevel, 1, arraySlice, 1), pOther->getRTV(0, 0, 1));
+        textureData = pContext->readTextureSubresource(pOther.get(), 0);
+
+    }
+    else if (type == FormatType::Float && channels < 3)
     {
         ref<Texture> pOther = Texture::create2D(
             mpDevice, getWidth(mipLevel), getHeight(mipLevel), ResourceFormat::RGBA32Float, 1, 1, nullptr,

@@ -419,7 +419,7 @@ FileDialogFilterVec Bitmap::getFileDialogFilters(ResourceFormat format)
     {
         // Save float, half and large integer (16/32 bit) formats as HDR.
         showHdr = getFormatType(format) == FormatType::Float || isConvertibleToRGBA32Float(format);
-        showLdr = !showHdr;
+        //showLdr = !showHdr;
     }
 
     if (showHdr)

@@ -60,15 +60,24 @@ public:
     virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override { mpScene = pScene; }
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
+    void renderUI(RenderContext* pRenderContext, Gui::Widgets& widget) override
+    {
+        renderUI(widget);
+    }
 
 private:
     ref<Scene> mpScene;
 
     PathPoint createFromCamera();
+    void saveFrame();
     void updateCamera();
 
     std::vector<PathPoint> mPathPoints;
 
     State mState = State::Idle;
     size_t mReplayIndex = 0;
+    RenderGraph* mpRenderGraph;
+    std::string mActiveOutput = "";
+    std::set<std::string> mOutputs;
+    bool mSaveToFile = false;
 };
