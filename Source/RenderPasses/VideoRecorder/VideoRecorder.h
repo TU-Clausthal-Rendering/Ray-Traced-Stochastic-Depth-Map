@@ -28,6 +28,7 @@
 #pragma once
 #include "Falcor.h"
 #include "RenderGraph/RenderPass.h"
+#include "Utils/Timing/Clock.h"
 
 using namespace Falcor;
 
@@ -35,6 +36,7 @@ struct PathPoint
 {
     float3 pos;
     float3 dir;
+    float time;
 };
 
 class VideoRecorder : public RenderPass
@@ -42,8 +44,9 @@ class VideoRecorder : public RenderPass
     enum class State
     {
         Idle,
-        Recording,
-        Replaying
+        Record, // record path
+        Preview, // preview path in app
+        Render // render to video file
     };
 public:
     FALCOR_PLUGIN_CLASS(VideoRecorder, "VideoRecorder", "Insert pass description here.");
@@ -72,12 +75,23 @@ private:
     void saveFrame();
     void updateCamera();
 
+    void startRecording();
+    void stopRecording();
+    void startPreview();
+    void stopPreview();
+    void startRender();
+    void stopRender();
+
+    // forces to return to idle state
+    void forceIdle();
+
     std::vector<PathPoint> mPathPoints;
+    Clock mClock;
 
     State mState = State::Idle;
-    size_t mReplayIndex = 0;
+    size_t mRenderIndex = 0;
     RenderGraph* mpRenderGraph;
     std::string mActiveOutput = "";
     std::set<std::string> mOutputs;
-    bool mSaveToFile = false;
+    int mFps = 60;
 };
