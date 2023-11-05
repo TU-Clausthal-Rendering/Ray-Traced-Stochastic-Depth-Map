@@ -81,11 +81,13 @@ private:
     void stopPreview();
     void startRender();
     void stopRender();
+    void smoothPath();
 
     // forces to return to idle state
     void forceIdle();
 
-    std::vector<PathPoint> mPathPoints;
+    std::vector<PathPoint> mPathPoints; // original recording
+    std::vector<PathPoint> mSmoothPoints; // smoothed version
     Clock mClock;
 
     State mState = State::Idle;

@@ -121,6 +121,20 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
         if (mOutputs.empty()) widget.tooltip("No outputs selected. Nothing will be saved to file!");
     }
 
+    widget.var("FPS", mFps, 1, 240);
+
+    if(auto group = widget.group("Smooth Path", true))
+    {
+
+        if(group.button("Apply") && mPathPoints.size() > 1)
+        {
+            smoothPath();
+        }
+        if(group.button("Clear"))
+        {
+            mSmoothPoints.clear();
+        }
+    }
 
     widget.text("Path Points: " + std::to_string(mPathPoints.size()));
 
@@ -242,14 +256,16 @@ void VideoRecorder::updateCamera()
     auto getInterpolatedPathPoint = [&]()
     {
         assert(mPathPoints.size());
-        auto step2 = std::find_if(mPathPoints.begin(), mPathPoints.end(), [time](const PathPoint& p) { return p.time >= time; });
-        if (step2 == mPathPoints.end())
+        const auto& path = mSmoothPoints.empty() ? mPathPoints : mSmoothPoints;
+
+        auto step2 = std::find_if(path.begin(), path.end(), [time](const PathPoint& p) { return p.time >= time; });
+        if (step2 == path.end())
         {
-            return mPathPoints.back();
+            return path.back();
         }
 
         auto step1 = step2;
-        if (step1 != mPathPoints.begin()) --step1; // move to previous step
+        if (step1 != path.begin()) --step1; // move to previous step
 
         // interpolate position
         float t = (time - step1->time) / (step2->time - step1->time);
@@ -300,6 +316,7 @@ void VideoRecorder::startRecording()
 
     mState = State::Record;
     mPathPoints.clear();
+    mSmoothPoints.clear();
     mClock.play();
     mClock.setTime(0);
     mClock.setFramerate(0); // disabled framerate for record
@@ -403,6 +420,46 @@ void VideoRecorder::stopRender()
         {
             logError("Error while executing ffmpeg:\n");
         }
+    }
+}
+
+void VideoRecorder::smoothPath()
+{
+    if(mPathPoints.size() < 2) return;
+
+    mSmoothPoints.clear();
+    // apply gaussian blur to path
+    mSmoothPoints.resize(mPathPoints.size());
+
+    float timeRadius = 0.5; // 0.5 seconds
+
+    for(size_t i = 0; i < mPathPoints.size(); ++i)
+    {
+        const auto& p = mPathPoints[i];
+        auto& sp = mSmoothPoints[i];
+        sp = p; // initialize with p
+        float wsum = 1.0; // weight sum
+
+        auto addPoint = [&](const PathPoint& p)
+        {
+            float w = expf(-powf(p.time - sp.time, 2) / (2 * powf(timeRadius, 2)));
+            sp.pos += w * p.pos;
+            sp.dir += w * p.dir;
+            wsum += w;
+        };
+
+        for(int j = int(i - 1); j >= 0 && mPathPoints[j].time > p.time - timeRadius; --j)
+        {
+            addPoint(mPathPoints[j]);
+        }
+        for(int j = int(i + 1); j < int(mPathPoints.size()) && mPathPoints[j].time < p.time + timeRadius; ++j)
+        {
+            addPoint(mPathPoints[j]);
+        }
+
+        // normalize
+        sp.pos /= wsum;
+        sp.dir /= wsum;
     }
 }
 
