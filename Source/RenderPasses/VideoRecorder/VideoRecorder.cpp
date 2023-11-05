@@ -31,6 +31,7 @@
 #include "RenderGraph/RenderPassStandardFlags.h"
 
 #include <cstdio>
+#include <fstream>
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
@@ -40,6 +41,7 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
 VideoRecorder::VideoRecorder(ref<Device> pDevice, const Properties& props)
     : RenderPass(pDevice)
 {
+    refreshFileList();
 }
 
 Properties VideoRecorder::getProperties() const
@@ -72,6 +74,8 @@ void VideoRecorder::execute(RenderContext* pRenderContext, const RenderData& ren
 
 void VideoRecorder::renderUI(Gui::Widgets& widget)
 {
+    widget.text("Path Points: " + std::to_string(mPathPoints.size()));
+
     saveFrame();
 
     if (mState == State::Record)
@@ -123,20 +127,33 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
 
     widget.var("FPS", mFps, 1, 240);
 
-    if(auto group = widget.group("Smooth Path", true))
+    if(widget.button("Smooth Path") && mPathPoints.size() > 1 && mState != State::Record)
     {
+        smoothPath();
+    }
+    if(widget.button("Reset", true))
+    {
+        mSmoothPoints.clear();
+    }
+    if (mSmoothPoints.size()) widget.text("Active!", true);
+    else widget.text("Not used", true);
 
-        if(group.button("Apply") && mPathPoints.size() > 1)
-        {
-            smoothPath();
-        }
-        if(group.button("Clear"))
-        {
-            mSmoothPoints.clear();
-        }
+    // file IO
+    widget.textbox("S:", mSaveName);
+    if(widget.button("Save", true) && mPathPoints.size())
+    {
+        savePath(mSaveName + ".campath");
+        refreshFileList();
     }
 
-    widget.text("Path Points: " + std::to_string(mPathPoints.size()));
+    if(mFileList.size())
+    {
+        widget.dropdown("L:", mFileList, mLoadIndex);
+        if (widget.button("Load", true) && mLoadIndex < mFileList.size())
+        {
+            loadPath(mFileList[mLoadIndex].label + ".campath");
+        }
+    }
 
     // list all outputs
     if(auto g = widget.group("Outputs"))
@@ -460,6 +477,52 @@ void VideoRecorder::smoothPath()
         // normalize
         sp.pos /= wsum;
         sp.dir /= wsum;
+    }
+}
+
+void VideoRecorder::savePath(const std::string& filename) const
+{
+    const auto& path = mSmoothPoints.empty() ? mPathPoints : mSmoothPoints;
+
+    // open binary file with fstream
+    std::ofstream outFile(filename, std::ios::binary);
+    if (outFile.is_open())
+    {
+        for (const auto& point : path) {
+            outFile.write(reinterpret_cast<const char*>(&point), sizeof(PathPoint));
+        }
+        outFile.close();
+    }
+}
+
+void VideoRecorder::loadPath(const std::string& filename)
+{
+    forceIdle();
+
+    mPathPoints.clear();
+    std::ifstream inFile(filename, std::ios::binary);
+    if (inFile.is_open())
+    {
+        PathPoint point;
+        while (inFile.read(reinterpret_cast<char*>(&point), sizeof(PathPoint))) {
+            mPathPoints.push_back(point);
+        }
+        inFile.close();
+    }
+    else logError("Cannot open camera path file!");
+}
+
+void VideoRecorder::refreshFileList()
+{
+    mFileList.clear();
+    Gui::DropdownValue v;
+    v.value = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(".")) {
+        if (entry.is_regular_file() && entry.path().extension() == ".campath") {
+            v.label = entry.path().filename().replace_extension().string();
+            mFileList.push_back(v);
+            ++v.value;
+        }
     }
 }
 

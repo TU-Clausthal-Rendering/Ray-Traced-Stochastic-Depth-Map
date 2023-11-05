@@ -83,6 +83,11 @@ private:
     void stopRender();
     void smoothPath();
 
+    void savePath(const std::string& filename) const;
+    void loadPath(const std::string& filename);
+
+    void refreshFileList();
+
     // forces to return to idle state
     void forceIdle();
 
@@ -96,4 +101,8 @@ private:
     std::string mActiveOutput = "";
     std::set<std::string> mOutputs;
     int mFps = 60;
+
+    std::string mSaveName = "path";
+    std::vector<Gui::DropdownValue> mFileList;
+    uint32_t mLoadIndex = 0;
 };
