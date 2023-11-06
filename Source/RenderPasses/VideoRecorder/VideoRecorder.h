@@ -72,6 +72,8 @@ private:
     ref<Scene> mpScene;
 
     PathPoint createFromCamera();
+    float getTime() const;
+
     void saveFrame();
     void updateCamera();
 
@@ -105,4 +107,5 @@ private:
     std::string mSaveName = "path";
     std::vector<Gui::DropdownValue> mFileList;
     uint32_t mLoadIndex = 0;
+    float mTimeScale = 1.0;
 };

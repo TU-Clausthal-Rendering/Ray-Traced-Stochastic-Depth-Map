@@ -127,6 +127,8 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
 
     widget.var("FPS", mFps, 1, 240);
 
+    widget.var("Time Scale", mTimeScale, 0.01f, 100.0f, 0.1f);
+
     if(widget.button("Smooth Path") && mPathPoints.size() > 1 && mState != State::Record)
     {
         smoothPath();
@@ -153,6 +155,11 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
         {
             loadPath(mFileList[mLoadIndex].label + ".campath");
         }
+    }
+
+    if(widget.button("Output Directory"))
+    {
+        system("explorer .");
     }
 
     // list all outputs
@@ -193,6 +200,11 @@ PathPoint VideoRecorder::createFromCamera()
     p.time = (float)mClock.getTime();
 
     return p;
+}
+
+float VideoRecorder::getTime() const
+{
+    return static_cast<float>(mClock.getTime()) * mTimeScale;
 }
 
 namespace fs = std::filesystem;
@@ -266,7 +278,7 @@ void VideoRecorder::updateCamera()
 {
     if (!mpScene) return;
 
-    float time = (float)mClock.getTime();
+    float time = getTime();
     auto cam = mpScene->getCamera();
 
     // helper function to get the interpolated path point based on time
@@ -448,7 +460,7 @@ void VideoRecorder::smoothPath()
     // apply gaussian blur to path
     mSmoothPoints.resize(mPathPoints.size());
 
-    float timeRadius = 0.5; // 0.5 seconds
+    const float timeRadius = 0.5f * mTimeScale; // 0.5 seconds
 
     for(size_t i = 0; i < mPathPoints.size(); ++i)
     {
