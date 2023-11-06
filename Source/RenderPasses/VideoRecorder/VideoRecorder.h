@@ -60,7 +60,7 @@ public:
     virtual void compile(RenderContext* pRenderContext, const CompileData& compileData) override {}
     virtual void execute(RenderContext* pRenderContext, const RenderData& renderData) override;
     virtual void renderUI(Gui::Widgets& widget) override;
-    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override { mpScene = pScene; }
+    virtual void setScene(RenderContext* pRenderContext, const ref<Scene>& pScene) override;
     virtual bool onMouseEvent(const MouseEvent& mouseEvent) override { return false; }
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
     void renderUI(RenderContext* pRenderContext, Gui::Widgets& widget) override
@@ -70,6 +70,7 @@ public:
 
 private:
     ref<Scene> mpScene;
+    std::string mSceneDir = "."; // WD
 
     PathPoint createFromCamera();
     float getTime() const;

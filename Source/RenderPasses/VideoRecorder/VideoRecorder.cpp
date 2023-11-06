@@ -144,7 +144,7 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
     widget.textbox("S:", mSaveName);
     if(widget.button("Save", true) && mPathPoints.size())
     {
-        savePath(mSaveName + ".campath");
+        savePath(mSceneDir + "/" + mSaveName + ".campath");
         refreshFileList();
     }
 
@@ -153,7 +153,7 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
         widget.dropdown("L:", mFileList, mLoadIndex);
         if (widget.button("Load", true) && mLoadIndex < mFileList.size())
         {
-            loadPath(mFileList[mLoadIndex].label + ".campath");
+            loadPath(mSceneDir + "/" + mFileList[mLoadIndex].label + ".campath");
         }
     }
 
@@ -187,6 +187,15 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
 
     // logic
     updateCamera();
+}
+
+void VideoRecorder::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
+{
+    mpScene = pScene;
+    if(mpScene) mSceneDir = mpScene->getPath().parent_path().string();
+    else mSceneDir = ".";
+
+    refreshFileList();
 }
 
 PathPoint VideoRecorder::createFromCamera()
@@ -529,7 +538,7 @@ void VideoRecorder::refreshFileList()
     mFileList.clear();
     Gui::DropdownValue v;
     v.value = 0;
-    for (const auto& entry : std::filesystem::directory_iterator(".")) {
+    for (const auto& entry : std::filesystem::directory_iterator(mSceneDir)) {
         if (entry.is_regular_file() && entry.path().extension() == ".campath") {
             v.label = entry.path().filename().replace_extension().string();
             mFileList.push_back(v);
