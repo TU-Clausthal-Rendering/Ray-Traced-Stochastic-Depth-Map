@@ -7,6 +7,12 @@ import Rendering.Materials.TexLODHelpers;
 Texture2D<float4> gPos; // indicates depth accesses for the secondary pass
 Texture2D<float4> gNormal;
 
+cbuffer PerLightBuffer
+{
+    uint gLightIndex;
+    float gPointLightClip;
+};
+
 float calcVisibility(RayDesc ray, RayCone rc, float2 frameDim)
 {
     float visibility = 1.0;
@@ -60,7 +66,7 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
     if (posW.w == 0.0)
         return 1.0; // background
     
-    if (gScene.getLightCount() == 0)
+    if (gLightIndex >= gScene.getLightCount())
         return 1.0;
 
     float3 faceNormalW = gNormal[int2(svPos.xy)].xyz;
@@ -68,7 +74,7 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
     float2 frameDim;
     gPos.GetDimensions(frameDim.x, frameDim.y);
     
-    LightData light = gScene.getLight(0);
+    LightData light = gScene.getLight(gLightIndex);
     RayDesc ray;
     ray.Origin = posW.xyz;
     ray.TMin = gScene.camera.data.nearZ;
@@ -79,12 +85,11 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
     rc = rc.propagateDistance(lenV); // travel t
     rc = rc.hit(V/lenV, faceNormalW); // hit surface
     
-    
     float secondarySpreadAngle = RAY_CONE_SPREAD;
     if (light.type == uint(LightType::Point))
     {
         ray.Direction = normalize(light.posW - posW.xyz);
-        ray.TMax = distance(light.posW, posW.xyz);
+        ray.TMax = distance(light.posW, posW.xyz) - gPointLightClip;
 
         rc = rc.reflect(ray.Direction, faceNormalW);
         rc = rc.focus(distance(light.posW, posW.xyz));
@@ -98,6 +103,9 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
         rc = rc.reflect(ray.Direction, faceNormalW);
         rc = rc.orthogonalize();
     }
+
+    if(dot(ray.Direction, faceNormalW) <= 0.0)
+        return 0.0; // backfacing surface
     
     // send initial ray
     float visibility = calcVisibility(ray, rc, frameDim);

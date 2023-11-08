@@ -70,7 +70,7 @@ RenderPassReflection RayShadow::reflect(const CompileData& compileData)
 
     reflector.addOutput(kVisibility, "Visibility map. Values are [0,1] where 0 means the pixel is completely shadowed and 1 means it's not shadowed at all")
         .format(ResourceFormat::R8Unorm)
-        .texture2D(mInputSize.x, mInputSize.y)
+        .texture2D(mInputSize.x, mInputSize.y, 1, 1, mLightCount)
         .bindFlags(ResourceBindFlags::RenderTarget);
     return reflector;
 }
@@ -103,23 +103,32 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add(mpScene->getSceneDefines());
         mpPass = FullScreenPass::create(mpDevice, desc, defines);
-
-
     }
 
-    mpPass->getRootVar()["gPos"] = pPos;
-    mpPass->getRootVar()["gNormal"] = pNormal;
+    auto var = mpPass->getRootVar();
+    var["gPos"] = pPos;
+    var["gNormal"] = pNormal;
+    var["PerLightBuffer"]["gPointLightClip"] = mPointLightClip;
 
     // raytracing data
-    auto var = mpPass->getRootVar();
     mpScene->setRaytracingShaderData(pRenderContext, var);
 
-    mpFbo->attachColorTarget(pVisibility, 0);
-    mpPass->execute(pRenderContext, mpFbo);
+    auto nLights = std::min(mLightCount, (int)mpScene->getLightCount());
+    for(int i = 0; i < nLights; i++)
+    {
+        var["PerLightBuffer"]["gLightIndex"] = i;
+        mpFbo->attachColorTarget(pVisibility, 0, 0, i, 1);
+        mpPass->execute(pRenderContext, mpFbo);
+    }
 }
 
 void RayShadow::renderUI(Gui::Widgets& widget)
 {
+    if(widget.var("Lights", mLightCount, 1, 128))
+    {
+        requestRecompile();
+    }
+    widget.var("Point Light Clip", mPointLightClip, 0.0f);
 }
 
 void RayShadow::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

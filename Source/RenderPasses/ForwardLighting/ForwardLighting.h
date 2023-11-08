@@ -63,6 +63,7 @@ private:
     
     float mEnvMapIntensity = 1.0f;
     float mAmbientIntensity = 1.0f;
+    float mLightIntensity = 1.0f;
 
     bool mDirty = true;
 };

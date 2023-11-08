@@ -54,6 +54,8 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
     RayShadow(ref<Device> pDevice);
 private:
+    int mLightCount = 1;
+    float mPointLightClip = 0.2f;
 
     ref<FullScreenPass> mpPass;
 

@@ -37,6 +37,7 @@ namespace
 
     const std::string kAmbientIntensity = "ambientIntensity";
     const std::string kEnvMapIntensity = "envMapIntensity";
+    const std::string kLightIntensity = "lightIntensity";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -63,6 +64,7 @@ ref<ForwardLighting> ForwardLighting::create(ref<Device> pDevice, const Properti
     {
         if (key == kEnvMapIntensity) pPass->mEnvMapIntensity = value;
         else if (key == kAmbientIntensity) pPass->mAmbientIntensity = value;
+        else if (key == kLightIntensity) pPass->mLightIntensity = value;
         else logWarning("Unknown field '{}' in a ForwardLightingPass dictionary.", key);
     }
     return pPass;
@@ -73,6 +75,7 @@ Properties ForwardLighting::getProperties() const
     Properties d;
     d[kEnvMapIntensity] = mEnvMapIntensity;
     d[kAmbientIntensity] = mAmbientIntensity;
+    d[kLightIntensity] = mLightIntensity;
     return d;
 }
 
@@ -81,7 +84,9 @@ RenderPassReflection ForwardLighting::reflect(const CompileData& compileData)
     
     RenderPassReflection reflector;
     reflector.addInput(kDepth, "Non-linear z-buffer");
-    reflector.addInput(kVisBuffer, "Visibility buffer used for shadowing. Range is [0,1] where 0 means the pixel is fully-shadowed and 1 means the pixel is not shadowed at all").flags(RenderPassReflection::Field::Flags::Optional);
+    reflector.addInput(kVisBuffer, "Visibility buffer used for shadowing. Range is [0,1] where 0 means the pixel is fully-shadowed and 1 means the pixel is not shadowed at all")
+    .flags(RenderPassReflection::Field::Flags::Optional)
+    .texture2D(0, 0, 1, 1, 0);
     reflector.addInputOutput(kColor, "Color texture");
 
     return reflector;
@@ -104,6 +109,7 @@ void ForwardLighting::execute(RenderContext* pRenderContext, const RenderData& r
     {
         mpVars->getRootVar()["ConstantCB"]["gAmbientIntensity"] = mAmbientIntensity;
         mpVars->getRootVar()["ConstantCB"]["gEnvMapIntensity"] = mEnvMapIntensity;
+        mpVars->getRootVar()["ConstantCB"]["gLightIntensity"] = mLightIntensity;
         mDirty = false;
     }
 
@@ -114,6 +120,7 @@ void ForwardLighting::renderUI(Gui::Widgets& widget)
 {
     if (widget.var("Ambient Intensity", mAmbientIntensity, 0.f, 100.f, 0.1f)) mDirty = true;
     if (widget.var("Env Map Intensity", mEnvMapIntensity, 0.f, 100.f, 0.1f)) mDirty = true;
+    if (widget.var("Scene Light Intensity", mLightIntensity, 0.f, 100.f, 0.1f)) mDirty = true;
 }
 
 void ForwardLighting::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

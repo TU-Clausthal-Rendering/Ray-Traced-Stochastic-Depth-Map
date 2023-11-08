@@ -2,12 +2,13 @@ import Scene.Raster;
 import Utils.Sampling.TinyUniformSampleGenerator;
 import Rendering.Lights.LightHelpers;
 
-Texture2D<float> visibilityBuffer;
+Texture2DArray<float> visibilityBuffer;
 
 cbuffer ConstantCB
 {
     float gAmbientIntensity;
     float gEnvMapIntensity;
+    float gLightIntensity;
 };
 
 VSOut vsMain(VSIn vIn)
@@ -58,17 +59,20 @@ float4 psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID) : SV_TARGET
     
     TinyUniformSampleGenerator sg = TinyUniformSampleGenerator(pixel, 0);
 
+    uint visWidth, visHeight, visSlices;
+    visibilityBuffer.GetDimensions(visWidth, visHeight, visSlices);
+    
     // Direct lighting from analytic light sources
     for (int i = 0; i < gScene.getLightCount(); i++)
     {
         AnalyticLightSample ls;
         evalLightApproximate(sd.posW, gScene.getLight(i), ls);
         float shadow = 1.0;
-        if(i == 0)
-            shadow = visibilityBuffer[pixel];
+        if(i < visSlices)
+            shadow = visibilityBuffer[uint3(pixel, i)];
 
         
-        color += shadow * mi.eval(sd, ls.dir, sg) * ls.Li;
+        color += shadow * mi.eval(sd, ls.dir, sg) * ls.Li * gLightIntensity;
         
     }
 
