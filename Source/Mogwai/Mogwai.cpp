@@ -850,6 +850,7 @@ int main(int argc, char** argv)
     args::Flag generateShaderDebugInfoFlag(parser, "", "Generate shader debug info.", {"debug-shaders"});
     args::Flag enableDebugLayerFlag(parser, "", "Enable debug layer (enabled by default in Debug build).", {"enable-debug-layer"});
     args::Flag preciseProgramFlag(parser, "", "Force all slang programs to run in precise mode", { "precise" });
+    args::Flag hdrFlag(parser, "", "Use 16 bit swapchain for HDR displays", { "hdr" });
 
     args::CompletionFlag completionFlag(parser, {"complete"});
 
@@ -928,6 +929,8 @@ int main(int argc, char** argv)
         config.generateShaderDebugInfo = true;
     if (preciseProgramFlag)
         config.shaderPreciseFloat = true;
+    if (hdrFlag)
+        config.colorFormat = ResourceFormat::RGBA16Float;
 
     config.windowDesc.title = "Mogwai";
     if (widthFlag)
