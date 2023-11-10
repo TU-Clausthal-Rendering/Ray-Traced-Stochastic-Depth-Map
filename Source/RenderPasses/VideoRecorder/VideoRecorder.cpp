@@ -72,6 +72,69 @@ void VideoRecorder::execute(RenderContext* pRenderContext, const RenderData& ren
     mClock.tick();
 }
 
+// helper for fuzzy string matching
+int levenshteinDistance(const std::string& s1, const std::string& s2) {
+    const int len1 = s1.length() + 1;
+    const int len2 = s2.length() + 1;
+
+    std::vector<std::vector<int>> dp(len1, std::vector<int>(len2, 0));
+
+    for (int i = 0; i < len1; ++i) {
+        for (int j = 0; j < len2; ++j) {
+            if (i == 0) {
+                dp[i][j] = j;
+            }
+            else if (j == 0) {
+                dp[i][j] = i;
+            }
+            else {
+                dp[i][j] = std::min({ dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1) });
+            }
+        }
+    }
+
+    return dp[len1 - 1][len2 - 1];
+}
+
+int fuzzyRatio(const std::string& s1, const std::string& s2) {
+    const int distance = levenshteinDistance(s1, s2);
+    const int maxLength = std::max(s1.length(), s2.length());
+
+    if (maxLength == 0) {
+        return 100;  // Both strings are empty, consider them a perfect match
+    }
+    else {
+        return static_cast<int>(100.0f * (1.0f - static_cast<float>(distance) / maxLength));
+    }
+}
+
+std::vector<std::string> fuzzyFilter(const std::vector<std::string>& strings, std::string filter)
+{
+    // convert to lower
+    std::transform(filter.begin(), filter.end(), filter.begin(), [](unsigned char c) { return std::tolower(c); });
+
+    std::vector<std::pair<int, std::string>> tmp;
+    for (const auto& s : strings)
+    {
+        auto slower = s;
+        std::transform(slower.begin(), slower.end(), slower.begin(), [](unsigned char c) { return std::tolower(c); });
+        tmp.push_back({ fuzzyRatio(slower, filter), s });
+    }
+
+    // sort result based on first element of pair (fuzzy ratio)
+    std::sort(tmp.begin(), tmp.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+
+    // remove fuzzy ratio from result
+    std::vector<std::string> result;
+    for(auto& e : tmp)
+    {
+        if (e.first <= 0) break; // no more matches
+        result.push_back(move(e.second));
+    }
+
+    return result;
+}
+
 void VideoRecorder::renderUI(Gui::Widgets& widget)
 {
     widget.text("Path Points: " + std::to_string(mPathPoints.size()));
@@ -177,7 +240,14 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
         {
             mOutputs.clear();
         }
+
         auto allOutputs = mpRenderGraph->getAvailableOutputs();
+        g.textbox("Filter", mOutputFilter);
+        if(mOutputFilter.size())
+        {
+            allOutputs = fuzzyFilter(allOutputs, mOutputFilter);
+        }
+
         for(const auto& name : allOutputs)
         {
             bool selected = mOutputs.count(name) != 0;
