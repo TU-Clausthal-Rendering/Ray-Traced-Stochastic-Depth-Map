@@ -109,6 +109,11 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
         }
     }
 
+    if(widget.checkbox("Loop", mLoop, true))
+    {
+        if (mState == State::Idle && mPathPoints.size()) startPreview();
+    }
+
     if(mState == State::Render)
     {
         if (widget.button("Render Stop"))
@@ -172,13 +177,17 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
         {
             mOutputs.clear();
         }
-        for(uint32_t i = 0; i < mpRenderGraph->getOutputCount(); i++)
+        auto allOutputs = mpRenderGraph->getAvailableOutputs();
+        for(const auto& name : allOutputs)
         {
-            auto name = mpRenderGraph->getOutputName(i);
             bool selected = mOutputs.count(name) != 0;
             if(g.checkbox(name.c_str(), selected))
             {
-                if(selected) mOutputs.insert(name);
+                if (selected)
+                {
+                    mOutputs.insert(name);
+                    mpRenderGraph->markOutput(name);
+                }
                 else mOutputs.erase(name);
             }
             if(selectAll) mOutputs.insert(name);
@@ -329,8 +338,12 @@ void VideoRecorder::updateCamera()
         cam->setTarget(p.pos + p.dir);
         if(p.time >= mPathPoints.back().time)
         {
-            // stop animation
-            stopPreview();
+            if(mLoop)
+            {
+                mClock.setTime(0.0);
+            }
+            else // stop animation
+                stopPreview();
         }
     }  break;
 

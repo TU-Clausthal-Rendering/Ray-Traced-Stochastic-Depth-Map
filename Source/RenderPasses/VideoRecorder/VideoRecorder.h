@@ -109,4 +109,5 @@ private:
     std::vector<Gui::DropdownValue> mFileList;
     uint32_t mLoadIndex = 0;
     float mTimeScale = 1.0;
+    bool mLoop = false;
 };
