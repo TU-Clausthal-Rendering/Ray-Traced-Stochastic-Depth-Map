@@ -204,6 +204,7 @@ namespace Mogwai
 
         KeyCallback mKeyCallback;
         FILE*       mPipedOutput = nullptr;
+        float       mOutputScale = 1.0f;
 
         // Scripting
         void registerScriptBindings(pybind11::module& m);

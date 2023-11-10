@@ -716,8 +716,17 @@ namespace Mogwai
             if (mGraphs[mActiveGraph].mainOutput.size())
             {
                 ref<Texture> pOutTex = pGraph->getOutput(mGraphs[mActiveGraph].mainOutput)->asTexture();
+                float scale = mOutputScale;
+                const Sampler::ReductionMode componentsReduction[] = {
+                    Sampler::ReductionMode::Standard, Sampler::ReductionMode::Standard, Sampler::ReductionMode::Standard,
+                    Sampler::ReductionMode::Standard
+                };
+                const float4 componentsTransform[] = {
+                    float4(scale, 0.0f, 0.0f, 0.0f), float4(0.0f, scale, 0.0f, 0.0f), float4(0.0f, 0.0f, scale, 0.0f), float4(0.0f, 0.0f, 0.0f, 1.0f)
+                };
                 if(pOutTex)
-                    pRenderContext->blit(pOutTex->getSRV(), pTargetFbo->getRenderTargetView(0));
+                    pRenderContext->blit(pOutTex->getSRV(), pTargetFbo->getRenderTargetView(0),
+                        RenderContext::kMaxRect, RenderContext::kMaxRect, Sampler::Filter::Linear, componentsReduction, componentsTransform);
             }
 
             if (getSettings().getOption("PipedOutput:enable", false))
@@ -776,6 +785,23 @@ namespace Mogwai
             if (keyEvent.type == KeyboardEvent::Type::KeyPressed && mKeyCallback(true, (uint32_t)keyEvent.key)) return true;
             if (keyEvent.type == KeyboardEvent::Type::KeyReleased && mKeyCallback(false, (uint32_t)keyEvent.key)) return true;
         }
+
+        if (keyEvent.type == KeyboardEvent::Type::KeyPressed)
+        {
+            if (keyEvent.mods == Input::ModifierFlags::None)
+            {
+                switch (keyEvent.key)
+                {
+                case Input::Key::RightBracket: // german +
+                    mOutputScale *= 2.0f;
+                    return true;
+                case Input::Key::Slash: // german -
+                    mOutputScale *= 0.5f;
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 

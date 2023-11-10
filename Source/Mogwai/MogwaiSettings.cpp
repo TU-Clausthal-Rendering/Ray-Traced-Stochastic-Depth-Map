@@ -60,6 +60,20 @@ namespace Mogwai
         {
             Gui::Window w(pGui, "##FPS", { 0, 0 }, { 10, 25 }, Gui::WindowFlags::AllowMove | Gui::WindowFlags::AutoResize | Gui::WindowFlags::SetFocus);
             std::string msg = pRenderer->getFrameRate().getMsg(pRenderer->isVsyncEnabled());
+            auto scale = pRenderer->mOutputScale;
+            if (scale != 1.0f)
+            {
+                msg = msg + " x" + std::to_string(scale);
+                // remove trailing zeros
+                size_t dotIndex = msg.find_last_of('.');
+                if (dotIndex != std::string::npos) {
+                    msg.erase(msg.find_last_not_of('0') + 1); // Remove trailing zeros
+                    if (msg.back() == '.') {
+                        msg.pop_back(); // Remove the decimal point if it's at the end
+                    }
+                }
+            }
+
             w.text(msg);
         }
 
