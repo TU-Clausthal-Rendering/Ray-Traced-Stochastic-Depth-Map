@@ -46,7 +46,8 @@ class VideoRecorder : public RenderPass
         Idle,
         Record, // record path
         Preview, // preview path in app
-        Render // render to video file
+        Render, // render to video file
+        Warmup // warmup prior to render that should fix temporal artifacts
     };
 public:
     FALCOR_PLUGIN_CLASS(VideoRecorder, "VideoRecorder", "Insert pass description here.");
@@ -84,6 +85,8 @@ private:
     void stopPreview();
     void startRender();
     void stopRender();
+    void startWarmup();
+    void stopWarmup();
     void smoothPath();
 
     void savePath(const std::string& filename) const;

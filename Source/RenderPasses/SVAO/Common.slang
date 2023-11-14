@@ -109,11 +109,16 @@ uint2 pcg2d(uint2 v)
     return v;
 }
 
+static const float2 jitterPos[16] = { float2(0.125, 0.125), float2(0.125, 0.375), float2(0.125, 0.625), float2(0.125, 0.875), float2(0.375, 0.125), float2(0.375, 0.375), float2(0.375, 0.625), float2(0.375, 0.875), float2(0.625, 0.125), float2(0.625, 0.375), float2(0.625, 0.625), float2(0.625, 0.875), float2(0.875, 0.125), float2(0.875, 0.375), float2(0.875, 0.625), float2(0.875, 0.875) };
+
 float2 randomJitter(uint2 pixel)
 {
 #if STOCH_MAP_JITTER
     uint2 rnd = pcg2d(pixel);
-    return float2(rnd % 2048u) / 2048.0;
+    return float2(rnd % 2048) / 2048.0;
+    pixel = pixel % 4u;
+    uint index = pixel.y * 4 + pixel.x;
+    return jitterPos[index];
 #else
     return float2(0.5);
 #endif

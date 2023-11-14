@@ -177,18 +177,19 @@ void VideoRecorder::renderUI(Gui::Widgets& widget)
         if (mState == State::Idle && mPathPoints.size()) startPreview();
     }
 
-    if(mState == State::Render)
+    if(mState == State::Render || mState == State::Warmup)
     {
         if (widget.button("Render Stop"))
         {
-            stopRender();
+            forceIdle();
         }
     }
     else
     {
         if(widget.button("Render Start") && mPathPoints.size() && mState == State::Idle && mOutputs.size())
         {
-            startRender();
+            //startRender();
+            startWarmup();
         }
         if (mOutputs.empty()) widget.tooltip("No outputs selected. Nothing will be saved to file!");
     }
@@ -370,7 +371,7 @@ void VideoRecorder::updateCamera()
     auto cam = mpScene->getCamera();
 
     // helper function to get the interpolated path point based on time
-    auto getInterpolatedPathPoint = [&]()
+    auto getInterpolatedPathPoint = [&](float time)
     {
         assert(mPathPoints.size());
         const auto& path = mSmoothPoints.empty() ? mPathPoints : mSmoothPoints;
@@ -403,7 +404,7 @@ void VideoRecorder::updateCamera()
         break;
     case State::Preview:
     {
-        auto p = getInterpolatedPathPoint();
+        auto p = getInterpolatedPathPoint(time);
         cam->setPosition(p.pos);
         cam->setTarget(p.pos + p.dir);
         if(p.time >= mPathPoints.back().time)
@@ -418,7 +419,8 @@ void VideoRecorder::updateCamera()
     }  break;
 
     case State::Render:
-        auto p = getInterpolatedPathPoint();
+    {
+        auto p = getInterpolatedPathPoint(time);
         cam->setPosition(p.pos);
         cam->setTarget(p.pos + p.dir);
         if (p.time >= mPathPoints.back().time)
@@ -426,7 +428,19 @@ void VideoRecorder::updateCamera()
             // stop animation
             stopRender();
         }
-        break;
+    }  break;
+
+    case State::Warmup:
+    {
+        auto p = getInterpolatedPathPoint(0.0f);
+        cam->setPosition(p.pos);
+        cam->setTarget(p.pos + p.dir);
+        if(mRenderIndex++ > 100)
+        {
+            startRender(); // after 100 warmup frames, start rendering
+        }
+    }  break;
+
     }
 }
 
@@ -465,6 +479,17 @@ void VideoRecorder::startRender()
     mClock.setFramerate(mFps); // use framerate for render
     mRenderIndex = 0;
 }
+
+void VideoRecorder::startWarmup()
+{
+    assert(mState != State::Record);
+    if (mState == State::Record) return;
+
+    mState = State::Warmup;
+    mRenderIndex = 0;
+}
+
+
 
 void VideoRecorder::stopRecording()
 {
@@ -543,6 +568,14 @@ void VideoRecorder::stopRender()
         }
     }
 }
+
+void VideoRecorder::stopWarmup()
+{
+    // stop warmup and transition to render
+    assert(mState == State::Warmup);
+    startRender();
+}
+
 
 void VideoRecorder::smoothPath()
 {
@@ -641,7 +674,10 @@ void VideoRecorder::forceIdle()
         stopPreview();
         break;
     case State::Render:
-        stopRender();
+        //stopRender();
+        //break;
+    case State::Warmup:
+        mState = State::Idle;
         break;
     }
 
