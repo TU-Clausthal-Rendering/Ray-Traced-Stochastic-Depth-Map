@@ -61,6 +61,8 @@ RenderPassReflection VideoRecorder::reflect(const CompileData& compileData)
 void VideoRecorder::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     auto renderDict = renderData.getDictionary();
+
+    // set render graph
     auto pRenderGraph = (RenderGraph*)renderDict[kRenderGraph];
     if(mpRenderGraph != pRenderGraph)
     {
@@ -69,6 +71,11 @@ void VideoRecorder::execute(RenderContext* pRenderContext, const RenderData& ren
         if(pRenderGraph && pRenderGraph->getOutputCount() > 0) mOutputs.insert(pRenderGraph->getOutputName(0));
     }
     mpRenderGraph = pRenderGraph;
+
+    // set guard band
+    guardBand = renderDict.getValue("guardBand", 0);
+
+
     mClock.tick();
 }
 
@@ -135,11 +142,11 @@ std::vector<std::string> fuzzyFilter(const std::vector<std::string>& strings, st
     return result;
 }
 
-void VideoRecorder::renderUI(Gui::Widgets& widget)
+void VideoRecorder::renderUI(RenderContext* pRenderContext, Gui::Widgets& widget)
 {
     widget.text("Path Points: " + std::to_string(mPathPoints.size()));
 
-    saveFrame();
+    saveFrame(pRenderContext);
 
     if (mState == State::Record)
     {
@@ -332,7 +339,7 @@ void deleteFile(const std::string& filePath) {
     catch (const std::exception&) { }
 }
 
-void VideoRecorder::saveFrame()
+void VideoRecorder::saveFrame(RenderContext* pRenderContext)
 {
     if (mState != State::Render) return;
     assert(mpRenderGraph);
@@ -359,7 +366,21 @@ void VideoRecorder::saveFrame()
         auto filenameBase = outputName + "/frame" + outputName;
         std::stringstream filename;
         filename << filenameBase << std::setfill('0') << std::setw(4) << mRenderIndex << ".bmp";
-        tex->captureToFile(0, 0, filename.str(), Bitmap::FileFormat::BmpFile);
+
+        // blit texture
+        uint4 srcRect = uint4(guardBand, guardBand, tex->getWidth() - guardBand, tex->getHeight() - guardBand);
+        if(!mpBlitTexture ||
+            mpBlitTexture->getWidth() != tex->getWidth() - 2 * guardBand ||
+            mpBlitTexture->getHeight() != tex->getHeight() - 2 * guardBand)
+        {
+            mpBlitTexture = Texture::create2D(
+                mpDevice, tex->getWidth() - 2 * guardBand, tex->getHeight() - 2 * guardBand, ResourceFormat::BGRA8UnormSrgb, 1, 1, nullptr, ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource);
+        }
+
+        pRenderContext->blit(tex->getSRV(), mpBlitTexture->getRTV(), srcRect);
+
+        //tex->captureToFile(0, 0, filename.str(), Bitmap::FileFormat::BmpFile);
+        mpBlitTexture->captureToFile(0, 0, filename.str(), Bitmap::FileFormat::BmpFile);
     }
 }
 
