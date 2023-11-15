@@ -110,6 +110,7 @@ private:
     float mTimeScale = 1.0;
     bool mLoop = false;
     std::string mOutputFilter;
+    std::string mOutputPrefix;
 
     int guardBand = 0;
     ref<Texture> mpBlitTexture;

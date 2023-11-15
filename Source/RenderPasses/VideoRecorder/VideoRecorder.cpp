@@ -61,7 +61,7 @@ RenderPassReflection VideoRecorder::reflect(const CompileData& compileData)
 void VideoRecorder::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     auto renderDict = renderData.getDictionary();
-
+            
     // set render graph
     auto pRenderGraph = (RenderGraph*)renderDict[kRenderGraph];
     if(mpRenderGraph != pRenderGraph)
@@ -200,6 +200,8 @@ void VideoRecorder::renderUI(RenderContext* pRenderContext, Gui::Widgets& widget
         }
         if (mOutputs.empty()) widget.tooltip("No outputs selected. Nothing will be saved to file!");
     }
+
+    widget.textbox("Prefix", mOutputPrefix);
 
     widget.var("FPS", mFps, 1, 240);
 
@@ -453,10 +455,12 @@ void VideoRecorder::updateCamera()
 
     case State::Warmup:
     {
-        auto p = getInterpolatedPathPoint(0.0f);
+        size_t warmupFrames = 120;
+        float t = 1.0f - (float)mRenderIndex / (float)warmupFrames;
+        auto p = getInterpolatedPathPoint(t); // fix some issues with temporal passes 
         cam->setPosition(p.pos);
         cam->setTarget(p.pos + p.dir);
-        if(mRenderIndex++ > 100)
+        if(mRenderIndex++ > warmupFrames)
         {
             startRender(); // after 100 warmup frames, start rendering
         }
@@ -569,7 +573,7 @@ void VideoRecorder::stopRender()
         auto filenameBase = outputName + "/frame" + outputName;
         char buffer[2048];
 
-        std::string outputFilename = outputName + ".mp4";
+        std::string outputFilename = mOutputPrefix + outputName + ".mp4";
         deleteFile(outputFilename); // delete old file (otherwise ffmpeg will not write anything)
         sprintf_s(buffer, "ffmpeg -r %d -i %s%%04d.bmp -c:v libx264 -preset medium -crf 12 -vf \"fps=%d,format=yuv420p\" \"%s\" 2>&1", mFps, filenameBase.c_str(), mFps, outputFilename.c_str());
 

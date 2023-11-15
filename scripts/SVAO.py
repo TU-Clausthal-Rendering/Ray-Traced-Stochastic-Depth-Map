@@ -25,7 +25,7 @@ def render_graph_SVAO():
     g.create_pass('ReconstructNormals', 'ReconstructNormals', {'compress': True, 'use16Bit': True})
     g.create_pass('Switch', 'Switch', {'count': 2, 'selected': 0, 'i0': 'GBuffer', 'i1': 'Reconstructed'})
     g.create_pass('AOFlickerMask', 'AOFlickerMask', {})
-    g.create_pass('TemporalAO', 'TemporalAO', {'enabled': True, 'useStableMask': True})
+    g.create_pass('TemporalAO', 'TemporalAO', {'enabled': False, 'useStableMask': True})
     g.create_pass('AOSwitch', 'Switch', {'count': 2, 'selected': 1, 'i0': 'Default', 'i1': 'TemporalAO'})
     g.create_pass('BinaryDilation', 'BinaryDilation', {'op': 'min'})
     g.create_pass('VideoRecorder', 'VideoRecorder', {})
