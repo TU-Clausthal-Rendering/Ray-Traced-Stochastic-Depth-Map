@@ -27,6 +27,8 @@
  **************************************************************************/
 #include "GuardBand.h"
 
+#include "RenderGraph/RenderPassStandardFlags.h"
+
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
     registry.registerClass<RenderPass, GuardBand>();
@@ -57,6 +59,8 @@ void GuardBand::execute(RenderContext* pRenderContext, const RenderData& renderD
     dict["guardBand"] = mGuardBand;
     dict["guardBand.uvMin"] = float2(float(mGuardBand) + 0.5f) / float2(renderData.getDefaultTextureDims());
     dict["guardBand.uvMax"] = (float2(renderData.getDefaultTextureDims()) - float2(float(mGuardBand) + 0.5f)) / float2(renderData.getDefaultTextureDims());
+
+    mApp = dict[kRenderer];
 }
 
 void GuardBand::renderUI(Gui::Widgets& widget)
@@ -65,5 +69,13 @@ void GuardBand::renderUI(Gui::Widgets& widget)
     if (widget.button("Recompile"))
     {
         requestRecompile();
+    }
+    if(widget.button("Resize 1920x1080") && mApp)
+    {
+        mApp->resizeFrameBuffer(1920 + 2 * mGuardBand, 1080 + 2 * mGuardBand);
+    }
+    if (widget.button("Resize 800x600") && mApp)
+    {
+        mApp->resizeFrameBuffer(800 + 2 * mGuardBand, 600 + 2 * mGuardBand);
     }
 }

@@ -52,6 +52,8 @@ static const char kRenderPassTime[] = "_time";
 
 static const char kRenderGraph[] = "_renderGraph";
 
+static const char kRenderer[] = "_renderer";
+
 /**
  * First available preudorandom number generator dimension.
  */

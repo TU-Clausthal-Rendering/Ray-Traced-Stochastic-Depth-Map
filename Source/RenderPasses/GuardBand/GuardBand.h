@@ -27,6 +27,7 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
+#include "Core/SampleApp.h"
 #include "RenderGraph/RenderPass.h"
 
 using namespace Falcor;
@@ -51,4 +52,5 @@ public:
 
 private:
     int mGuardBand = 64;
+    SampleApp* mApp = nullptr;
 };
