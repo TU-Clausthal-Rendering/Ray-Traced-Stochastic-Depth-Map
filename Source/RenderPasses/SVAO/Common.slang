@@ -114,11 +114,14 @@ static const float2 jitterPos[16] = { float2(0.125, 0.125), float2(0.125, 0.375)
 float2 randomJitter(uint2 pixel)
 {
 #if STOCH_MAP_JITTER
+    //return frac(pixel * float2(0.618033988749, 0.41421356237)); // additive recurrence
     uint2 rnd = pcg2d(pixel);
-    return float2(rnd % 2048) / 2048.0;
+    //return float2(rnd % 2048) / 2048.0;
+    uint2 block = pixel / 4u;
     pixel = pixel % 4u;
     uint index = pixel.y * 4 + pixel.x;
     return jitterPos[index];
+    return frac(jitterPos[index] + block * float2(0.41421356237, 0.73205080757)); // additive recurrence
 #else
     return float2(0.5);
 #endif
