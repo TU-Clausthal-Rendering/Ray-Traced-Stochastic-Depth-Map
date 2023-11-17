@@ -1,6 +1,7 @@
 import Scene.Raster;
 import Utils.Sampling.TinyUniformSampleGenerator;
 import Rendering.Lights.LightHelpers;
+import Rendering.Materials.Fresnel;
 
 Texture2DArray<float> visibilityBuffer;
 
@@ -9,6 +10,7 @@ cbuffer ConstantCB
     float gAmbientIntensity;
     float gEnvMapIntensity;
     float gLightIntensity;
+    bool gEnvMapMirror;
 };
 
 VSOut vsMain(VSIn vIn)
@@ -53,9 +55,13 @@ float4 psMain(VSOut vsOut, uint triangleIndex : SV_PrimitiveID) : SV_TARGET
     float diffLod = roughnessToLod(bsdf.roughness * 2.0);
     float specLod = roughnessToLod(bsdf.roughness);
     float envMaxIntensity = roughnessToIntensity(bsdf.roughness);
+    float F = evalFresnelSchlick(0.3, 1.0, max(0.0, dot(viewDir, bsdf.guideNormal)));
     color += gEnvMapIntensity * bsdf.diffuseReflectionAlbedo * min(gScene.envMap.eval(lerp(sd.frame.N, sd.faceN, 0.8), diffLod), 1.0);
-    color += gEnvMapIntensity * bsdf.specularReflectionAlbedo * min(gScene.envMap.eval(R, specLod), envMaxIntensity);
-    
+    color += F * gEnvMapIntensity * bsdf.specularReflectionAlbedo * min(gScene.envMap.eval(R, specLod), envMaxIntensity);
+
+    // perfect mirror
+    if (gEnvMapMirror && bsdf.roughness < 0.08)
+        color += F * gScene.envMap.eval(R, specLod);
     
     TinyUniformSampleGenerator sg = TinyUniformSampleGenerator(pixel, 0);
 

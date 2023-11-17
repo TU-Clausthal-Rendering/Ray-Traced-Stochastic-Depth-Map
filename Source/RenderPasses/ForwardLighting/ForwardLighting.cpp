@@ -38,6 +38,7 @@ namespace
     const std::string kAmbientIntensity = "ambientIntensity";
     const std::string kEnvMapIntensity = "envMapIntensity";
     const std::string kLightIntensity = "lightIntensity";
+    const std::string kEnvMapMirror = "envMapMirror";
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
@@ -65,6 +66,7 @@ ref<ForwardLighting> ForwardLighting::create(ref<Device> pDevice, const Properti
         if (key == kEnvMapIntensity) pPass->mEnvMapIntensity = value;
         else if (key == kAmbientIntensity) pPass->mAmbientIntensity = value;
         else if (key == kLightIntensity) pPass->mLightIntensity = value;
+        else if (key == kEnvMapMirror) pPass->mEnvMapMirror = value;
         else logWarning("Unknown field '{}' in a ForwardLightingPass dictionary.", key);
     }
     return pPass;
@@ -76,6 +78,7 @@ Properties ForwardLighting::getProperties() const
     d[kEnvMapIntensity] = mEnvMapIntensity;
     d[kAmbientIntensity] = mAmbientIntensity;
     d[kLightIntensity] = mLightIntensity;
+    d[kEnvMapMirror] = mEnvMapMirror;
     return d;
 }
 
@@ -110,6 +113,7 @@ void ForwardLighting::execute(RenderContext* pRenderContext, const RenderData& r
         mpVars->getRootVar()["ConstantCB"]["gAmbientIntensity"] = mAmbientIntensity;
         mpVars->getRootVar()["ConstantCB"]["gEnvMapIntensity"] = mEnvMapIntensity;
         mpVars->getRootVar()["ConstantCB"]["gLightIntensity"] = mLightIntensity;
+        mpVars->getRootVar()["ConstantCB"]["gEnvMapMirror"] = mEnvMapMirror;
         mDirty = false;
     }
 
@@ -121,6 +125,7 @@ void ForwardLighting::renderUI(Gui::Widgets& widget)
     if (widget.var("Ambient Intensity", mAmbientIntensity, 0.f, 100.f, 0.1f)) mDirty = true;
     if (widget.var("Env Map Intensity", mEnvMapIntensity, 0.f, 100.f, 0.1f)) mDirty = true;
     if (widget.var("Scene Light Intensity", mLightIntensity, 0.f, 100.f, 0.1f)) mDirty = true;
+    if (widget.checkbox("Env Map Mirror Reflections", mEnvMapMirror)) mDirty = true;
 }
 
 void ForwardLighting::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
