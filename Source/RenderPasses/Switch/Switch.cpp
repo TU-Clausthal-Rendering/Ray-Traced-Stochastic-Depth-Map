@@ -114,6 +114,21 @@ void Switch::execute(RenderContext* pRenderContext, const RenderData& renderData
     auto pInput = renderData[inputName]->asTexture();
     auto pOutput = renderData[kOutput]->asTexture();
 
+    // check if the format still matches
+    if (pInput->getFormat() != pOutput->getFormat() ||
+        pInput->getBindFlags() != pOutput->getBindFlags() ||
+        pInput->getWidth() != pOutput->getWidth() ||
+        pInput->getHeight() != pOutput->getHeight() ||
+        pInput->getDepth() != pOutput->getDepth() ||
+        pInput->getSampleCount() != pOutput->getSampleCount() ||
+        pInput->getMipCount() != pOutput->getMipCount() ||
+        pInput->getArraySize() != pOutput->getArraySize())
+    {
+        logWarning("Switch::execute() - input and output formats don't match. Recompiling");
+        requestRecompile();
+        return;
+    }
+
     for(uint32_t mip = 0; mip < pInput->getMipCount(); ++mip)
     {
         for(uint32_t layer = 0; layer < pInput->getArraySize(); ++layer)
@@ -137,7 +152,7 @@ void Switch::renderUI(Gui::Widgets& widget)
 
     if (widget.dropdown("Switch", dropdowns, mSelectedIndex))
     {
-        requestRecompile();
+        //requestRecompile(); // try without recompile, recompile will happen in execute if formats were incompatible
     }
 
     if (auto group = widget.group("Configure", false))
