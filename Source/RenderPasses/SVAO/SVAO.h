@@ -124,7 +124,7 @@ private:
     
     uint mStochMapDivisor = 1; // 1 = same resolution, 2 = half resolution etc.
     bool mStochMapNormals = false;
-    bool mStochMapJitter = false;
+    bool mStochMapJitter = true; // very cheap
 
     bool mDualAo = false; // if true, AO will be two channel, one for bright and one for dark
     bool mAlphaTest = true; // use alpha test in raytracing or stochastic depth passes
