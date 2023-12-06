@@ -7,6 +7,7 @@ target_sources(StochasticDepthMapRT PRIVATE
     StochasticDepthMapRT.ps.slang
     Common.slangh
     Stencil.ps.slang
+    Jitter.slangh
 )
 
 target_copy_shaders(StochasticDepthMapRT RenderPasses/StochasticDepthMapRT)

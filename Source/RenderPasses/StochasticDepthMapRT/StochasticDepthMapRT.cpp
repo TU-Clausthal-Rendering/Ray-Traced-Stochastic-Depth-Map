@@ -378,6 +378,10 @@ void StochasticDepthMapRT::renderUI(Gui::Widgets& widget)
     if (widget.checkbox("Alpha Test", mAlphaTest))
         requestRecompile();
 
+    // select implementation
+    if (widget.dropdown("Implementation", mImplementation))
+        requestRecompile();
+
     //if (widget.checkbox("Use Ray Pipeline", mUseRayPipeline))
     //    requestRecompile();
 }

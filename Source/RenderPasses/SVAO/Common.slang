@@ -7,6 +7,8 @@ import Rendering.Materials.TexLODTypes;
 import Utils.Math.PackedFormats;
 //#include "Scene/Material/MaterialDefines.slangh"
 
+#include "../StochasticDepthMapRT/Jitter.slangh"
+
 // single depth texture
 #define DEPTH_MODE_SINGLE 0
 // two depth textures
@@ -89,42 +91,6 @@ float3 loadNormal(float2 texC)
     uint packedNormal = gNormalTex[texC * gData.resolution];
     //return decodeNormal2x16(packedNormal);
     return decodeNormal2x8(packedNormal);
-}
-
-// stochastic depth map jitter:
-uint2 pcg2d(uint2 v)
-{
-    v = v * 1664525u + 1013904223u;
-
-    v.x += v.y * 1664525u;
-    v.y += v.x * 1664525u;
-
-    v = v ^ (v >> 16u);
-
-    v.x += v.y * 1664525u;
-    v.y += v.x * 1664525u;
-
-    v = v ^ (v >> 16u);
-
-    return v;
-}
-
-static const float2 jitterPos[16] = { float2(0.125, 0.125), float2(0.125, 0.375), float2(0.125, 0.625), float2(0.125, 0.875), float2(0.375, 0.125), float2(0.375, 0.375), float2(0.375, 0.625), float2(0.375, 0.875), float2(0.625, 0.125), float2(0.625, 0.375), float2(0.625, 0.625), float2(0.625, 0.875), float2(0.875, 0.125), float2(0.875, 0.375), float2(0.875, 0.625), float2(0.875, 0.875) };
-
-float2 randomJitter(uint2 pixel)
-{
-#if STOCH_MAP_JITTER
-    //return frac(pixel * float2(0.618033988749, 0.41421356237)); // additive recurrence
-    uint2 rnd = pcg2d(pixel);
-    //return float2(rnd % 2048) / 2048.0;
-    uint2 block = pixel / 4u;
-    pixel = pixel % 4u;
-    uint index = pixel.y * 4 + pixel.x;
-    return jitterPos[index];
-    return frac(jitterPos[index] + block * float2(0.41421356237, 0.73205080757)); // additive recurrence
-#else
-    return float2(0.5);
-#endif
 }
 
 float2 getScreenClampedUV(float2 uvstart, float2 uvend)
@@ -597,18 +563,6 @@ ao_t calcAO2(uint2 svPos, uint mask)
             int2 pixelCoord = int2(floor(s.rasterSamplePosUV * float2(sdwidth, sdheight)));
             //float2 sdSampleUV = getSnappedUV(s.rasterSamplePosUV, float2(sdwidth, sdheight));
             float2 sdSampleUV = (pixelCoord + randomJitter(pixelCoord)) / float2(sdwidth, sdheight);
-
-            /*if (dot(sdSampleUV - texC, s.samplePosUV - texC) <= 0.0)
-            {
-                return -10.0;
-                float pxSize = 1.0 / max(sdwidth, sdheight);
-                float2 dir = sdSampleUV - texC;
-                float2 newUV = texC + dir * pxSize * 1.45;
-                newUV = getScreenClampedUV(texC, newUV);
-                pixelCoord = int2(floor(newUV * float2(sdwidth, sdheight)));
-                sdSampleUV = (pixelCoord + randomJitter(pixelCoord)) / float2(sdwidth, sdheight);
-            }*/
-            
             const float depthRange = gCamera.data.farZ - gCamera.data.nearZ;
             const float depthOffset = gCamera.data.nearZ;
             bool stochInside = false;

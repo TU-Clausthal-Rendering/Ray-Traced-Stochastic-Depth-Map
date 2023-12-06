@@ -76,7 +76,7 @@ private:
     ref<Buffer> mpMaterialAlphaTest;
 
     bool mClear = false;
-    bool mUseRayPipeline = true;
+    bool mUseRayPipeline = true; // faster
     bool mAlphaTest = true;
 
     bool mUse16Bit = false; // compresses depth to 16 bit, otherwise 32 bit

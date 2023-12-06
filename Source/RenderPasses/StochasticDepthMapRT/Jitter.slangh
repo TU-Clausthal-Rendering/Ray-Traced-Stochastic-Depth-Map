@@ -1,0 +1,49 @@
+uint2 pcg2d(uint2 v)
+{
+    v = v * 1664525u + 1013904223u;
+
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+
+    v = v ^ (v >> 16u);
+
+    v.x += v.y * 1664525u;
+    v.y += v.x * 1664525u;
+
+    v = v ^ (v >> 16u);
+
+    return v;
+}
+
+// default sobol 2d sequence (offset by 0.125)
+static const float2 jitterPos[16] = { float2(0.125, 0.125), float2(0.375, 0.875), float2(0.625, 0.625), float2(0.875, 0.375), float2(0.875, 0.375), float2(0.625, 0.625), float2(0.375, 0.875), float2(0.125, 0.125), float2(0.625, 0.625), float2(0.875, 0.375), float2(0.125, 0.125), float2(0.375, 0.875), float2(0.375, 0.875), float2(0.125, 0.125), float2(0.875, 0.375), float2(0.625, 0.625) };
+// compressed sobol 2d sequence (2 bits per component)
+static const uint jitterCompressed[2] = { 0x0da77ad0, 0xa70dd07a };
+
+// generated latin square (similar result as sobol)
+//static const float2 jitterPos[16] = { float2(0.125, 0.125), float2(0.125, 0.375), float2(0.125, 0.625), float2(0.125, 0.875), float2(0.375, 0.125), float2(0.375, 0.375), float2(0.375, 0.625), float2(0.375, 0.875), float2(0.625, 0.125), float2(0.625, 0.375), float2(0.625, 0.625), float2(0.625, 0.875), float2(0.875, 0.125), float2(0.875, 0.375), float2(0.875, 0.625), float2(0.875, 0.875) };
+
+float2 randomJitter(uint2 pixel)
+{
+    if (SD_JITTER)
+    {
+        //return frac(pixel * float2(0.41421356237, 0.73205080757)); // additive recurrence, very bad quality
+        //uint2 rnd = pcg2d(pixel); // pcg random => worse quality, bad stratification
+        //return float2(rnd % 2048u) / 2048.0;
+        uint2 block = pixel / 4u;
+        pixel = pixel % 4u;
+        uint index = pixel.y * 4 + pixel.x;
+
+        // compressed lookup (not faster on my hardware, but maybe on other hardware? same speed as uncrompressed for me)
+        /*uint integer_value = jitterCompressed[index / 8u]; // 8 points per uint
+        uint point_offset = index % 8u;
+        return float2(0.125 + 0.25 * uint2(
+            (integer_value >> (2u * 2u * point_offset)) & 0x3u,
+            (integer_value >> (2u * (2u * point_offset + 1u))) & 0x3u
+        ));*/
+        
+        return jitterPos[index];
+        // return frac(jitterPos[index] + block * float2(0.41421356237, 0.73205080757)); // additive recurrence (no quality difference, so we take simple lookup instead)
+    }
+    return float2(0.5);
+}

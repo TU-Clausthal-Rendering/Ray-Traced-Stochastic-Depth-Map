@@ -259,7 +259,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("DEPTH_MIPS", std::to_string(mDepthTexMips));
         defines.add("STOCH_MAP_DIVISOR", std::to_string(mStochMapDivisor) + "u");
         defines.add("STOCH_MAP_NORMALS", mStochMapNormals ? "1" : "0");
-        defines.add("STOCH_MAP_JITTER", mStochMapJitter ? "1" : "0");
+        defines.add("SD_JITTER", (mStochMapJitter && (mStochasticDepthImpl == Ray)) ? "1" : "0"); // only implemented for ray version
         defines.add("DUAL_AO", mDualAo ? "1" : "0");
         defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
         defines.add("USE_RAY_INTERVAL", mUseRayInterval ? "1" : "0");

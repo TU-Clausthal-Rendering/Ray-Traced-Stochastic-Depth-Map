@@ -59,8 +59,8 @@ void rayGen()
     uint2 svPos = DispatchRaysIndex().xy;
 
     uint mask = maskTex[svPos] & 0xFF;
-    if (mask == 0u)
-        return;
+    //if (mask == 0u)
+    //    return;
 
     RayDesc ray = initRayDesc(svPos, DispatchRaysDimensions().xy);
     
