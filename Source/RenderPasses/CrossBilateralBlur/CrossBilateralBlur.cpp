@@ -131,19 +131,20 @@ void CrossBilateralBlur::execute(RenderContext* pRenderContext, const RenderData
     // set scissor cb (is shared between both shaders)
     mpBlur->getRootVar()["ScissorCB"]["uvMin"] = dict.getValue("guardBand.uvMin", float2(0.0f));
     mpBlur->getRootVar()["ScissorCB"]["uvMax"] = dict.getValue("guardBand.uvMax", float2(1.0f));
+    mpBlur->getRootVar()["CB"]["betterSlope"] = (mBetterSlope ? 1 : 0);
 
     for (uint32_t i = 0; i < mRepetitions; ++i)
     {
         // blur in x
         mpBlur->getRootVar()["gSrcTex"] = pColor;
         mpFbo->attachColorTarget(pPingPong, 0);
-        mpBlur->getRootVar()["Direction"]["dir"] = float2(1.0f, 0.0f);
+        mpBlur->getRootVar()["CB"]["dir"] = float2(1.0f, 0.0f);
         mpBlur->execute(pRenderContext, mpFbo, false);
 
         // blur in y
         mpBlur->getRootVar()["gSrcTex"] = pPingPong;
         mpFbo->attachColorTarget(pColorOut, 0);
-        mpBlur->getRootVar()["Direction"]["dir"] = float2(0.0f, 1.0f);
+        mpBlur->getRootVar()["CB"]["dir"] = float2(0.0f, 1.0f);
         mpBlur->execute(pRenderContext, mpFbo, false);
     }
 }
@@ -154,5 +155,6 @@ void CrossBilateralBlur::renderUI(Gui::Widgets& widget)
     if (!mEnabled) return;
 
     if (widget.var("Kernel Radius", mKernelRadius, uint32_t(1), uint32_t(20))) requestRecompile();
+    widget.checkbox("Better Slope", mBetterSlope);
     widget.var("Blur Repetitions", mRepetitions, uint32_t(1), uint32_t(20));
 }

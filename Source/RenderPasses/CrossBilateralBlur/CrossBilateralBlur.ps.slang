@@ -16,9 +16,10 @@ cbuffer ScissorCB
     float2 uvMax;
 }
 
-cbuffer Direction
+cbuffer CB
 {
     float2 dir;
+    bool betterSlope;
 }
 
 // static constants
@@ -45,9 +46,9 @@ void AddSample(float sampleAO, float sampleDepth, float depthSlope, uint d, inou
     weightSum += w;
 }
 
-void BlurDirection(inout float AO, inout float weightSum)
+void BlurDirection(inout float AO, inout float weightSum, float slope)
 {
-    float depthSlope;
+    float depthSlope = slope;
     [unroll]
     for(uint d = 1; d <= KERNEL_RADIUS; d++)
     {
@@ -55,7 +56,7 @@ void BlurDirection(inout float AO, inout float weightSum)
         float sampleAO = gSrcTex.Sample(gSampler, sampleUv).x;
         float sampleDepth = gDepthTex.Sample(gSampler, sampleUv).x;
         // set depth slope after obtaining the first depth sample
-        if(d == 1) depthSlope = sampleDepth - gDepth;
+        if(d == 1 && !betterSlope) depthSlope = sampleDepth - gDepth;
 
         AddSample(sampleAO, sampleDepth, depthSlope, d, AO, weightSum);
     }
@@ -75,9 +76,17 @@ float4 main(BlurPSIn pIn) : SV_TARGET
     float weightSum = 1.0;
 
     // compute ao and weights for positive and negative direction
-    BlurDirection(AO, weightSum);
+    float minSlope = 0.0;
+    [branch] if(betterSlope)
+    {
+        float slopeLeft = gDepth - gDepthTex.Sample(gSampler, clamp(gUV - gDUV, uvMin, uvMax)).x;
+        float slopeRight = gDepthTex.Sample(gSampler, clamp(gUV + gDUV, uvMin, uvMax)).x - gDepth;
+        minSlope = abs(slopeLeft) < abs(slopeRight) ? slopeLeft : slopeRight;
+    }
+    
+    BlurDirection(AO, weightSum, minSlope);
     gDUV = -gDUV; // reverse direction
-    BlurDirection(AO, weightSum);
+    BlurDirection(AO, weightSum, -minSlope);
 
     return AO / weightSum;
 }

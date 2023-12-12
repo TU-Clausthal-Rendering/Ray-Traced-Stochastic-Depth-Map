@@ -61,6 +61,7 @@ private:
     uint32_t mKernelRadius = 4;
     uint32_t mRepetitions = 1;
     bool mReady = false;
+    bool mBetterSlope = true;
 
     ref<FullScreenPass> mpBlur;
     ResourceFormat mFormat = ResourceFormat::R8Unorm; // ao default
