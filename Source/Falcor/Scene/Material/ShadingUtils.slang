@@ -227,7 +227,8 @@ bool isValidHemisphereReflectionOrTransmission(const ShadingData sd, const Shadi
     }
     else // reflection
     {
-        if (wiTop != woTop) return false;
+        //if (wiTop != woTop) return false;
+        return true;
     }
 
 #if FALCOR_BACKFACE_BLACK

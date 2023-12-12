@@ -77,7 +77,7 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
     LightData light = gScene.getLight(gLightIndex);
     RayDesc ray;
     ray.Origin = posW.xyz;
-    ray.TMin = gScene.camera.data.nearZ;
+    ray.TMin = gScene.camera.data.nearZ * 0.1;
 
     RayCone rc = RayCone(0.0, RAY_CONE_SPREAD);
     float3 V = gScene.camera.getPosition() - posW.xyz;
