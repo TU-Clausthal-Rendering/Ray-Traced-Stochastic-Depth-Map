@@ -372,6 +372,7 @@ void VideoRecorder::saveFrame(RenderContext* pRenderContext)
         filename << filenameBase << std::setfill('0') << std::setw(4) << mRenderIndex << ".bmp";
 
         // blit texture
+        guardBand = 0;
         uint4 srcRect = uint4(guardBand, guardBand, tex->getWidth() - guardBand, tex->getHeight() - guardBand);
         if(!mpBlitTexture ||
             mpBlitTexture->getWidth() != tex->getWidth() - 2 * guardBand ||
