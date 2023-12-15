@@ -103,6 +103,7 @@ private:
     std::string mActiveOutput = "";
     std::set<std::string> mOutputs;
     int mFps = 60;
+    bool mCleanupFiles = true;
 
     std::string mSaveName = "path";
     std::vector<Gui::DropdownValue> mFileList;

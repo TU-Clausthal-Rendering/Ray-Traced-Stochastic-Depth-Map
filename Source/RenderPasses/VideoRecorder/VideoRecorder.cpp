@@ -201,6 +201,8 @@ void VideoRecorder::renderUI(RenderContext* pRenderContext, Gui::Widgets& widget
         if (mOutputs.empty()) widget.tooltip("No outputs selected. Nothing will be saved to file!");
     }
 
+    widget.checkbox("Cleanup", mCleanupFiles, true);
+
     widget.textbox("Prefix", mOutputPrefix);
 
     widget.var("FPS", mFps, 1, 240);
@@ -586,7 +588,8 @@ void VideoRecorder::stopRender()
         }
 
         auto err = _pclose(ffmpeg);
-        deleteFolder(outputName); // delete the temporary files
+        if(mCleanupFiles)
+            deleteFolder(outputName); // delete the temporary files
         if (err)
         {
             logError("Error while executing ffmpeg:\n");
