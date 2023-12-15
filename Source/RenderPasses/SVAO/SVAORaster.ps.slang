@@ -54,10 +54,10 @@ PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
             s.evalDualVisibility(data);
 
         // always add computed visibility from raster
-        output.ao1.x += s.visibility; // only on bright       
-        if (!data.denyRays() && (s.requireRay(data) || forceRay))
+        output.ao1.x += s.visibility; // only on bright
+        
+        if (s.requireRay(data) || forceRay)
         {
-            // remember that this was a hybrid ray
             STENCIL(output.stencil |= 1u << i);
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)

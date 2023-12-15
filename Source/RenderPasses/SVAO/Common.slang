@@ -314,17 +314,6 @@ struct BasicAOData
         
         return true;
     }
-
-    bool denyRays()
-    {
-        return radiusInPixels <= gData.ssRadiusCutoff;
-    }
-
-    // will force denyRays() to return false
-    [mutating] void forceDenyRays()
-    {
-        radiusInPixels = 0.0;
-    }
 };
 
 struct SampleAOData
