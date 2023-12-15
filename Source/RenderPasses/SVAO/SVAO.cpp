@@ -582,11 +582,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
     //if(mEnableRayFilter) mpRayFilter->renderUI(widget);
 
     
-    if (widget.var("Fade End (Screen Space Radius)", mData.ssRadiusFadeEnd, 0.0f, 100.0f, 1.0f)) mDirty = true;
-    widget.tooltip("radius in pixels where the ray tracing result is completely faded and only rasterization remains");
-
-    if (widget.var("Fade Size (Screen Space Radius)", mData.ssRadiusFadeSize, 0.01f, 100.0f, 1.0f)) mDirty = true;
-    widget.tooltip("The fade will be for a screen space radius in range [FadeEnd, FadeEnd + FadeSize]");
+    if (widget.var("Radius Cutoff (in Pixels)", mData.ssRadiusCutoff, 0.0f, 100.0f, 1.0f)) mDirty = true;
+    widget.tooltip("(sample) radius in pixels where no ray tracing is used and only rasterization remains");
 
     if (widget.var("Max Screen Space Radius", mData.ssMaxRadius)) mDirty = true;
     widget.tooltip("Max screen space radius to gather samples from (smaller = faster)");
