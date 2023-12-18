@@ -135,4 +135,9 @@ void RayShadow::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene
 {
     mpScene = pScene;
     mpPass.reset();
+
+    if(mpScene)
+    {
+        mLightCount = std::min((int)mpScene->getLightCount(), 128);
+    }
 }

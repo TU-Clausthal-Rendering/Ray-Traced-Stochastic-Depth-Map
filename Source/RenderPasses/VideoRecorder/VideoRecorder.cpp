@@ -391,6 +391,7 @@ void VideoRecorder::saveFrame(RenderContext* pRenderContext)
 void VideoRecorder::updateCamera()
 {
     if (!mpScene) return;
+    if (mState == State::Idle)  return;
 
     float time = getTime();
     auto cam = mpScene->getCamera();
@@ -421,7 +422,7 @@ void VideoRecorder::updateCamera()
         return res;
     };
 
-
+    cam->setUpVector(float3(0, 1, 0)); // this is sometimes modified by existing paths...
     switch (mState)
     {
     case State::Record:

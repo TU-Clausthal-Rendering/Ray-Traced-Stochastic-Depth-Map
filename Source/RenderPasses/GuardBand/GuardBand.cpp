@@ -38,6 +38,7 @@ GuardBand::GuardBand(ref<Device> pDevice, const Properties& dict)
     : RenderPass(pDevice)
 {
     mGuardBand = dict.get("guardBand", mGuardBand);
+
 }
 
 Properties GuardBand::getProperties() const
@@ -77,5 +78,16 @@ void GuardBand::renderUI(Gui::Widgets& widget)
     if (widget.button("Resize 800x600") && mApp)
     {
         mApp->resizeFrameBuffer(800 + 2 * mGuardBand, 600 + 2 * mGuardBand);
+    }
+
+
+}
+
+void GuardBand::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
+{
+    if (mFirstStart && mApp)
+    {
+        mFirstStart = false;
+        mApp->resizeFrameBuffer(1920 + 2 * mGuardBand, 1080 + 2 * mGuardBand);
     }
 }
