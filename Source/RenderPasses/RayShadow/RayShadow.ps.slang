@@ -4,20 +4,30 @@ import Rendering.Lights.LightHelpers;
 import Rendering.Materials.TexLODTypes;
 import Rendering.Materials.TexLODHelpers;
 
-Texture2D<float4> gPos; // indicates depth accesses for the secondary pass
+// gbuffer textures
+Texture2D<float4> gPos;
 Texture2D<float4> gNormal;
 
+// active light index
 cbuffer PerLightBuffer
 {
     uint gLightIndex;
     float gPointLightClip;
 };
 
-float calcVisibility(RayDesc ray, RayCone rc, float2 frameDim)
+#ifndef USE_RAYCONES
+#define USE_RAYCONES 1
+#endif
+
+float traceShadowRay(
+RayDesc ray
+#if USE_RAYCONES
+, RayCone rc
+#endif
+)
 {
     float visibility = 1.0;
-
-    float visibilityCutoff = 0.01;
+    float visibilityCutoff = 0.01; // visibility below this threshold is considered to be zero
     
     // TODO RAY_FLAG_CULL_BACK_FACING_TRIANGLES
     RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH > rayQuery;
@@ -35,24 +45,32 @@ float calcVisibility(RayDesc ray, RayCone rc, float2 frameDim)
             let material = gScene.materials.getMaterial(materialID);
 
             // LOD
-            RayCone newRc = rc.propagateDistance(t);
-            newRc = newRc.hit(ray.Direction, v.faceNormalW);
-            float lambda = newRc.computeLOD(v.coneTexLODValue);
+            #if USE_RAYCONES
+            RayCone shadowCone = rc.propagateDistance(t);
+            shadowCone = shadowCone.hit(ray.Direction, v.faceNormalW);
+            float lambda = shadowCone.computeLOD(v.coneTexLODValue);
             //lambda += 1.0; // small offset to make shadows a bit more soft
             let lod = ExplicitRayConesLodTextureSampler(lambda);
-            //let lod = ExplicitLodTextureSamplers(0.0);
             float opacity = material.evalOpacity(gScene.materials, v, lod);
             opacity = saturate(opacity * 2.0); // scale opacity because opacity > 0.5 is opaque for alpha test
+            //opacity = opacity < 0.5 ? 0.0 : 1.0;
             visibility = visibility * (1.0 - opacity);
             if (visibility < visibilityCutoff)
                 return 0.0;
+            
+            #else
+            let lod = ExplicitLodTextureSampler(0.0);
+            float opacity = material.evalOpacity(gScene.materials, v, lod);
+            if (opacity >= 0.5)
+                return 0.0; // alpha test: hit opaque => occluded
+            #endif
+
         }
         else
             return 0.0; // hit opaque => occluded
     }
 
-    if (rayQuery.CommittedStatus() != COMMITTED_NOTHING)
-        visibility = 0.0;
+    if (rayQuery.CommittedStatus() != COMMITTED_NOTHING)  visibility = 0.0; // hit opaque => occluded
 
     // scale based on the cutoff
     visibility = saturate((visibility - visibilityCutoff) / (1.0 - visibilityCutoff));
@@ -69,7 +87,7 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
     if (gLightIndex >= gScene.getLightCount())
         return 1.0;
 
-    float3 faceNormalW = gNormal[int2(svPos.xy)].xyz;
+    float3 normalW = gNormal[int2(svPos.xy)].xyz;
 
     float2 frameDim;
     gPos.GetDimensions(frameDim.x, frameDim.y);
@@ -79,11 +97,14 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
     ray.Origin = posW.xyz;
     ray.TMin = gScene.camera.data.nearZ * 0.1;
 
-    RayCone rc = RayCone(0.0, RAY_CONE_SPREAD);
     float3 V = gScene.camera.getPosition() - posW.xyz;
     float lenV = length(V);
+
+    #if USE_RAYCONES
+    RayCone rc = RayCone(0.0, RAY_CONE_SPREAD);
     rc = rc.propagateDistance(lenV); // travel t
-    rc = rc.hit(V/lenV, faceNormalW); // hit surface
+    rc = rc.hit(V / lenV, normalW); // hit surface
+    #endif
     
     float secondarySpreadAngle = RAY_CONE_SPREAD;
     if (light.type == uint(LightType::Point))
@@ -91,8 +112,10 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
         ray.Direction = normalize(light.posW - posW.xyz);
         ray.TMax = distance(light.posW, posW.xyz) - gPointLightClip;
 
-        rc = rc.reflect(ray.Direction, faceNormalW);
+        #if USE_RAYCONES
+        rc = rc.reflect(ray.Direction, normalW);
         rc = rc.focus(distance(light.posW, posW.xyz));
+        #endif
     }
     else if (light.type == uint(LightType::Directional))
     {
@@ -100,15 +123,20 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
         ray.TMax = gScene.camera.data.farZ;
         secondarySpreadAngle = 0.0; // light rays are orthogonal
 
-        rc = rc.reflect(ray.Direction, faceNormalW);
+        #if USE_RAYCONES
+        rc = rc.reflect(ray.Direction, normalW);
         rc = rc.orthogonalize();
+        #endif
     }
 
-    if(dot(ray.Direction, faceNormalW) <= 0.0)
+    if (dot(ray.Direction, normalW) <= 0.0)
         return 0.0; // backfacing surface
+
+    #if USE_RAYCONES
+    float visibility = traceShadowRay(ray, rc);
+    #else
+    float visibility = traceShadowRay(ray);
+    #endif
     
-    // send initial ray
-    float visibility = calcVisibility(ray, rc, frameDim);
-    //visibility = (QuadReadAcrossX(visibility) + QuadReadAcrossY(visibility) + visibility * 2.0) / 4.0;
     return visibility;
 }

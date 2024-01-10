@@ -102,6 +102,7 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
         auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add(mpScene->getSceneDefines());
+        defines.add("USE_RAYCONES", mRayCones ? "1" : "0");
         mpPass = FullScreenPass::create(mpDevice, desc, defines);
     }
 
@@ -124,6 +125,11 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
 
 void RayShadow::renderUI(Gui::Widgets& widget)
 {
+    if(widget.checkbox("Ray Cones", mRayCones))
+    {
+        mpPass.reset();
+    }
+
     if(widget.var("Lights", mLightCount, 1, 128))
     {
         requestRecompile();

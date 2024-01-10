@@ -56,6 +56,7 @@ public:
 private:
     int mLightCount = 1;
     float mPointLightClip = 0.2f;
+    bool mRayCones = true;
 
     ref<FullScreenPass> mpPass;
 
