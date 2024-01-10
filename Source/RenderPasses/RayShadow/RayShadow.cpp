@@ -103,6 +103,7 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add(mpScene->getSceneDefines());
         defines.add("USE_RAYCONES", mRayCones ? "1" : "0");
+        defines.add("RAY_CONE_SHADOW", std::to_string(int(mRayConeShadow)));
         mpPass = FullScreenPass::create(mpDevice, desc, defines);
     }
 
@@ -129,11 +130,17 @@ void RayShadow::renderUI(Gui::Widgets& widget)
     {
         mpPass.reset();
     }
+    if(mRayCones)
+    {
+        if (widget.dropdown("Ray Cone Shadows", mRayConeShadow))
+            mpPass.reset();
+    }
 
     if(widget.var("Lights", mLightCount, 1, 128))
     {
         requestRecompile();
     }
+
     widget.var("Point Light Clip", mPointLightClip, 0.0f);
 }
 

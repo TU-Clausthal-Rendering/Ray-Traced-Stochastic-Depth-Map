@@ -19,6 +19,14 @@ cbuffer PerLightBuffer
 #define USE_RAYCONES 1
 #endif
 
+#define RAY_CONE_SHADOW_RAY 0
+#define RAY_CONE_SHADOW_ALPHA_TEST 1
+#define RAY_CONE_SHADOW_SATURATED 2
+
+#ifndef RAY_CONE_SHADOW
+#define RAY_CONE_SHADOW RAY_CONE_SHADOW_SATURATED
+#endif
+
 float traceShadowRay(
 RayDesc ray
 #if USE_RAYCONES
@@ -52,8 +60,12 @@ RayDesc ray
             //lambda += 1.0; // small offset to make shadows a bit more soft
             let lod = ExplicitRayConesLodTextureSampler(lambda);
             float opacity = material.evalOpacity(gScene.materials, v, lod);
-            opacity = saturate(opacity * 2.0); // scale opacity because opacity > 0.5 is opaque for alpha test
-            //opacity = opacity < 0.5 ? 0.0 : 1.0;
+            
+            if (RAY_CONE_SHADOW == RAY_CONE_SHADOW_SATURATED)
+                opacity = saturate(opacity * 2.0); // scale opacity because opacity > 0.5 is opaque for alpha test
+            else if(RAY_CONE_SHADOW == RAY_CONE_SHADOW_ALPHA_TEST)
+                opacity = opacity < 0.5 ? 0.0 : 1.0;
+            
             visibility = visibility * (1.0 - opacity);
             if (visibility < visibilityCutoff)
                 return 0.0;
