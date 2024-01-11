@@ -39,7 +39,7 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
         rayData.count, attribs.barycentrics, RayTCurrent(), getGeometryInstanceID(), PrimitiveIndex(), WorldRayDirection());
     if (!commit)
         IgnoreHit();
-    //else AcceptHitAndEndSearch(); // performance hit from this is very minor
+    // else AcceptHitAndEndSearch(); // performance hit from this is very minor
 }
 
 [shader("miss")]
