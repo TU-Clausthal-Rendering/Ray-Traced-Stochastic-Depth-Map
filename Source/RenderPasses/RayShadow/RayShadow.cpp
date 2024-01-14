@@ -111,6 +111,7 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
     var["gPos"] = pPos;
     var["gNormal"] = pNormal;
     var["PerLightBuffer"]["gPointLightClip"] = mPointLightClip;
+    var["PerLightBuffer"]["gLodBias"] = mLodBias;
 
     // raytracing data
     mpScene->setRaytracingShaderData(pRenderContext, var);
@@ -135,6 +136,7 @@ void RayShadow::renderUI(Gui::Widgets& widget)
         if (widget.dropdown("Ray Cone Shadows", mRayConeShadow))
             mpPass.reset();
     }
+    widget.var("LOD Bias", mLodBias, -16.0f, 16.0f, 0.5f);
 
     if(widget.var("Lights", mLightCount, 1, 128))
     {

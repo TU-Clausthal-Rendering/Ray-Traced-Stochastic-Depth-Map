@@ -73,6 +73,7 @@ private:
     int mLightCount = 1;
     float mPointLightClip = 0.2f;
     bool mRayCones = true;
+    float mLodBias = 0.0f;
     RayConeShadow mRayConeShadow = RayConeShadow::Saturated; // fastest
 
     ref<FullScreenPass> mpPass;

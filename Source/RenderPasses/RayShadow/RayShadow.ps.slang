@@ -13,6 +13,7 @@ cbuffer PerLightBuffer
 {
     uint gLightIndex;
     float gPointLightClip;
+    float gLodBias;
 };
 
 #ifndef USE_RAYCONES
@@ -37,7 +38,6 @@ RayDesc ray
     float visibility = 1.0;
     float visibilityCutoff = 0.01; // visibility below this threshold is considered to be zero
     
-    // TODO RAY_FLAG_CULL_BACK_FACING_TRIANGLES
     RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH > rayQuery;
     rayQuery.TraceRayInline(gScene.rtAccel, RAY_FLAG_NONE, 0xff, ray);
     while (rayQuery.Proceed())
@@ -57,6 +57,7 @@ RayDesc ray
             RayCone shadowCone = rc.propagateDistance(t);
             shadowCone = shadowCone.hit(ray.Direction, v.faceNormalW);
             float lambda = shadowCone.computeLOD(v.coneTexLODValue);
+            lambda += gLodBias;
             //lambda += 1.0; // small offset to make shadows a bit more soft
             let lod = ExplicitRayConesLodTextureSampler(lambda);
             float opacity = material.evalOpacity(gScene.materials, v, lod);
@@ -71,11 +72,11 @@ RayDesc ray
                 return 0.0;
             
             #else
-            let lod = ExplicitLodTextureSampler(0.0);
+            let lod = ExplicitLodTextureSampler(gLodBias);
             float opacity = material.evalOpacity(gScene.materials, v, lod);
             if (opacity >= 0.5)
                 return 0.0; // alpha test: hit opaque => occluded
-            #endif
+#endif
 
         }
         else
@@ -100,9 +101,6 @@ float main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION) : SV_Target
         return 1.0;
 
     float3 normalW = gNormal[int2(svPos.xy)].xyz;
-
-    float2 frameDim;
-    gPos.GetDimensions(frameDim.x, frameDim.y);
     
     LightData light = gScene.getLight(gLightIndex);
     RayDesc ray;
