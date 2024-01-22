@@ -269,7 +269,18 @@ void StochasticDepthMap::execute(RenderContext* pRenderContext, const RenderData
         mpVars = GraphicsVars::create(mpDevice, pProgram->getReflector());
         auto vars = mpVars->getRootVar();
         // linear sampler for downsampling depth buffer (if half res)
-        vars["S"] = Sampler::create(mpDevice, Sampler::Desc().setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear));
+        // reconstruct divisor
+        int div = (int)((float)pDepthIn->getWidth() / (float)psDepths->getWidth() + 0.5f);
+        if(div % 2 == 0)
+        {
+            // linear sampler for even divisor: half res, quarter res, because we sample in between texels
+            vars["S"] = Sampler::create(mpDevice, Sampler::Desc().setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear));
+        }
+        else
+        {
+            // point sampler for uneven divisor: full res, third res, because we sample directly on a pixel
+            vars["S"] = Sampler::create(mpDevice, Sampler::Desc().setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point));
+        }
     }
 
     if (pStencilMask)
