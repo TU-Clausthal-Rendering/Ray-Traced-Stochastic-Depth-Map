@@ -31,8 +31,8 @@ import Utils.Math.PackedFormats;
 #define STOCHASTIC_DEPTH_MAP Texture2DMS<sd_map_t>
 #define LOAD_STOCHASTIC_SAMPLE(tex, xy, i) tex.Load(xy, i)
 #else
-#define STOCHASTIC_DEPTH_MAP Texture2DArray<sd_map_t>
-#define LOAD_STOCHASTIC_SAMPLE(tex, xy, i) tex.Load(int4(xy, i, /*mipmap*/0))
+#define STOCHASTIC_DEPTH_MAP Texture2D<float4>
+//#define LOAD_STOCHASTIC_SAMPLE(tex, xy, i) tex.Load(int4(xy, i, /*mipmap*/0))
 #endif
 
 // area where the halo effect remains constant at 0.0
@@ -542,7 +542,8 @@ ao_t calcAO2(uint2 svPos, uint mask)
         if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
         {
             float sdwidth, sdheight, elements;
-            gsDepthTex.GetDimensions(sdwidth, sdheight, elements);
+            //gsDepthTex.GetDimensions(sdwidth, sdheight, elements);
+            gsDepthTex.GetDimensions(sdwidth, sdheight);
 
             int2 pixelCoord = int2(floor(s.rasterSamplePosUV * float2(sdwidth, sdheight)));
             //float2 sdSampleUV = getSnappedUV(s.rasterSamplePosUV, float2(sdwidth, sdheight));
@@ -550,11 +551,13 @@ ao_t calcAO2(uint2 svPos, uint mask)
             const float depthRange = gCamera.data.farZ - gCamera.data.nearZ;
             const float depthOffset = gCamera.data.nearZ;
             bool stochInside = false;
+            float4 sddepths = gsDepthTex[pixelCoord];
             [unroll]
             for (uint i = 0; i < MSAA_SAMPLES; ++i)
             {
-                float2 sd_data = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
-                float linearSampleDepth = sd_data.x;
+                //float2 sd_data = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
+                //float linearSampleDepth = sd_data.x;
+                float linearSampleDepth = sddepths[i];
                 // linearSampleDepth is in [0, 1] => scale accordingly
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(sdSampleUV, linearSampleDepth);

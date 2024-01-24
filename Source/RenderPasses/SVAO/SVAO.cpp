@@ -203,8 +203,6 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
         break;
     case StochasticDepthImpl::Ray:
         sdDict["normalize"] = true;
-        //sdDict["depthFormat"] = ResourceFormat::R32Float;
-        sdDict["depthFormat"] = ResourceFormat::RGBA32Float;
         sdDict["useRayPipeline"] = true; // performs better than raster //mUseRayPipeline;
         sdDict["StoreNormals"] = mStochMapNormals;
         sdDict["Jitter"] = mStochMapJitter;

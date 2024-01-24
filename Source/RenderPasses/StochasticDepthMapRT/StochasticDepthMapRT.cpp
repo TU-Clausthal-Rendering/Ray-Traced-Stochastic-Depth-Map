@@ -192,10 +192,25 @@ Properties StochasticDepthMapRT::getProperties() const
 RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileData)
 {
     auto depthFormat = ResourceFormat::R32Float;
-    if (mUse16Bit) depthFormat = ResourceFormat::R16Float;
+    if(mSampleCount == 2)
+        depthFormat = ResourceFormat::RG32Float;
+    else if(mSampleCount == 4)
+        depthFormat = ResourceFormat::RGBA32Float;
+    else throw std::runtime_error("StochasticDepthMapRT: Only 1, 2 and 4 samples are supported");
+
+    if (mUse16Bit)
+    {
+        depthFormat = ResourceFormat::R16Float;
+        if (mSampleCount == 2)
+            depthFormat = ResourceFormat::RG16Float;
+        else if (mSampleCount == 4)
+            depthFormat = ResourceFormat::RGBA16Float;
+        else throw std::runtime_error("StochasticDepthMapRT: Only 1, 2 and 4 samples are supported");
+    }
     if(mStoreNormals)
     {
-        depthFormat = ResourceFormat::RG32Float;
+        throw std::runtime_error("StochasticDepthMapRT: Storing normals is not supported yet");
+        //depthFormat = ResourceFormat::RG32Float;
         //if (mUse16Bit) depthFormat = ResourceFormat::RG16Uint; // TODO
     }
 
@@ -204,7 +219,7 @@ RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileDat
     reflector.addInput(kStencil, "(optional) stencil-mask").format(ResourceFormat::R8Uint).flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addInput(kRayMin, "min ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addInput(kRayMax, "max ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
-    reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(depthFormat).texture2D(0, 0, 1, 1, mSampleCount);
+    reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(depthFormat).texture2D(0, 0, 1, 1, 1);
     reflector.addInternal(kInternalStencil, "stencil-mask").bindFlags(ResourceBindFlags::DepthStencil).format(ResourceFormat::D32FloatS8X24);
     return reflector;
 }
