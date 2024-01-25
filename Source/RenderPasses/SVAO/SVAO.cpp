@@ -160,8 +160,8 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     reflector.addInput(kColor, "Color for pixel importance").bindFlags(ResourceBindFlags::ShaderResource);
     auto aoFormat = ResourceFormat::R8Unorm;
     if(mDualAo) aoFormat = ResourceFormat::RG8Unorm;
-    reflector.addOutput(kAmbientMap, "Ambient Occlusion (bright/dark if dualAO is enabled)").bindFlags(ResourceBindFlags::UnorderedAccess | ResourceBindFlags::RenderTarget).format(aoFormat);
-    reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
+    reflector.addOutput(kAmbientMap, "Ambient Occlusion (bright/dark if dualAO is enabled)").bindFlags(ResourceBindFlags::AllColorViews).format(aoFormat);
+    reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::AllColorViews).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kAoStencil2, "ping pong for stencil mask").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
     //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24);
     reflector.addOutput(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24).bindFlags(ResourceBindFlags::DepthStencil);
@@ -178,7 +178,8 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     mData.invResolution = float2(1.0f) / mData.resolution;
     mData.noiseScale = mData.resolution / 4.0f; // noise texture is 4x4 resolution
 
-    mpRasterPass.reset(); // recompile passes
+    //mpRasterPass.reset(); // recompile passes
+    mpComputePass.reset();
     mpRasterPass2.reset();
     mpRayProgram.reset();
 
@@ -241,7 +242,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         return;
     }
 
-    if (!mpRasterPass || !mpRasterPass2 || !mpRayProgram) // this needs to be deferred because it needs the scene defines to compile
+    if (!mpComputePass || !mpRasterPass2 || !mpRayProgram) // this needs to be deferred because it needs the scene defines to compile
     {
         // generate neural net shader files
         std::filesystem::path resPath;
@@ -266,7 +267,13 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add(mpScene->getSceneDefines());
 
         // raster pass 1
-        mpRasterPass = FullScreenPass::create(mpDevice, getFullscreenShaderDesc(kRasterShader), defines);
+        //mpRasterPass = FullScreenPass::create(mpDevice, getFullscreenShaderDesc(kRasterShader), defines);
+        Program::Desc csdesc;
+        csdesc.addShaderModules(mpScene->getShaderModules());
+        csdesc.addShaderLibrary(kRasterShader).csEntry("main");
+        csdesc.addTypeConformances(mpScene->getTypeConformances());
+        csdesc.setShaderModel("6_5");
+        mpComputePass = ComputePass::create(mpDevice, csdesc, defines);
 
         // raster pass 2
         mpRasterPass2 = FullScreenPass::create(mpDevice, getFullscreenShaderDesc(kRasterShader2), defines);
@@ -292,7 +299,8 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mDirty = true;
     }
 
-    auto rasterVars = mpRasterPass->getRootVar();
+    //auto rasterVars = mpRasterPass->getRootVar();
+    auto rasterVars = mpComputePass->getRootVar();
     auto rasterVars2 = mpRasterPass2->getRootVar();
     auto rayVars = mRayVars->getRootVar();
 
@@ -329,7 +337,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     if (mPrimaryDepthMode == DepthMode::PerfectClassify)
     {
         // set raytracing data
-        auto var = mpRasterPass->getRootVar();
+        auto var = mpComputePass->getRootVar();
         mpScene->setRaytracingShaderData(pRenderContext, var);
     }
     rasterVars["PerFrameCB"]["useDepthLod"] = mUseDepthLod ? 1 : 0;
@@ -344,7 +352,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     
     auto& dict = renderData.getDictionary();
     auto guardBand = dict.getValue("guardBand", 0);
-    setGuardBandScissors(*mpRasterPass->getState(), renderData.getDefaultTextureDims(), guardBand);
+    //setGuardBandScissors(*mpRasterPass->getState(), renderData.getDefaultTextureDims(), guardBand);
     {
         FALCOR_PROFILE(pRenderContext, "AO 1");
 
@@ -362,7 +370,15 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             }
         }
 
-        mpRasterPass->execute(pRenderContext, mpFbo, false);
+        rasterVars["PerFrameCB"]["guardBand"] = guardBand;
+        rasterVars["gAO1"] = pAoDst;
+        rasterVars["gStencil"] = pAoMask;
+        uint2 nThreads = renderData.getDefaultTextureDims() - uint2(2 * guardBand);
+        //uint2 nThreads = renderData.getDefaultTextureDims();
+        mpComputePass->execute(pRenderContext, nThreads.x, nThreads.y);
+        pRenderContext->uavBarrier(pAoDst.get());
+        pRenderContext->uavBarrier(pAoMask.get());
+        //mpRasterPass->execute(pRenderContext, mpFbo, false);
     }
 
     if (mSecondaryDepthMode == DepthMode::SingleDepth) return; // already finished
@@ -599,7 +615,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
 void SVAO::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
     mpScene = pScene;
-    mpRasterPass.reset(); // new scene defines => recompile
+    //mpRasterPass.reset(); // new scene defines => recompile
+    mpComputePass.reset();
     mpRasterPass2.reset();
     mpRayProgram.reset();
     if (mpStochasticDepthGraph)

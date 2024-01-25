@@ -75,7 +75,8 @@ private:
     ref<Texture> mpNoiseTexture;
 
     ref<Sampler> mpTextureSampler;
-    ref<FullScreenPass> mpRasterPass;
+    //ref<FullScreenPass> mpRasterPass;
+    ref<ComputePass> mpComputePass;
 
     ref<Scene> mpScene;
 
