@@ -544,8 +544,9 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if(widget.var("SD-Map Divisor", mStochMapDivisor, 1u, 16u, 1u))
             reset = true;
 
-        if (widget.checkbox("SD-Map Normals", mStochMapNormals))
-            reset = true;
+        // not implemented in ray atm
+        //if (widget.checkbox("SD-Map Normals", mStochMapNormals))
+        //    reset = true;
 
         if (widget.checkbox("SD-Map Jitter", mStochMapJitter))
             reset = true;

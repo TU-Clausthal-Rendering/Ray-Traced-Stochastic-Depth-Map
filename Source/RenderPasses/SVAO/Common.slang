@@ -542,22 +542,30 @@ ao_t calcAO2(uint2 svPos, uint mask)
         if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
         {
             float sdwidth, sdheight, elements;
-            //gsDepthTex.GetDimensions(sdwidth, sdheight, elements);
+            #if STOCHASTIC_DEPTH_IMPL == STOCHASTIC_DEPTH_RASTER
+            gsDepthTex.GetDimensions(sdwidth, sdheight, elements);
+            #else // ray
             gsDepthTex.GetDimensions(sdwidth, sdheight);
-
+            #endif
+            
             int2 pixelCoord = int2(floor(s.rasterSamplePosUV * float2(sdwidth, sdheight)));
             //float2 sdSampleUV = getSnappedUV(s.rasterSamplePosUV, float2(sdwidth, sdheight));
             float2 sdSampleUV = (pixelCoord + randomJitter(pixelCoord)) / float2(sdwidth, sdheight);
             const float depthRange = gCamera.data.farZ - gCamera.data.nearZ;
             const float depthOffset = gCamera.data.nearZ;
             bool stochInside = false;
+            #if STOCHASTIC_DEPTH_IMPL != STOCHASTIC_DEPTH_RASTER
             float4 sddepths = gsDepthTex[pixelCoord];
+            #endif
             [unroll]
             for (uint i = 0; i < MSAA_SAMPLES; ++i)
             {
-                //float2 sd_data = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
-                //float linearSampleDepth = sd_data.x;
+                #if STOCHASTIC_DEPTH_IMPL == STOCHASTIC_DEPTH_RASTER
+                float2 sd_data = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
+                float linearSampleDepth = sd_data.x;
+                #else
                 float linearSampleDepth = sddepths[i];
+                #endif
                 // linearSampleDepth is in [0, 1] => scale accordingly
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(sdSampleUV, linearSampleDepth);
