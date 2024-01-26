@@ -69,13 +69,10 @@ private:
 
     Program::Desc getFullscreenShaderDesc(const std::string& filename);
 
-    ref<Fbo> mpFbo;
-
     ref<Sampler> mpNoiseSampler;
     ref<Texture> mpNoiseTexture;
 
     ref<Sampler> mpTextureSampler;
-    //ref<FullScreenPass> mpRasterPass;
     ref<ComputePass> mpComputePass;
 
     ref<Scene> mpScene;

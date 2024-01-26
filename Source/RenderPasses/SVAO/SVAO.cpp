@@ -78,8 +78,6 @@ SVAO::SVAO(ref<Device> pDevice) : RenderPass(std::move(pDevice))
     samplerDesc.setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
     //samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
     mpTextureSampler = Sampler::create(mpDevice, samplerDesc);
-
-    mpFbo = Fbo::create(mpDevice);
     mpFbo2 = Fbo::create(mpDevice);
 
     mpNoiseTexture = genNoiseTexture();
@@ -178,7 +176,6 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     mData.invResolution = float2(1.0f) / mData.resolution;
     mData.noiseScale = mData.resolution / 4.0f; // noise texture is 4x4 resolution
 
-    //mpRasterPass.reset(); // recompile passes
     mpComputePass.reset();
     mpRasterPass2.reset();
     mpRayProgram.reset();
@@ -300,17 +297,17 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     }
 
     //auto rasterVars = mpRasterPass->getRootVar();
-    auto rasterVars = mpComputePass->getRootVar();
+    auto computeVars = mpComputePass->getRootVar();
     auto rasterVars2 = mpRasterPass2->getRootVar();
     auto rayVars = mRayVars->getRootVar();
 
     if (mDirty)
     {
         // update data raster
-        rasterVars["StaticCB"].setBlob(mData);
-        rasterVars["gNoiseSampler"] = mpNoiseSampler;
-        rasterVars["gTextureSampler"] = mpTextureSampler;
-        rasterVars["gNoiseTex"] = mpNoiseTexture;
+        computeVars["StaticCB"].setBlob(mData);
+        computeVars["gNoiseSampler"] = mpNoiseSampler;
+        computeVars["gTextureSampler"] = mpTextureSampler;
+        computeVars["gNoiseTex"] = mpNoiseTexture;
         // update data raster 2
         rasterVars2["StaticCB"].setBlob(mData);
         rasterVars2["gNoiseSampler"] = mpNoiseSampler;
@@ -327,32 +324,27 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mDirty = false;
     }
 
-    mpFbo->attachColorTarget(pAoDst, 0);
-    if(mSecondaryDepthMode != DepthMode::SingleDepth)
-        mpFbo->attachColorTarget(pAoMask, 1);
-
     auto pCamera = mpScene->getCamera().get();
-    pCamera->setShaderData(rasterVars["PerFrameCB"]["gCamera"]);
-    rasterVars["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
+    pCamera->setShaderData(computeVars["PerFrameCB"]["gCamera"]);
+    computeVars["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
     if (mPrimaryDepthMode == DepthMode::PerfectClassify)
     {
         // set raytracing data
         auto var = mpComputePass->getRootVar();
         mpScene->setRaytracingShaderData(pRenderContext, var);
     }
-    rasterVars["PerFrameCB"]["useDepthLod"] = mUseDepthLod ? 1 : 0;
-    rasterVars["PerFrameCB"]["frameIndex"] = mFrameIndex;
+    computeVars["PerFrameCB"]["useDepthLod"] = mUseDepthLod ? 1 : 0;
+    computeVars["PerFrameCB"]["frameIndex"] = mFrameIndex;
 
-    setDepthTex(rasterVars, pDepth);
-    rasterVars["gDepthTex2"] = pDepth2;
-    rasterVars["gNormalTex"] = pNormal;
-    rasterVars["gColor"] = pColor;
-    //mpRasterPass["gDepthAccess"] = pAccessStencil;
+    setDepthTex(computeVars, pDepth);
+    computeVars["gDepthTex2"] = pDepth2;
+    computeVars["gNormalTex"] = pNormal;
+    computeVars["gColor"] = pColor;
 
-    
+
     auto& dict = renderData.getDictionary();
     auto guardBand = dict.getValue("guardBand", 0);
-    //setGuardBandScissors(*mpRasterPass->getState(), renderData.getDefaultTextureDims(), guardBand);
+
     {
         FALCOR_PROFILE(pRenderContext, "AO 1");
 
@@ -361,23 +353,22 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             FALCOR_PROFILE(pRenderContext, "Clear RayMinMax");
             // ray max will always be used as a mask (even without ray interval, it will contain only 0 and 1)
             pRenderContext->clearUAV(pInternalRayMax->getUAV().get(), uint4(0u));
-            rasterVars["gRayMaxAccess"] = pInternalRayMax;
+            computeVars["gRayMaxAccess"] = pInternalRayMax;
             if(mUseRayInterval)
             {
                 // ray min is required for proper ray interval
                 pRenderContext->clearUAV(pInternalRayMin->getUAV().get(), uint4(asuint(std::numeric_limits<float>::max())));
-                rasterVars["gRayMinAccess"] = pInternalRayMin;
+                computeVars["gRayMinAccess"] = pInternalRayMin;
             }
         }
 
-        rasterVars["PerFrameCB"]["guardBand"] = guardBand;
-        rasterVars["gAO1"] = pAoDst;
-        rasterVars["gStencil"] = pAoMask;
+        computeVars["PerFrameCB"]["guardBand"] = guardBand;
+        computeVars["gAO1"] = pAoDst;
+        computeVars["gStencil"] = pAoMask;
         uint2 nThreads = renderData.getDefaultTextureDims() - uint2(2 * guardBand);
-        //uint2 nThreads = renderData.getDefaultTextureDims();
         mpComputePass->execute(pRenderContext, nThreads.x, nThreads.y);
-        pRenderContext->uavBarrier(pAoDst.get());
-        pRenderContext->uavBarrier(pAoMask.get());
+        //pRenderContext->uavBarrier(pAoDst.get());
+        //pRenderContext->uavBarrier(pAoMask.get());
         //mpRasterPass->execute(pRenderContext, mpFbo, false);
     }
 
@@ -567,9 +558,9 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if (widget.checkbox("SD-Map Jitter", mStochMapJitter))
             reset = true;
 
-        if (mpFbo->getWidth() % mStochMapDivisor != 0)
+        if (mpFbo2->getWidth() % mStochMapDivisor != 0)
             widget.text("Warning: SD-Map Divisor does not divide width of screen");
-        if (mpFbo->getHeight() % mStochMapDivisor != 0)
+        if (mpFbo2->getHeight() % mStochMapDivisor != 0)
             widget.text("Warning: SD-Map Divisor does not divide height of screen");
     }
     else if (mSecondaryDepthMode == DepthMode::Raytraced)

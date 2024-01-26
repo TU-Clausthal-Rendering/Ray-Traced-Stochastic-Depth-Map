@@ -10,8 +10,8 @@ import Scene.RaytracingInline;
 
 struct PSOut
 {
-    ao_t ao1; //: SV_TARGET0;
-    STENCIL(uint stencil); //: SV_TARGET1);
+    ao_t ao1;
+    STENCIL(uint stencil);
 };
 
 RWTexture2D<uint> gRayMinAccess;
@@ -26,7 +26,6 @@ void writeOutput(uint2 pixel, PSOut output)
     STENCIL(gStencil[pixel] = output.stencil);
 }
 
-//PSOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
 [numthreads(16, 16, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -42,14 +41,11 @@ void main(uint3 id : SV_DispatchThreadID)
     if (!data.Init(texC))
     {
         output.ao1 = 1.0;
-        //return output;
-        //writeOutput(svPos, output);
-        //return;
     }
     else
     {
         float visibility = 0.0f;
-    [unroll]
+        [unroll]
         for (uint i = 0; i < NUM_DIRECTIONS; i++)
         {
             SampleAOData s;
@@ -72,40 +68,38 @@ void main(uint3 id : SV_DispatchThreadID)
             if (PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL)
                 s.evalDualVisibility(data);
 
-        // always add computed visibility from raster
+            // always add computed visibility from raster
             output.ao1.x += s.visibility; // only on bright
         
             if (s.requireRay(data) || forceRay)
             {
-            STENCIL(output.stencil |= 1u << i);
+                STENCIL(output.stencil |= 1u << i);
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
 #if USE_RAY_INTERVAL
-            InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - data.radius - gData.thickness * data.radius - s.sphereStart, 0.0)));
-            InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
+                InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - data.radius - gData.thickness * data.radius - s.sphereStart, 0.0)));
+                InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
 #else // no interval (only set flag)
-            gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR] = 1u;
+                gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR] = 1u;
 #endif          
 #endif
             }
             else
             {
-            darkmap(output.ao1.y += s.visibility); // also add on dark if no ray is required (reference solution)
+                darkmap(output.ao1.y += s.visibility); // also add on dark if no ray is required (reference solution)
             }
         }
 
         output.ao1 *= 2.0 / float(NUM_DIRECTIONS);
 
 #if SECONDARY_DEPTH_MODE == DEPTH_MODE_SINGLE
-    output.ao1 = pow(output.ao1, gData.exponent); // there will be no second shader
+        output.ao1 = pow(output.ao1, gData.exponent); // there will be no second shader
 #else
-    // apply exponent
+        // apply exponent
         if (output.stencil == 0)
             output.ao1 = pow(output.ao1, gData.exponent);
 #endif
     }
     
-    
-    //return output;
     writeOutput(svPos, output);
 }
