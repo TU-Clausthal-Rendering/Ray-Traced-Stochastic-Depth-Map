@@ -81,12 +81,7 @@ private:
     //RayFilter::SharedPtr mpRayFilter;
 
     // 2nd pass
-    ref<Fbo> mpFbo2;
-    ref<FullScreenPass> mpRasterPass2;
-    ref<DepthStencilState> mpDepthStencilState;
-
-    ref<FullScreenPass> mpStencilPass;
-    ref<Fbo> mpStencilFbo;
+    ref<ComputePass> mpComputePass2;
 
     ref<RtProgram> mpRayProgram;
     ref<RtProgramVars> mRayVars;

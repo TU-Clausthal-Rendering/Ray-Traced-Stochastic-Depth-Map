@@ -78,31 +78,8 @@ SVAO::SVAO(ref<Device> pDevice) : RenderPass(std::move(pDevice))
     samplerDesc.setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
     //samplerDesc.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point).setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
     mpTextureSampler = Sampler::create(mpDevice, samplerDesc);
-    mpFbo2 = Fbo::create(mpDevice);
 
     mpNoiseTexture = genNoiseTexture();
-
-    // set stencil to succeed if not equal to zero
-    DepthStencilState::Desc stencil;
-    stencil.setDepthEnabled(false);
-    stencil.setDepthWriteMask(false);
-    stencil.setStencilEnabled(true);
-    stencil.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep);
-    stencil.setStencilFunc(DepthStencilState::Face::FrontAndBack, DepthStencilState::Func::NotEqual);
-    stencil.setStencilRef(0);
-    stencil.setStencilReadMask(1);
-    stencil.setStencilWriteMask(0);
-    mpDepthStencilState = DepthStencilState::create(stencil);
-
-    // VAO settings will be loaded by first pass
-    mpStencilPass = FullScreenPass::create(mpDevice, kStencilShader);
-    stencil.setStencilOp(DepthStencilState::Face::FrontAndBack, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Keep, DepthStencilState::StencilOp::Increase);
-    stencil.setStencilFunc(DepthStencilState::Face::FrontAndBack, DepthStencilState::Func::Always);
-    stencil.setStencilRef(1); // does not work => using increase instead
-    stencil.setStencilReadMask(1);
-    stencil.setStencilWriteMask(1);
-    mpStencilPass->getState()->setDepthStencilState(DepthStencilState::create(stencil));
-    mpStencilFbo = Fbo::create(mpDevice);
 }
 
 ref<SVAO> SVAO::create(ref<Device> pDevice, const Properties& dict)
@@ -177,7 +154,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     mData.noiseScale = mData.resolution / 4.0f; // noise texture is 4x4 resolution
 
     mpComputePass.reset();
-    mpRasterPass2.reset();
+    mpComputePass2.reset();
     mpRayProgram.reset();
 
     // create stochastic depth graph
@@ -239,7 +216,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         return;
     }
 
-    if (!mpComputePass || !mpRasterPass2 || !mpRayProgram) // this needs to be deferred because it needs the scene defines to compile
+    if (!mpComputePass || !mpComputePass2 || !mpRayProgram) // this needs to be deferred because it needs the scene defines to compile
     {
         // generate neural net shader files
         std::filesystem::path resPath;
@@ -263,18 +240,28 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add(mpScene->getSceneDefines());
 
-        // raster pass 1
-        //mpRasterPass = FullScreenPass::create(mpDevice, getFullscreenShaderDesc(kRasterShader), defines);
-        Program::Desc csdesc;
-        csdesc.addShaderModules(mpScene->getShaderModules());
-        csdesc.addShaderLibrary(kRasterShader).csEntry("main");
-        csdesc.addTypeConformances(mpScene->getTypeConformances());
-        csdesc.setShaderModel("6_5");
-        mpComputePass = ComputePass::create(mpDevice, csdesc, defines);
+        {
+            Program::Desc csdesc;
+            csdesc.addShaderModules(mpScene->getShaderModules());
+            csdesc.addShaderLibrary(kRasterShader).csEntry("main");
+            csdesc.addTypeConformances(mpScene->getTypeConformances());
+            csdesc.setShaderModel("6_5");
+            mpComputePass = ComputePass::create(mpDevice, csdesc, defines);
+        }
+
+        {
+            Program::Desc csdesc;
+            csdesc.addShaderModules(mpScene->getShaderModules());
+            csdesc.addShaderLibrary(kRasterShader2).csEntry("main");
+            csdesc.addTypeConformances(mpScene->getTypeConformances());
+            csdesc.setShaderModel("6_5");
+            mpComputePass2 = ComputePass::create(mpDevice, csdesc, defines);
+        }
 
         // raster pass 2
-        mpRasterPass2 = FullScreenPass::create(mpDevice, getFullscreenShaderDesc(kRasterShader2), defines);
-        mpRasterPass2->getState()->setDepthStencilState(mpDepthStencilState);
+        //csdesc.addShaderLibrary(kRasterShader2).csEntry("main");
+        //mpRasterPass2 = FullScreenPass::create(mpDevice, getFullscreenShaderDesc(kRasterShader2), defines);
+        //mpRasterPass2->getState()->setDepthStencilState(mpDepthStencilState);
 
         // ray pass
         RtProgram::Desc desc;
@@ -298,7 +285,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
     //auto rasterVars = mpRasterPass->getRootVar();
     auto computeVars = mpComputePass->getRootVar();
-    auto rasterVars2 = mpRasterPass2->getRootVar();
+    auto computeVars2 = mpComputePass2->getRootVar();//mpRasterPass2->getRootVar();
     auto rayVars = mRayVars->getRootVar();
 
     if (mDirty)
@@ -309,10 +296,10 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         computeVars["gTextureSampler"] = mpTextureSampler;
         computeVars["gNoiseTex"] = mpNoiseTexture;
         // update data raster 2
-        rasterVars2["StaticCB"].setBlob(mData);
-        rasterVars2["gNoiseSampler"] = mpNoiseSampler;
-        rasterVars2["gTextureSampler"] = mpTextureSampler;
-        rasterVars2["gNoiseTex"] = mpNoiseTexture;
+        computeVars2["StaticCB"].setBlob(mData);
+        computeVars2["gNoiseSampler"] = mpNoiseSampler;
+        computeVars2["gTextureSampler"] = mpTextureSampler;
+        computeVars2["gNoiseTex"] = mpNoiseTexture;
         // update data ray
         rayVars["StaticCB"].setBlob(mData);
         rayVars["gNoiseSampler"] = mpNoiseSampler;
@@ -436,43 +423,25 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     }
     else // RASTER PIPELINE or stochastic depths
     {
-        // copy stencil
-        {
-            FALCOR_PROFILE(pRenderContext, "copy stencil");
-            auto dsv = pInternalStencil->getDSV();
-            // clear stencil
-            pRenderContext->clearDsv(dsv.get(), 0.0f, 0, false, true);
-            mpStencilFbo->attachDepthStencilTarget(pInternalStencil);
-            mpStencilPass->getRootVar()["aoMask"] = pAoMask;
-            mpStencilPass->execute(pRenderContext, mpStencilFbo);
-            //pRenderContext->copySubresource(pInternalStencil.get(), 1, pAoMask.get(), 0); // <= don't do this, this results in a slow stencil
-            
-        }
-
-        mpFbo2->attachDepthStencilTarget(pInternalStencil);
-        mpFbo2->attachColorTarget(pAoDst, 0);
-
-        // set raytracing data
-        auto var = mpRasterPass2->getRootVar();
-        mpScene->setRaytracingShaderData(pRenderContext, var);
+        mpScene->setRaytracingShaderData(pRenderContext, computeVars2);
 
         // set camera data
-        pCamera->setShaderData(rasterVars2["PerFrameCB"]["gCamera"]);
-        rasterVars2["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
+        pCamera->setShaderData(computeVars2["PerFrameCB"]["gCamera"]);
+        computeVars2["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
 
         // set textures
-        setDepthTex(rasterVars2, pDepth);
-        rasterVars2["gDepthTex2"] = pDepth2;
-        rasterVars2["gNormalTex"] = pNormal;
-        rasterVars2["gsDepthTex"] = pStochasticDepthMap;
-        rasterVars2["aoMask"] = pAoMask;
-        rasterVars2["aoPrev"] = pAoDst;
-
-        setGuardBandScissors(*mpRasterPass2->getState(), renderData.getDefaultTextureDims(), guardBand);
+        setDepthTex(computeVars2, pDepth);
+        computeVars2["gDepthTex2"] = pDepth2;
+        computeVars2["gNormalTex"] = pNormal;
+        computeVars2["gsDepthTex"] = pStochasticDepthMap;
+        computeVars2["aoMask"] = pAoMask;
+        computeVars2["aoPrev"] = pAoDst;
+        computeVars2["PerFrameCB"]["guardBand"] = guardBand;
 
         {
             FALCOR_PROFILE(pRenderContext, "AO 2 (raster)");
-            mpRasterPass2->execute(pRenderContext, mpFbo2, false);
+            uint2 nThreads = renderData.getDefaultTextureDims() - uint2(2 * guardBand);
+            mpComputePass2->execute(pRenderContext, nThreads.x, nThreads.y);
         }
     }
 }
@@ -558,10 +527,10 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if (widget.checkbox("SD-Map Jitter", mStochMapJitter))
             reset = true;
 
-        if (mpFbo2->getWidth() % mStochMapDivisor != 0)
-            widget.text("Warning: SD-Map Divisor does not divide width of screen");
-        if (mpFbo2->getHeight() % mStochMapDivisor != 0)
-            widget.text("Warning: SD-Map Divisor does not divide height of screen");
+        //if (mpFbo2->getWidth() % mStochMapDivisor != 0)
+        //    widget.text("Warning: SD-Map Divisor does not divide width of screen");
+        //if (mpFbo2->getHeight() % mStochMapDivisor != 0)
+        //    widget.text("Warning: SD-Map Divisor does not divide height of screen");
     }
     else if (mSecondaryDepthMode == DepthMode::Raytraced)
     {
@@ -608,7 +577,7 @@ void SVAO::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
     mpScene = pScene;
     //mpRasterPass.reset(); // new scene defines => recompile
     mpComputePass.reset();
-    mpRasterPass2.reset();
+    mpComputePass2.reset();
     mpRayProgram.reset();
     if (mpStochasticDepthGraph)
         mpStochasticDepthGraph->setScene(pScene);

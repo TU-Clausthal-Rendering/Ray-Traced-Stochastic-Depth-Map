@@ -32,8 +32,7 @@ void main(uint3 id : SV_DispatchThreadID)
     PSOut output;
     output.ao1 = 0.0;
     STENCIL(output.stencil = 0);
-
-    // calc texC
+    
     uint2 svPos = id.xy + uint2(guardBand); // pixel position
     float2 texC = (svPos + float2(0.5)) * gData.invResolution; // texture position
 
