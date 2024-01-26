@@ -353,6 +353,8 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         computeVars["gAO1"] = pAoDst;
         computeVars["gStencil"] = pAoMask;
         uint2 nThreads = renderData.getDefaultTextureDims() - uint2(2 * guardBand);
+        // nThreads needs to be 32 aligned because of the interleaving trick in the shader (improves texture read performance)
+        nThreads = ((nThreads + 31u) / 32u) * 32u;
         mpComputePass->execute(pRenderContext, nThreads.x, nThreads.y);
         //pRenderContext->uavBarrier(pAoDst.get());
         //pRenderContext->uavBarrier(pAoMask.get());
@@ -475,7 +477,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
         { (uint32_t)1, "1" },
         { (uint32_t)2, "2" },
         { (uint32_t)4, "4" },
-        { (uint32_t)8, "8" },
+        //{ (uint32_t)8, "8" }, // the ray traced version packs the data into rgba32f (slightly faster than texture array)
         //{ (uint32_t)16, "16" }, // falcor (and directx) only support 8 render targets, which are required for the raster variant
     };
 
@@ -590,7 +592,16 @@ ref<Texture> SVAO::genNoiseTexture()
     data.resize(NOISE_SIZE * NOISE_SIZE);
 
     // https://en.wikipedia.org/wiki/Ordered_dithering
-    const float ditherValues[] = { 0.0f, 8.0f, 2.0f, 10.0f, 12.0f, 4.0f, 14.0f, 6.0f, 3.0f, 11.0f, 1.0f, 9.0f, 15.0f, 7.0f, 13.0f, 5.0f };
+    const float ditherValues[] = {
+        0.0f, 8.0f, 2.0f, 10.0f,
+        12.0f, 4.0f, 14.0f, 6.0f,
+        3.0f, 11.0f, 1.0f, 9.0f,
+        15.0f, 7.0f, 13.0f, 5.0f };
+    // when using 2x2 interleaving:
+    // group0: 0, 2, 3, 1
+    // group1: 8, 10, 11, 9
+    // group2: 12, 14, 15, 13
+    // group3: 4, 6, 7, 5
 
     std::srand(2346); // always use the same seed for the noise texture (linear rand uses std rand)
     for (uint32_t i = 0; i < data.size(); i++)

@@ -27,13 +27,14 @@ void writeOutput(uint2 pixel, PSOut output)
 }
 
 [numthreads(16, 16, 1)]
-void main(uint3 id : SV_DispatchThreadID)
+void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localId : SV_GroupThreadID)
 {
     PSOut output;
     output.ao1 = 0.0;
     STENCIL(output.stencil = 0);
-    
-    uint2 svPos = id.xy + uint2(guardBand); // pixel position
+
+    uint2 offset = (group.xy / 2u) * 32u + 2u * localId.xy + (group.xy % 2u); // 2x2 group alignment works better because of the per-pixel rotation. See SVAO::genNoiseTexture()
+    uint2 svPos = offset + uint2(guardBand); // pixel position
     float2 texC = (svPos + float2(0.5)) * gData.invResolution; // texture position
 
     BasicAOData data;

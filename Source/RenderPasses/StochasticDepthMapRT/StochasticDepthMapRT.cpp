@@ -196,7 +196,7 @@ RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileDat
         depthFormat = ResourceFormat::RG32Float;
     else if(mSampleCount == 4)
         depthFormat = ResourceFormat::RGBA32Float;
-    else throw std::runtime_error("StochasticDepthMapRT: Only 1, 2 and 4 samples are supported");
+    else if(mSampleCount != 1) throw std::runtime_error("StochasticDepthMapRT: Only 1, 2 and 4 samples are supported");
 
     if (mUse16Bit)
     {
@@ -205,7 +205,7 @@ RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileDat
             depthFormat = ResourceFormat::RG16Float;
         else if (mSampleCount == 4)
             depthFormat = ResourceFormat::RGBA16Float;
-        else throw std::runtime_error("StochasticDepthMapRT: Only 1, 2 and 4 samples are supported");
+        else if (mSampleCount != 1) throw std::runtime_error("StochasticDepthMapRT: Only 1, 2 and 4 samples are supported");
     }
     if(mStoreNormals)
     {
