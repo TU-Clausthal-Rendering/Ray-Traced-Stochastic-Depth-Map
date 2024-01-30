@@ -236,6 +236,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("DUAL_AO", mDualAo ? "1" : "0");
         defines.add("USE_ALPHA_TEST", mAlphaTest ? "1" : "0");
         defines.add("USE_RAY_INTERVAL", mUseRayInterval ? "1" : "0");
+        defines.add("AO_KERNEL", std::to_string(uint32_t(mKernel)));
         auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add(mpScene->getSceneDefines());
@@ -544,6 +545,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
     }
 
     widget.separator();
+
+    if (widget.dropdown("AO Kernel", mKernel)) reset = true;
 
     if (widget.var("Sample Radius", mData.radius, 0.01f, FLT_MAX, 0.01f)) mDirty = true;
 

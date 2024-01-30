@@ -33,6 +33,7 @@
 #include "NeuralNet.h"
 #include "Core/Pass/FullScreenPass.h"
 #include "../StochasticDepthMap/StochasticDepthImplementation.h"
+#include "AOKernel.h"
 
 using namespace Falcor;
 
@@ -123,4 +124,5 @@ private:
     bool mAlphaTest = true; // use alpha test in raytracing or stochastic depth passes
     StochasticDepthImplementation mStochasticDepthImplementation = StochasticDepthImplementation::Default;
     bool mUseRayInterval = true; // stochastic depth ray interval optimization
+    AOKernel mKernel = AOKernel::VAO;
 };

@@ -9,6 +9,9 @@ import Utils.Math.PackedFormats;
 
 #include "../StochasticDepthMapRT/Jitter.slangh"
 
+#define AO_KERNEL_VAO 0
+#define AO_KERNEL_HBAO 1
+
 // single depth texture
 #define DEPTH_MODE_SINGLE 0
 // two depth textures

@@ -5,6 +5,7 @@ target_sources(SVAO PRIVATE
     SVAO.h
     Common.slang
     NeuralNet.h
+    AOKernel.h
     CopyStencil.ps.slang
     SVAORaster.ps.slang
     SVAORaster2.ps.slang
