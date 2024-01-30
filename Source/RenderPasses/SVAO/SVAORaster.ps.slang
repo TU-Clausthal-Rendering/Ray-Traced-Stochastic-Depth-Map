@@ -44,7 +44,7 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
     }
     else
     {
-        float visibility = 0.0f;
+        float visibility = 0.0;
         [unroll]
         for (uint i = 0; i < NUM_DIRECTIONS; i++)
         {
@@ -90,14 +90,19 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
             }
         }
 
-        output.ao1 *= 2.0 / float(NUM_DIRECTIONS);
+        output.ao1 *= 1.0 / float(NUM_DIRECTIONS);
+        if(AO_KERNEL == AO_KERNEL_VAO) output.ao1 *= 2.0;
 
 #if SECONDARY_DEPTH_MODE == DEPTH_MODE_SINGLE
+        if(AO_KERNEL == AO_KERNEL_HBAO) output.ao1 = saturate(1.0 - 2.0 * output.ao1);
         output.ao1 = pow(output.ao1, gData.exponent); // there will be no second shader
 #else
         // apply exponent
         if (output.stencil == 0)
+        {
+            if(AO_KERNEL == AO_KERNEL_HBAO) output.ao1 = saturate(1.0 - 2.0 * output.ao1);
             output.ao1 = pow(output.ao1, gData.exponent);
+        }
 #endif
     }
     

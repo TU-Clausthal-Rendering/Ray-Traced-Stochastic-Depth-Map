@@ -40,7 +40,7 @@ struct VAOData
     float thickness = 0.0f;
     float classifyThreshold = 0.0f; // sigmoid^-1(probability) DEPRECATED
     float ssRadiusCutoff = 6.0f; // radius in pixels where the ray tracing result is completely faded and only rasterization remains
-    float ssMaxRadius = 64.0f; // max screen space radius to gather samples from (setting this to a smaller number can improve performance due to increased cache hits)
+    float ssMaxRadius = 1024.0f; // max screen space radius to gather samples from (setting this to a smaller number can improve performance due to increased cache hits)
 };
 
 END_NAMESPACE_FALCOR
