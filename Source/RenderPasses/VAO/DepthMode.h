@@ -8,9 +8,6 @@ namespace Falcor
         DualDepth,
         StochasticDepth,
         Raytraced,
-        MachineClassify,
-        MachinePredict,
-        PerfectClassify, // for performance analysis (will be expensive)
     };
 
     FALCOR_ENUM_INFO(
@@ -20,9 +17,6 @@ namespace Falcor
             {DepthMode::DualDepth, "DualDepth"},
             {DepthMode::StochasticDepth, "StochasticDepth"},
             {DepthMode::Raytraced, "Raytraced"},
-            {DepthMode::MachineClassify, "MachineClassify"},
-            {DepthMode::MachinePredict, "MachinePredict"},
-            {DepthMode::PerfectClassify, "PerfectClassify"},
         }
     );
 

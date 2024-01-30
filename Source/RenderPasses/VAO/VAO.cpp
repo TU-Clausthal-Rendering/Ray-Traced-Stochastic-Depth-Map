@@ -100,9 +100,6 @@ static void regVAO(pybind11::module& m)
     depthMode.value("DualDepth", Falcor::DepthMode::DualDepth);
     depthMode.value("StochasticDepth", Falcor::DepthMode::StochasticDepth);
     depthMode.value("Raytraced", Falcor::DepthMode::Raytraced);
-    depthMode.value("MachineClassify", Falcor::DepthMode::MachineClassify);
-    depthMode.value("MachinePredict", Falcor::DepthMode::MachinePredict);
-    depthMode.value("PerfectClassify", Falcor::DepthMode::PerfectClassify);
 }
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)

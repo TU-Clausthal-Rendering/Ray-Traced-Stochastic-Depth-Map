@@ -20,9 +20,6 @@ import Utils.Math.PackedFormats;
 #define DEPTH_MODE_STOCHASTIC 2
 // raytraced
 #define DEPTH_MODE_RAYTRACING 3
-#define DEPTH_MODE_MACHINE_CLASSIFY 4
-#define DEPTH_MODE_MACHINE_PREDICT 5
-#define DEPTH_MODE_PERFECT_CLASSIFY 6
 
 #define sd_map_t float2
 

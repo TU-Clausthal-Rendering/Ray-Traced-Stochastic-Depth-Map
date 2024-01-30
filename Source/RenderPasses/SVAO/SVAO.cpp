@@ -312,12 +312,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     auto pCamera = mpScene->getCamera().get();
     pCamera->setShaderData(computeVars["PerFrameCB"]["gCamera"]);
     computeVars["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
-    if (mPrimaryDepthMode == DepthMode::PerfectClassify)
-    {
-        // set raytracing data
-        auto var = mpComputePass->getRootVar();
-        mpScene->setRaytracingShaderData(pRenderContext, var);
-    }
     computeVars["PerFrameCB"]["frameIndex"] = mFrameIndex;
 
     computeVars["gDepthTex"] = pDepth;

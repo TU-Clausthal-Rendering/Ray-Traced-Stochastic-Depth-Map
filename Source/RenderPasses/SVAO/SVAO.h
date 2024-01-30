@@ -78,7 +78,6 @@ private:
     ref<Scene> mpScene;
 
     ref<RenderGraph> mpStochasticDepthGraph;
-    //RayFilter::SharedPtr mpRayFilter;
 
     // 2nd pass
     ref<ComputePass> mpComputePass2;
@@ -101,7 +100,6 @@ private:
 
     // performance knobs
     bool mTraceOutOfScreen = true;
-    float mTargetTimeMs = 0.6f;
 
     int mFrameIndex = 0;
 
