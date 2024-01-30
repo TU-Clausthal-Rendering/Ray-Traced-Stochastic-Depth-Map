@@ -23,8 +23,6 @@ import Utils.Math.PackedFormats;
 #define DEPTH_MODE_MACHINE_CLASSIFY 4
 #define DEPTH_MODE_MACHINE_PREDICT 5
 #define DEPTH_MODE_PERFECT_CLASSIFY 6
-// use mipmaps to estimate depth, when mip0 is ambiguous
-#define DEPTH_MODE_MIPMAPS 7 
 
 #define sd_map_t float2
 
@@ -66,19 +64,14 @@ cbuffer PerFrameCB
     float4x4 invViewMat;
     Camera gCamera;
     uint guardBand;
-    bool useDepthLod;
     uint frameIndex;
 }
 
 SamplerState gNoiseSampler;
 SamplerState gTextureSampler;
 
-#ifndef DEPTH_MIPS
-#define DEPTH_MIPS 1
-#endif
 
-Texture2D<float> gDepthTexMips[DEPTH_MIPS];
-#define gDepthTex gDepthTexMips[0]
+Texture2D<float> gDepthTex;
 Texture2D<float> gDepthTex2;
 
 // additional depth textures
@@ -403,46 +396,13 @@ struct SampleAOData
     }
     
     // raster impl.
-    float calcObjectSpaceZ(BasicAOData data, float2 uv, Texture2D<float> depthTex, uint lod = 0u)
+    float calcObjectSpaceZ(BasicAOData data, float2 uv, Texture2D<float> depthTex)
     {
         float linearSampleDepth;
-        if (lod == 0u)
-            linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
-        else // useGather
-        {
-            float2 gatherUV = calcGatherUV(uv, depthTex);
-            float4 d = depthTex.Gather(gTextureSampler, gatherUV);
-            float4 w = getTexelWeights(uv, depthTex);
-
-        // closest depth
-            float dRef = dot(getTexelPointWeight(w), d);
-        //float dRef = max(max(d[0], d[1]), max(d[2], d[3]));
-
-            float lowT = pow(0.9, lod);
-            float highT = pow(1.1, lod);
-            for (uint i = 0; i < 4; ++i)
-            {
-                if (d[i] < lowT * dRef || d[i] > highT * dRef)
-                    w[i] = 0.0; // not similar enough => reject
-            }
-            w = w / (w[0] + w[1] + w[2] + w[3]);
-
-            linearSampleDepth = dot(w, d);
-        //linearSampleDepth = dRef;
-        //linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
-        }
+        linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
     
         float3 samplePosV = UVToViewSpace(uv, linearSampleDepth);
-        // adjust view space position
-        //samplePosV = initialSamplePosV + dot(data.normalV, samplePosV - initialSamplePosLength) * data.normalV;
-        
-        // the object is the sphere centered at posV with the above tangent space (positive values are closer to the camera)
         float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
-        // correct the objectSpaceZPos
-        //objectSpaceZ = rectifyObjectSpaceZ(data, objectSpaceZ, samplePosV);
-        // this is usually too expensive (x1.5) and only distant samples benefit from it
-        //float3 sampleNormalV = loadNormal(uv); //gNormalTex.SampleLevel(gTextureSampler, uv, 0.0).xyz);
-        //objectSpaceZ = calcObjectSpaceZFromPlane(data, samplePosV, sampleNormalV);
         
         return objectSpaceZ;
     }
@@ -462,25 +422,8 @@ struct SampleAOData
 
     [mutating] void evalPrimaryVisibility(BasicAOData data)
     {
-        uint lod = 0;
-        if (useDepthLod)
-            lod = (uint)max(int(log2(screenSpaceRadius / 8.0) + 0.5), 0);
-        objectSpaceZ = calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTexMips[lod], lod);
+        objectSpaceZ = calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTex);
         visibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius);
-
-        if (PRIMARY_DEPTH_MODE == DEPTH_MODE_MIPMAPS)
-        {
-            lod += 1;
-            for (; lod < uint(DEPTH_MIPS); ++lod)
-            {
-                // take min object space Z
-                objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTexMips[lod], lod));
-                visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius));
-                if (!requireRay(data))
-                    break;
-            }
-
-        }
     }
 
     [mutating] void evalDualVisibility(BasicAOData data)

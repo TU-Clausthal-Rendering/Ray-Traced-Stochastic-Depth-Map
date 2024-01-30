@@ -197,7 +197,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
 
     auto pNonLinearDepth = renderData[kGbufferDepth]->asTexture();
     auto pDepth = renderData[kDepth]->asTexture();
-    mHasDepthMipmap = pDepth->getMipCount() > 1;
     auto pNormal = renderData[kNormals]->asTexture();
     auto pAoDst = renderData[kAmbientMap]->asTexture();
     auto pDepth2 = renderData[kDepth2]->asTexture();
@@ -228,8 +227,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("MSAA_SAMPLES", std::to_string(mStochSamples)); // TODO update this from gui
         defines.add("TRACE_OUT_OF_SCREEN", mTraceOutOfScreen ? "1" : "0");
         defines.add("STOCHASTIC_DEPTH_IMPL", std::to_string(uint32_t(mStochasticDepthImpl)));
-        defines.add("USE_DEPTH_LOD", mUseDepthLod ? "1" : "0");
-        defines.add("DEPTH_MIPS", std::to_string(mDepthTexMips));
         defines.add("STOCH_MAP_DIVISOR", std::to_string(mStochMapDivisor) + "u");
         defines.add("STOCH_MAP_NORMALS", mStochMapNormals ? "1" : "0");
         defines.add("SD_JITTER", (mStochMapJitter && (mStochasticDepthImpl == Ray)) ? "1" : "0"); // only implemented for ray version
@@ -321,10 +318,9 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         auto var = mpComputePass->getRootVar();
         mpScene->setRaytracingShaderData(pRenderContext, var);
     }
-    computeVars["PerFrameCB"]["useDepthLod"] = mUseDepthLod ? 1 : 0;
     computeVars["PerFrameCB"]["frameIndex"] = mFrameIndex;
 
-    setDepthTex(computeVars, pDepth);
+    computeVars["gDepthTex"] = pDepth;
     computeVars["gDepthTex2"] = pDepth2;
     computeVars["gNormalTex"] = pNormal;
     computeVars["gColor"] = pColor;
@@ -412,7 +408,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         rayVars["PerFrameCB"]["guardBand"] = guardBand;
 
         // set textures
-        setDepthTex(rayVars, pDepth);
+        rayVars["gDepthTex"] = pDepth;
         rayVars["gDepthTex2"] = pDepth2;
         rayVars["gNormalTex"] = pNormal;
         rayVars["gsDepthTex"] = pStochasticDepthMap;
@@ -433,7 +429,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         computeVars2["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
 
         // set textures
-        setDepthTex(computeVars2, pDepth);
+        computeVars2["gDepthTex"] = pDepth;
         computeVars2["gDepthTex2"] = pDepth2;
         computeVars2["gNormalTex"] = pNormal;
         computeVars2["gsDepthTex"] = pStochasticDepthMap;
@@ -455,10 +451,6 @@ void SVAO::renderUI(Gui::Widgets& widget)
     {
         { (uint32_t)DepthMode::SingleDepth, "SingleDepth" },
         { (uint32_t)DepthMode::DualDepth, "DualDepth" },
-        //{ (uint32_t)DepthMode::MachineClassify, "MachineClassify" },
-        //{ (uint32_t)DepthMode::MachinePredict, "MachinePredict" },
-        //{ (uint32_t)DepthMode::PerfectClassify, "PerfectClassify" },
-        {(uint32_t)DepthMode::Mipmaps, "Mipmaps"},
     };
 
     const Gui::DropdownList kSecondaryDepthModeDropdown =
@@ -570,10 +562,6 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
     if(widget.checkbox("Output dual AO (bright/dark)", mDualAo)) reset = true;
 
-    widget.checkbox("Use Depth LOD", mUseDepthLod);
-
-    if (widget.var("Depth Mipmap Count", mDepthTexMips, 1u, 14u)) reset = true;
-
     if (reset) requestRecompile();
 }
 
@@ -613,18 +601,6 @@ ref<Texture> SVAO::genNoiseTexture()
     }
 
     return Texture::create2D(mpDevice, NOISE_SIZE, NOISE_SIZE, ResourceFormat::R8Unorm, 1, 1, data.data());
-}
-
-void SVAO::setDepthTex(ShaderVar& var, const ref<Texture>& pDepth)
-{
-    auto texArray = var["gDepthTexMips"];
-    for(uint i = 0; i < mDepthTexMips; ++i)
-    {
-        if (i < pDepth->getMipCount())
-            texArray[i].setSrv(pDepth->getSRV(i, 1));
-        else
-            texArray[i].setSrv(nullptr);
-    }
 }
 
 Program::Desc SVAO::getFullscreenShaderDesc(const std::string& filename)

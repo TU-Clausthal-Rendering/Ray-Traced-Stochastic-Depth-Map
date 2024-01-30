@@ -66,7 +66,6 @@ public:
     SVAO(ref<Device> pDevice);
 private:
     ref<Texture> genNoiseTexture();
-    void setDepthTex(ShaderVar& var, const ref<Texture>& pDepth);
 
     Program::Desc getFullscreenShaderDesc(const std::string& filename);
 
@@ -104,17 +103,12 @@ private:
     bool mTraceOutOfScreen = true;
     float mTargetTimeMs = 0.6f;
 
-    bool mUseDepthLod = false;
-    uint mDepthTexMips = 8;
-
     int mFrameIndex = 0;
 
     //NeuralNetCollection mNeuralNet;
     //NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
 
     StochasticDepthImpl mStochasticDepthImpl = StochasticDepthImpl::Ray;
-
-    bool mHasDepthMipmap = false;
     
     uint mStochMapDivisor = 1; // 1 = same resolution, 2 = half resolution etc.
     bool mStochMapNormals = false;

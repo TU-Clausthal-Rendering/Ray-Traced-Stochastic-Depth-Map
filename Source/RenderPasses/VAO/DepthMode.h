@@ -11,7 +11,6 @@ namespace Falcor
         MachineClassify,
         MachinePredict,
         PerfectClassify, // for performance analysis (will be expensive)
-        Mipmaps, // depth mipmaps
     };
 
     FALCOR_ENUM_INFO(
@@ -24,7 +23,6 @@ namespace Falcor
             {DepthMode::MachineClassify, "MachineClassify"},
             {DepthMode::MachinePredict, "MachinePredict"},
             {DepthMode::PerfectClassify, "PerfectClassify"},
-            {DepthMode::Mipmaps, "Mipmaps"},
         }
     );
 
