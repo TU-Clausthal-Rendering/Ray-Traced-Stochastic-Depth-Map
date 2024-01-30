@@ -7,7 +7,8 @@ namespace Falcor
     {
         Default = 0,
         CoverageMask,
-        ReservoirSampling
+        ReservoirSampling,
+        KBuffer
     };
 
     FALCOR_ENUM_INFO(
@@ -16,6 +17,7 @@ namespace Falcor
             {StochasticDepthImplementation::Default, "Default"},
             {StochasticDepthImplementation::CoverageMask, "CoverageMask"},
             {StochasticDepthImplementation::ReservoirSampling, "ReservoirSampling"},
+            {StochasticDepthImplementation::KBuffer, "KBuffer"},
         }
     );
 

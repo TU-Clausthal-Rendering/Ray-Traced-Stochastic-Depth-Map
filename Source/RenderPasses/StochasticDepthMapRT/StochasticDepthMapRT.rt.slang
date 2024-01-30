@@ -2,7 +2,14 @@ import Scene.Raytracing;
 import Rendering.Materials.TexLODHelpers;
 import Rendering.Materials.TexLODTypes;
 
-RWTexture2D<float4> depthOutTex;
+#if NUM_SAMPLES == 1
+#define out_t float
+#elif NUM_SAMPLES == 2
+#define out_t float2
+#elif NUM_SAMPLES == 4
+#define out_t float4
+#endif
+RWTexture2D<out_t> depthOutTex;
 Texture2D<uint> maskTex;
 
 // Note: using lods (ray cones) is about 20% faster than sampling lod 0 (no lod)
@@ -81,11 +88,15 @@ void rayGen()
         ray, rayData
     );
 
-    float4 data;
+    out_t data;
+    #if NUM_SAMPLES == 1
+    data = rayData.depths[0];
+    #else
     [unroll(NUM_SAMPLES)] for (uint i = 0; i < NUM_SAMPLES; ++i)
     {
         data[i] = rayData.depths[i];
         //SD_NORMALS(data.y = asfloat(rayData.normals[i]));
     }
+    #endif
     depthOutTex[svPos] = data;
 }

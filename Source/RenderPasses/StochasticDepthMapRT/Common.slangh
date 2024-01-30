@@ -18,6 +18,7 @@ StructuredBuffer<uint> materialAlphaTestLookup;
 #define IMPLEMENTATION_DEFAULT 0
 #define IMPLEMENTATION_COVERAGE_MASK 1
 #define IMPLEMENTATION_RESERVOIR_SAMPLING 2
+#define IMPLEMENTATION_KBUFFER 3
 
 #ifndef sd_t
 #define sd_t float2
@@ -99,7 +100,6 @@ inout uint normals[NUM_SAMPLES],
 #endif
 inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, uint primitiveIndex, float3 rayDir)
 {
-#define SD_VERSION 2
 #define MAX_COUNT (2 * NUM_SAMPLES)
     // if (count >= MAX_COUNT) return true; // commented out here, but used in every return command: same performance, but the implemented version can potentially get more useful samples
     
@@ -125,6 +125,10 @@ inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, u
         int index = int(lerp(stratifiedIndices[R], stratifiedIndices[R + 1], rng2));
         coverageMask = stratifiedLookUpTable[index];
     }
+#elif IMPLEMENTATION == IMPLEMENTATION_KBUFFER
+    // node culling
+    if(t >= depths[NUM_SAMPLES - 1]) return true;
+    count++; // increase count for max count
 #else // default
     uint slot = count++; // insertion slot
     if (count > NUM_SAMPLES)
@@ -200,8 +204,32 @@ inout uint count, float2 barycentrics, float t, GeometryInstanceID instanceID, u
         return false; // keep looking for hits, otherwise start to terminate
     return true;
 
+    #elif IMPLEMENTATION == IMPLEMENTATION_KBUFFER
+
+    float rayT = t; // remember for after loop
+    SD_NORMALS(uint n = encodeNormal2x16(viewNormal));
+    [unroll]
+    for(uint i = 0; i < NUM_SAMPLES; ++i)
+    {
+        if (t < depths[i])
+        {
+            // swap depth
+            float tmp = depths[i];
+            depths[i] = t;
+            t = tmp;
+            // swap normal
+            SD_NORMALS(uint tmpn = normals[i]);
+            SD_NORMALS(normals[i] = n);
+            SD_NORMALS(n = tmpn);
+        }
+    }
+
+    if(depths[NUM_SAMPLES - 1] == rayT) return true;
+    return count > MAX_COUNT;
+
     #else // default
 
+    [unroll]
     for (uint i = 0; i < NUM_SAMPLES; ++i)
     {
         if (i == slot)
