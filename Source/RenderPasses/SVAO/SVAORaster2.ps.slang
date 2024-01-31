@@ -49,7 +49,6 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
     ao_t prevAo = aoPrev[svPos];
     visibility += prevAo;
     darkmap(visibility.y = min(visibility.x, visibility.y)); // make sure that bright ao is bigger than dark ao
-    if(AO_KERNEL == AO_KERNEL_HBAO) visibility = saturate(1.0 - 2.0 * visibility);
-    visibility = pow(visibility, gData.exponent);
+    visibility = BasicAOData.finalize(visibility);
     aoPrev[svPos] = visibility;
 }

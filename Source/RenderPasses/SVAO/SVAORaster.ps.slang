@@ -54,7 +54,8 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
 
             if (isSamePixel(texC, s.rasterSamplePosUV))
             {
-                output.ao1 += (s.sphereStart - s.sphereEnd) / s.pdf;
+                if(AO_KERNEL == AO_KERNEL_HBAO) output.ao1 += 0.0;
+                if(AO_KERNEL == AO_KERNEL_VAO) output.ao1 += (s.sphereStart - s.sphereEnd) / s.pdf;
                 continue;
             }
 
@@ -77,8 +78,12 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
 #if USE_RAY_INTERVAL
-                InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - data.radius - gData.thickness * data.radius - s.sphereStart, 0.0)));
-                InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0)));
+                uint rayMin, rayMax;
+                if(AO_KERNEL == AO_KERNEL_VAO) rayMin = /*rough estimate of depth*/asuint(max(data.posVLength - data.radius - gData.thickness * data.radius - s.sphereStart, 0.0));
+                if(AO_KERNEL == AO_KERNEL_HBAO) rayMin = /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereStart, 0.0));
+                rayMax = /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0));
+                InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], rayMin);
+                InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], rayMax);
 #else // no interval (only set flag)
                 gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR] = 1u;
 #endif          
@@ -94,14 +99,12 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
         if(AO_KERNEL == AO_KERNEL_VAO) output.ao1 *= 2.0;
 
 #if SECONDARY_DEPTH_MODE == DEPTH_MODE_SINGLE
-        if(AO_KERNEL == AO_KERNEL_HBAO) output.ao1 = saturate(1.0 - 2.0 * output.ao1);
-        output.ao1 = pow(output.ao1, gData.exponent); // there will be no second shader
+        output.ao1 = data.finalize(output.ao1); // there is no second shader
 #else
         // apply exponent
         if (output.stencil == 0)
         {
-            if(AO_KERNEL == AO_KERNEL_HBAO) output.ao1 = saturate(1.0 - 2.0 * output.ao1);
-            output.ao1 = pow(output.ao1, gData.exponent);
+            output.ao1 = data.finalize(output.ao1);
         }
 #endif
     }

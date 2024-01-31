@@ -253,7 +253,7 @@ float calcSampleImportance(
     //return 0.999 * screen_radius * dist;
 }
 
-#if AO_KERNEL == AO_KERNEL_VAO
+
 struct BasicAOData
 {
     float3 posV;
@@ -306,7 +306,14 @@ struct BasicAOData
         
         return true;
     }
+
+    static float finalize(float avgAO)
+    {
+        if(AO_KERNEL == AO_KERNEL_HBAO) avgAO = saturate(1.0 - 3.0 * avgAO);
+        return pow(avgAO, gData.exponent);
+    }
 };
+
 
 struct SampleAOData
 {
@@ -361,7 +368,8 @@ struct SampleAOData
         visibility = 0.0;
         objectSpaceZ = 0.0;
         screenSpaceRadius = length(float2((texC - samplePosUV) * gData.resolution));
-        
+        // screenSpaceRadius < 1 handled in first ao pass (isSamplePixel)
+
         float2 screenUv = getScreenClampedUV(texC, samplePosUV); // clip to screen border
         isInScreen = all(samplePosUV == screenUv);
             
@@ -391,13 +399,27 @@ struct SampleAOData
     //    return dot(samplePosV - initialSamplePosV, sampleNormalV) / denom;
     //}
     
-    // raster impl.
-    float calcObjectSpaceZ(BasicAOData data, float2 uv, Texture2D<float> depthTex)
+    float HBAOKernel(BasicAOData data, float3 S)
     {
-        float linearSampleDepth;
-        linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
+        float3 P = data.posV;
+        float3 V = S - P;
+        float NdotVBias = 0.1;
+
+        float angleTerm = saturate(dot(data.normalV, normalize(V)) - NdotVBias); // 1 for directly above
+        float distanceTerm = saturate(1.0 - dot(V, V) / (gData.radius * gData.radius)); // falloff: 0 for far away. 1 for nearby
+        return angleTerm * distanceTerm;
+    }
+
+    float3 calcSamplePosV(BasicAOData data, float2 uv, Texture2D<float> depthTex)
+    {
+        float linearSampleDepth = depthTex.SampleLevel(gTextureSampler, uv, 0.0);
     
         float3 samplePosV = UVToViewSpace(uv, linearSampleDepth);
+        return samplePosV;
+    }
+    
+    float calcObjectSpaceZ(BasicAOData data, float3 samplePosV)
+    {
         float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
         
         return objectSpaceZ;
@@ -413,185 +435,49 @@ struct SampleAOData
 
     bool requireRay(BasicAOData data)
     {
-        return objectSpaceZ > sphereStart + CONST_RADIUS && screenSpaceRadius > gData.ssRadiusCutoff;
+        if(AO_KERNEL == AO_KERNEL_VAO)
+            return objectSpaceZ > sphereStart + CONST_RADIUS && screenSpaceRadius > gData.ssRadiusCutoff;
+        // HBAO
+        return objectSpaceZ > max(sphereStart, data.radius * 0.1) && screenSpaceRadius > gData.ssRadiusCutoff;
+    }
+
+    [mutating] void addSample(BasicAOData data, float3 samplePosV, bool init = false)
+    {
+        // update object space z
+        float oz = calcObjectSpaceZ(data, samplePosV);
+        if(init) objectSpaceZ = oz;
+        else objectSpaceZ = min(objectSpaceZ, oz);
+
+        // update visibility
+        if(AO_KERNEL == AO_KERNEL_VAO)
+        {
+            float v = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius);
+            if(init) visibility = v;
+            else visibility = min(visibility, v);
+        }
+        if(AO_KERNEL == AO_KERNEL_HBAO)
+        {
+            float v = HBAOKernel(data, samplePosV);
+            if(init) visibility = v;
+            else visibility = max(visibility, v);
+        }
     }
 
     [mutating] void evalPrimaryVisibility(BasicAOData data)
     {
-        objectSpaceZ = calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTex);
-        visibility = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius);
+        float3 samplePosV = calcSamplePosV(data, rasterSamplePosUV, gDepthTex);
+        addSample(data, samplePosV, true);
     }
 
-    [mutating] void evalDualVisibility(BasicAOData data)
+    [mutating] void evalDualVisibility(BasicAOData data, bool init = false)
     {
         if (!requireRay(data))
             return; // not needed
         
-        objectSpaceZ = min(objectSpaceZ, calcObjectSpaceZ(data, rasterSamplePosUV, gDepthTex2));
-        visibility = COMBINE_VIS(visibility, calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius));
+        float3 samplePosV = calcSamplePosV(data, rasterSamplePosUV, gDepthTex2);
+        addSample(data, samplePosV, init);
     }
 };
-#endif
-
-#if AO_KERNEL == AO_KERNEL_HBAO
-
-struct BasicAOData
-{
-    float3 posV;
-    float posVLength;
-    float3 normal; // view space: -posV
-    float3 tangent; // view space
-    float3 bitangent; // view space
-    float3 normalO; // sampling space (surface normal)
-    float3 normalV; // view space (surface normal)
-    
-    float radiusInPixels;
-    float radius; // world space radius. Usually gData.radius, but can be smaller if the screen space radius would be too large
-
-    // returns false if sample needs no shading (background)
-    [mutating] bool Init(float2 texC)
-    {
-        float linearDepth = gDepthTex.SampleLevel(gTextureSampler, texC, 0);
-        radiusInPixels = GetAORadiusInPixels(linearDepth);
-        radius = gData.radius;
-        // limit the pixel radius to maxPixelRadius to prevent samples from being distributed over the entire screen (bad for cache)
-        if (radiusInPixels > gData.ssMaxRadius)
-        {
-            radius = radius / radiusInPixels * gData.ssMaxRadius;
-            radiusInPixels = gData.ssMaxRadius;
-        }
-        
-        if (radiusInPixels < 0.5)
-            return false;
-
-        posV = UVToViewSpace(texC, linearDepth);
-        posVLength = length(posV);
-
-        // view space normal of current pixel
-        normalV = loadNormal(texC);
-        if (dot(posV, normalV) > 0.0)
-            normalV = -normalV;
-
-        // Calculate tangent space (use random direction for tangent orientation)
-        float randRotation = gNoiseTex.SampleLevel(gNoiseSampler, texC * gData.noiseScale, 0) * 2.0 * 3.141;
-        float2 randDir = float2(sin(randRotation), cos(randRotation));
-    
-        // determine tangent space
-        normal = -posV / posVLength;
-        bitangent = normalize(cross(normal, float3(randDir, 0.0f)));
-        tangent = cross(bitangent, normal);
-
-        // transfer view space normal to normal in object coordinates of the sampling sphere
-        normalO = float3(dot(normalV, tangent), dot(normalV, bitangent), dot(normalV, normal));
-        
-        
-        return true;
-    }
-};
-
-struct SampleAOData
-{
-    float sphereStart;
-    float sphereEnd;
-    float pdf; // 2 * sphereStart
-    bool isInScreen;
-
-    float2 samplePosUV; // possible out-of-screen sample location
-    float2 rasterSamplePosUV; // raster clamped uv
-
-    float visibility;
-    bool needRay;
-    float objectSpaceZ; // TODO remove
-
-    float initialSamplePosLength;
-    float radius; // world space radius of sample
-    float3 initialSamplePosV;
-    
-    float screenSpaceRadius;
-    
-    // returns false if the sample is invalid (below hemisphere)
-    [mutating] bool Init(float2 texC, BasicAOData data, uint i)
-    {
-        // random angle on view space disc
-        float alpha = (float(i) / NUM_DIRECTIONS) * 2.0 * 3.141;
-        radius = sampleRadius[i] * data.radius; // radius on sampling unit sphere * world space radius
-        float2 dir = radius * float2(sin(alpha), cos(alpha)); // world space direction
-
-        const float sphereHeight = sqrt(data.radius * data.radius - radius * radius);
-        pdf = 2.0 * sphereHeight;
-        
-        // determine distance within [-sphereHeight, +sphereHeight]
-        sphereStart = sphereHeight; // in object coordinates (bigger is closer to the camera)
-        sphereEnd = -sphereHeight; // in object coordinates (smaller is futher from the camera)
-
-        { // HEMISPHERE SAMPLING
-            //float zIntersect = -dot(rand.xy, normalO.xy) / normalO.z;
-            float zIntersect = -dot(dir.xy, data.normalO.xy) / makeNonZero(data.normalO.z, 0.0001);
-            float zIntersectClamped = clamp(zIntersect, -sphereHeight, sphereHeight);
-            sphereEnd = zIntersectClamped;
-        }
-
-        if ((sphereStart - sphereEnd) / pdf <= 0.1)
-        {
-            return false; // skip sample (no visibility)
-        }
-        
-        // sample position calculate uv position of sample
-        initialSamplePosV = data.posV + data.tangent * dir.x + data.bitangent * dir.y;
-        initialSamplePosLength = length(initialSamplePosV);
-        samplePosUV = ViewSpaceToUV(initialSamplePosV);
-        visibility = 0.0;
-        needRay = false;
-        objectSpaceZ = 0.0;
-        screenSpaceRadius = length(float2((texC - samplePosUV) * gData.resolution));
-        
-        float2 screenUv = getScreenClampedUV(texC, samplePosUV); // clip to screen border
-        isInScreen = all(samplePosUV == screenUv);
-            
-        rasterSamplePosUV = screenUv;
-        rasterSamplePosUV = getSnappedUV(rasterSamplePosUV); // snap to pixel center
-        
-        return true;
-    }
-
-    // returns true if requires ray
-    bool calcKernel(BasicAOData data, float3 S, inout float occ)
-    {
-        float3 P = data.posV;
-        float3 V = S - P;
-        float NdotVBias = 0.1;
-
-        float angleTerm = saturate(dot(data.normalV, normalize(V)) - NdotVBias); // 1 for directly above
-        float distanceTerm = saturate(1.0 - dot(V, V) / (gData.radius * gData.radius)); // falloff: 0 for far away. 1 for nearby
-        // occlusion
-        occ = max(angleTerm * distanceTerm, occ);
-        return angleTerm > 0.0 && distanceTerm == 0.0; // was outside of radius
-    }
-
-    bool requireRay(BasicAOData data)
-    {
-        return needRay && screenSpaceRadius > gData.ssRadiusCutoff;
-    }
-
-    [mutating] void evalPrimaryVisibility(BasicAOData data)
-    {
-        float linearSampleDepth = gDepthTex.SampleLevel(gTextureSampler, rasterSamplePosUV, 0.0);    
-        float3 S = UVToViewSpace(rasterSamplePosUV, linearSampleDepth);
-        needRay = calcKernel(data, S, visibility);
-    }
-
-    [mutating] void evalDualVisibility(BasicAOData data)
-    {
-        if (!requireRay(data))
-            return; // not needed
-        
-        float linearSampleDepth = gDepthTex2.SampleLevel(gTextureSampler, rasterSamplePosUV, 0.0);    
-        float3 S = UVToViewSpace(rasterSamplePosUV, linearSampleDepth);
-        needRay = calcKernel(data, S, visibility);
-    }
-};
-
-#endif
 
 struct RayData // cannot be compressed to half floats => no diff in rendering time + insufficient visual quality
 {
@@ -638,8 +524,8 @@ ao_t calcAO2(uint2 svPos, uint mask)
         if (PRIMARY_DEPTH_MODE != DEPTH_MODE_DUAL) // DEPTH_MODE = SINGLE (or classify)
             s.evalPrimaryVisibility(data);
         else // DEPTH_MODE == DUAL
-            s.evalDualVisibility(data);
-        float curVisibility = s.visibility;
+            s.evalDualVisibility(data, true); // force init
+        
         visibility.x -= s.visibility; // subtract old visibility from raster for bright channel
         
         if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
@@ -672,30 +558,8 @@ ao_t calcAO2(uint2 svPos, uint mask)
                 // linearSampleDepth is in [0, 1] => scale accordingly
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;
                 float3 samplePosV = UVToViewSpace(sdSampleUV, linearSampleDepth);
-                if(AO_KERNEL == AO_KERNEL_VAO)
-                {
-                    float objectSpaceZ = dot(samplePosV - data.posV, data.normal);
-                    //objectSpaceZ = s.rectifyObjectSpaceZ(data, objectSpaceZ, samplePosV);
-                
-                    //#if STOCH_MAP_NORMALS
-                    //float3 sd_normal = decodeNormal2x16(asuint(sd_data.y));
-                    //objectSpaceZ = s.calcObjectSpaceZFromPlane(data, samplePosV, sd_normal);
-                    //#endif
-                
-                    //if (objectSpaceZ <= data.radius + gData.thickness * data.radius && objectSpaceZ >= -data.radius)
-                    //    stochInside = true;
-                    float newVisibility = calcVisibility(objectSpaceZ, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
-                    curVisibility = COMBINE_VIS(curVisibility, newVisibility);
-                } 
-                #if (AO_KERNEL == AO_KERNEL_HBAO)
-                s.calcKernel(data, samplePosV, curVisibility);
-                #endif
-                
-
+                s.addSample(data, samplePosV);
             }
-            
-            // if (!stochInside) visibility.y -= curVisibility; // keep dark term dark (+= curVisibility will be performed at the end)
-
         }
         else if (SECONDARY_DEPTH_MODE == DEPTH_MODE_RAYTRACING)
         {
@@ -725,17 +589,17 @@ ao_t calcAO2(uint2 svPos, uint mask)
             if (s.isInScreen)
                 ray.TMin = max(ray.TMin, (data.posVLength - s.objectSpaceZ) * s.initialSamplePosLength / data.posVLength + epsilon);
             else
-                curVisibility = 1.0;
+                s.visibility = 1.0;
             
             traceAORay(ray, rayData);
 
             float sphereVisibility = calcVisibility(data.posVLength - rayData.tFirstFrontFaceInside * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
             float haloVisibility = calcHaloVisibility(data.posVLength - rayData.tLastFrontFaceHalo * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
 
-            curVisibility = min(curVisibility, min(sphereVisibility, haloVisibility));
+            s.visibility = min(s.visibility, min(sphereVisibility, haloVisibility));
         }
 
-        visibility += curVisibility;
+        visibility += s.visibility;
         
         // advance mask for next iteration
         mask = mask >> 1;
