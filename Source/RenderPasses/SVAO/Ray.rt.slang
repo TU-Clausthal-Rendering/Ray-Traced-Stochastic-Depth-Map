@@ -10,8 +10,10 @@ void anyHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs
 {
     // extract hit properties
     float t = RayTCurrent();
+    #if AO_KERNEL == AO_KERNEL_VAO
     if (t < rayData.tLastFrontFaceHalo)
         IgnoreHit(); // we can skip this since it would not contribute anyways (unfortunately there is no option to set the ray.min afterwards)
+    #endif
 
     bool frontFace = HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE;
     TriangleHit hit;
@@ -35,7 +37,9 @@ void miss(inout RayData rayData)
 [shader("closesthit")]
 void closestHit(inout RayData rayData, BuiltInTriangleIntersectionAttributes attribs)
 {
-    // is skipped
+    #if AO_KERNEL == AO_KERNEL_HBAO
+    rayData.tFirst = RayTCurrent();
+    #endif
 }
 
 // implementation of the traceAORay used inside calcAO2
@@ -43,7 +47,11 @@ void traceAORay(RayDesc ray, inout RayData rayData)
 {
     TraceRay(
         gScene.rtAccel,
+        #if AO_KERNEL == AO_KERNEL_VAO
         RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
+        #else // HBAO
+        RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
+        #endif
         0xff /* instanceInclusionMask */, 0 /* hitIdx */, 1 /*ray type count*/, 0 /* missIdx */,
         ray, rayData
     );
@@ -62,6 +70,6 @@ void rayGen()
     ao_t visibility = calcAO2(svPos, mask);
     visibility += output[svPos];
     darkmap(visibility.y = min(visibility.x, visibility.y)); // make sure that bright ao is bigger than dark ao
-    visibility = pow(visibility, gData.exponent);
+    visibility = BasicAOData.finalize(visibility);
     output[svPos] = visibility;
 }

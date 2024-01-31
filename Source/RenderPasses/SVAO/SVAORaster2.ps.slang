@@ -8,8 +8,12 @@ RWTexture2D<unorm ao_t> aoPrev;
 // implementation of the traceAORay used inside calcAO2
 void traceAORay(RayDesc ray, inout RayData rayData)
 {
-               // skip procedural and force all triangle to be handled by any-hit traversal
+    // skip procedural and force all triangle to be handled by any-hit traversal
+    #if AO_KERNEL == AO_KERNEL_VAO
     RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE > rayQuery;
+    #else // HBAO
+    RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES > rayQuery;
+    #endif
     rayQuery.TraceRayInline(gScene.rtAccel, RAY_FLAG_NONE, 0xff, ray);
 
     while (rayQuery.Proceed())
@@ -18,8 +22,11 @@ void traceAORay(RayDesc ray, inout RayData rayData)
         {
             // extract hit properties
             float t = rayQuery.CandidateTriangleRayT();
+            
+            #if AO_KERNEL == AO_KERNEL_VAO
             if (t < rayData.tLastFrontFaceHalo)
                 continue; // we can skip this since it would not contribute anyways (unfortunately there is no option to set the ray.min afterwards)
+            #endif
 
             bool frontFace = rayQuery.CandidateTriangleFrontFace();
             const TriangleHit hit = getCandidateTriangleHit(rayQuery);
@@ -31,6 +38,11 @@ void traceAORay(RayDesc ray, inout RayData rayData)
                 break;      
         }
     }
+
+    #if AO_KERNEL == AO_KERNEL_HBAO
+    if(rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
+        rayData.tFirst = rayQuery.CommittedRayT();
+    #endif
 }
 
 [numthreads(16, 16, 1)]
@@ -46,8 +58,7 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
         return;
     
     ao_t visibility = calcAO2(svPos, mask);
-    ao_t prevAo = aoPrev[svPos];
-    visibility += prevAo;
+    visibility += float(aoPrev[svPos]);
     darkmap(visibility.y = min(visibility.x, visibility.y)); // make sure that bright ao is bigger than dark ao
     visibility = BasicAOData.finalize(visibility);
     aoPrev[svPos] = visibility;

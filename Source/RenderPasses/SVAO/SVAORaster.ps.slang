@@ -79,8 +79,10 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
 #if USE_RAY_INTERVAL
                 uint rayMin, rayMax;
-                if(AO_KERNEL == AO_KERNEL_VAO) rayMin = /*rough estimate of depth*/asuint(max(data.posVLength - data.radius - gData.thickness * data.radius - s.sphereStart, 0.0));
-                if(AO_KERNEL == AO_KERNEL_HBAO) rayMin = /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereStart, 0.0));
+                float objectSpaceMin;
+                if(AO_KERNEL == AO_KERNEL_VAO) objectSpaceMin = min(s.objectSpaceZ, data.radius + gData.thickness * data.radius + s.sphereStart);
+                if(AO_KERNEL == AO_KERNEL_HBAO) objectSpaceMin = min(s.objectSpaceZ, s.sphereStart);
+                rayMin = /*rough estimate of depth*/asuint(max(data.posVLength - objectSpaceMin, 0.0));
                 rayMax = /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0));
                 InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], rayMin);
                 InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], rayMax);

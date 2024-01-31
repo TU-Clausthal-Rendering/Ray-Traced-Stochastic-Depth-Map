@@ -481,10 +481,15 @@ struct SampleAOData
 
 struct RayData // cannot be compressed to half floats => no diff in rendering time + insufficient visual quality
 {
+#if AO_KERNEL == AO_KERNEL_VAO
     float tLastFrontFaceHalo; // ray min
     float tFirstFrontFaceInside; // ray max
     float tConstRadiusStart;
     float tSphereStart;
+#endif
+#if AO_KERNEL == AO_KERNEL_HBAO
+    float tFirst; // ray t of first hit inside sphere
+#endif
 };
 
 void traceAORay(RayDesc ray, inout RayData rayData);
@@ -576,6 +581,7 @@ ao_t calcAO2(uint2 svPos, uint mask)
 
             // ray query or ray pipeline implementation
             RayData rayData;
+            #if AO_KERNEL == AO_KERNEL_VAO
             rayData.tLastFrontFaceHalo = (data.posVLength - s.sphereStart - data.radius - gData.thickness * data.radius) * s.initialSamplePosLength / data.posVLength; // min (haloStart)
             rayData.tFirstFrontFaceInside = (data.posVLength - s.sphereEnd) * s.initialSamplePosLength / data.posVLength; // max (sphereEnd)
             rayData.tConstRadiusStart = (data.posVLength - data.radius - gData.thickness * data.radius) * s.initialSamplePosLength / data.posVLength;
@@ -584,19 +590,36 @@ ao_t calcAO2(uint2 svPos, uint mask)
             ray.TMin = max(rayData.tLastFrontFaceHalo, 0.0);
             ray.TMax = rayData.tFirstFrontFaceInside; // sphereEnd
 
+            if (!s.isInScreen) s.visibility = 1.0;
+            #endif
+            #if AO_KERNEL == AO_KERNEL_HBAO
+            rayData.tFirst = 0.0;
+
+            ray.TMin = (data.posVLength - s.sphereStart) * s.initialSamplePosLength / data.posVLength; // sphereStart
+            ray.TMax = (data.posVLength - s.sphereEnd) * s.initialSamplePosLength / data.posVLength; // sphereEnd
+
+            if(!s.isInScreen) s.visibility = 0.0;
+            #endif
+
             const float epsilon = data.radius * 0.01;
             // include the value of the depth buffer when choosing TMin to save some traversal time
             if (s.isInScreen)
                 ray.TMin = max(ray.TMin, (data.posVLength - s.objectSpaceZ) * s.initialSamplePosLength / data.posVLength + epsilon);
-            else
-                s.visibility = 1.0;
+                
             
             traceAORay(ray, rayData);
 
+            #if AO_KERNEL == AO_KERNEL_VAO
             float sphereVisibility = calcVisibility(data.posVLength - rayData.tFirstFrontFaceInside * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
             float haloVisibility = calcHaloVisibility(data.posVLength - rayData.tLastFrontFaceHalo * data.posVLength / s.initialSamplePosLength, s.sphereStart, s.sphereEnd, s.pdf, data.radius);
 
             s.visibility = min(s.visibility, min(sphereVisibility, haloVisibility));
+            
+            #else // HBAO
+            float3 samplePosW = ray.Origin + ray.Direction * rayData.tFirst;
+            float3 samplePosV = mul(gCamera.data.viewMat, float4(samplePosW, 1.0)).xyz;
+            s.addSample(data, samplePosV);
+            #endif
         }
 
         visibility += s.visibility;
@@ -623,6 +646,7 @@ ExplicitRayConesLodTextureSampler computeLod(VertexData v, float3 rayDir, float 
     return ExplicitRayConesLodTextureSampler(lambda);
 }
 
+
 // returns any of the above A0_HIT defines
 uint aoAnyHit(inout RayData rayData, float t, const TriangleHit hit, bool frontFace, float3 rayDir)
 {
@@ -644,6 +668,7 @@ uint aoAnyHit(inout RayData rayData, float t, const TriangleHit hit, bool frontF
     if (!frontFace)
         return AO_HIT_IGNORE; // this is just for rasterizer compability
 
+    #if AO_KERNEL == AO_KERNEL_VAO
     if (t <= rayData.tSphereStart)
     {
         rayData.tLastFrontFaceHalo = max(rayData.tLastFrontFaceHalo, t);
@@ -657,4 +682,9 @@ uint aoAnyHit(inout RayData rayData, float t, const TriangleHit hit, bool frontF
     }
 
     return AO_HIT_IGNORE;
+    
+    #endif
+    #if AO_KERNEL == AO_KERNEL_HBAO
+    return AO_HIT_ACCEPT; // since we save the min, we can commit TMax here
+    #endif
 }
