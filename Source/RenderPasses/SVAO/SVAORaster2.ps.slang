@@ -10,9 +10,9 @@ void traceAORay(RayDesc ray, inout RayData rayData)
 {
     // skip procedural and force all triangle to be handled by any-hit traversal
     #if AO_KERNEL == AO_KERNEL_VAO
-    RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE > rayQuery;
+    RayQuery < CULL_MODE_RAY_FLAG | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE > rayQuery;
     #else // HBAO
-    RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES > rayQuery;
+    RayQuery < CULL_MODE_RAY_FLAG | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES > rayQuery;
     #endif
     rayQuery.TraceRayInline(gScene.rtAccel, RAY_FLAG_NONE, 0xff, ray);
 

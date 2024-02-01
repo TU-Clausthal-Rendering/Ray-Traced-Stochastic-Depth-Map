@@ -117,4 +117,5 @@ private:
     StochasticDepthImplementation mStochasticDepthImplementation = StochasticDepthImplementation::Default;
     bool mUseRayInterval = true; // stochastic depth ray interval optimization
     AOKernel mKernel = AOKernel::VAO;
+    RasterizerState::CullMode mCullMode = RasterizerState::CullMode::None; // cull mode for secondary surfaces
 };

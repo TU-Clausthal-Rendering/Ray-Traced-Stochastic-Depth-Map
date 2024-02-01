@@ -166,6 +166,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     //sdDict["Alpha"] = 0.375f; // for 4 samples => ALPHA * 4 = 1.5 => 1.5 + rng will save 1-2 samples per pixel
     sdDict["Alpha"] = 1.5 / mStochSamples;
     sdDict["RayInterval"] = mUseRayInterval;
+    sdDict["CullMode"] = mCullMode;
     mpStochasticDepthGraph = RenderGraph::create(mpDevice, "Stochastic Depth");
     ref<RenderPass> pStochasticDepthPass;
     switch(mStochasticDepthImpl)
@@ -236,6 +237,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         defines.add("AO_KERNEL", std::to_string(uint32_t(mKernel)));
         auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
+        defines.add("CULL_MODE_RAY_FLAG", RasterizerState::CullModeToRayFlag(mCullMode));
         defines.add(mpScene->getSceneDefines());
 
         {
@@ -468,6 +470,12 @@ void SVAO::renderUI(Gui::Widgets& widget)
         //{ (uint32_t)16, "16" }, // falcor (and directx) only support 8 render targets, which are required for the raster variant
     };
 
+    const Gui::DropdownList kCullModes =
+    {
+        {(uint32_t)RasterizerState::CullMode::None, "None"},
+        {(uint32_t)RasterizerState::CullMode::Back, "Back"}
+    };
+
 
     auto reset = false;
 
@@ -528,6 +536,12 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if (widget.checkbox("Trace Out of Screen", mTraceOutOfScreen)) reset = true;
         widget.tooltip("If a sample point is outside of the screen, a ray is traced. Otherwise the closest sample from the border is used.");
 
+    }
+    if(mSecondaryDepthMode != DepthMode::SingleDepth)
+    {
+        uint32_t cullMode = (uint32_t)mCullMode;
+        if (widget.dropdown("Cull", kCullModes, cullMode)) reset = true;
+        mCullMode = (RasterizerState::CullMode)cullMode;
     }
 
     widget.separator();

@@ -75,7 +75,7 @@ RenderPassReflection VBufferLighting::reflect(const CompileData& compileData)
 {
     RenderPassReflection reflector;
     reflector.addInput(kVBuffer, "vbuffer");
-    reflector.addInput(kVisBuffer, "Visibility buffer used for shadowing. Range is [0,1] where 0 means the pixel is fully-shadowed and 1 means the pixel is not shadowed at all").flags(RenderPassReflection::Field::Flags::Optional);
+    reflector.addInput(kVisBuffer, "Visibility buffer used for shadowing. Range is [0,1] where 0 means the pixel is fully-shadowed and 1 means the pixel is not shadowed at all").flags(RenderPassReflection::Field::Flags::Optional).texture2D(0, 0, 1, 1, 0);
     reflector.addOutput(kColor, "Color texture");
 
     return reflector;

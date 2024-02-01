@@ -48,9 +48,9 @@ void traceAORay(RayDesc ray, inout RayData rayData)
     TraceRay(
         gScene.rtAccel,
         #if AO_KERNEL == AO_KERNEL_VAO
-        RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
+        CULL_MODE_RAY_FLAG | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
         #else // HBAO
-        RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
+        CULL_MODE_RAY_FLAG | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
         #endif
         0xff /* instanceInclusionMask */, 0 /* hitIdx */, 1 /*ray type count*/, 0 /* missIdx */,
         ray, rayData

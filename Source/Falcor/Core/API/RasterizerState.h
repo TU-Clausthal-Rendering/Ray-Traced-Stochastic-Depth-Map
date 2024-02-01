@@ -60,6 +60,20 @@ public:
         }
     );
 
+    static const char* CullModeToRayFlag(CullMode m)
+    {
+        switch (m)
+        {
+        case CullMode::None:
+            return "RAY_FLAG_NONE";
+        case CullMode::Back:
+            return "RAY_FLAG_CULL_BACK_FACING_TRIANGLES";
+        case CullMode::Front:
+            return "RAY_FLAG_CULL_FRONT_FACING_TRIANGLES";
+        }
+        return "";
+    }
+
     /**
      * Polygon fill mode
      */

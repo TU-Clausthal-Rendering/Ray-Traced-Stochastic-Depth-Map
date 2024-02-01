@@ -58,7 +58,7 @@ PsOut main(float2 texC : TEXCOORD, float4 svPos : SV_POSITION)
     rayMinTex.GetDimensions(width, height);
     RayDesc ray = initRayDesc(uint2(svPos.xy), uint2(width, height));
 
-    RayQuery < RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER > rayQuery;
+    RayQuery < CULL_MODE_RAY_FLAG | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER > rayQuery;
     rayQuery.TraceRayInline(gScene.rtAccel, RAY_FLAG_NONE, 0xff, ray);
     while (rayQuery.Proceed())
     {
