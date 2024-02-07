@@ -451,7 +451,7 @@ struct SampleAOData
         // update visibility
         if(AO_KERNEL == AO_KERNEL_VAO)
         {
-            float v = calcVisibility(objectSpaceZ, sphereStart, sphereEnd, pdf, data.radius);
+            float v = calcVisibility(oz, sphereStart, sphereEnd, pdf, data.radius);
             if(init) visibility = v;
             else visibility = min(visibility, v);
         }
