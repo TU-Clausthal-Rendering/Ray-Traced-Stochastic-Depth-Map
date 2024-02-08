@@ -49,7 +49,12 @@ import Utils.Math.PackedFormats;
 #define NUM_DIRECTIONS 8
 // normalized radius for each of the NUM_DIRECTION samples (distributed with radical inverse => see SSAO::setKernel() radius)
 //static const float sampleRadius[NUM_DIRECTIONS] = { 0.608308673, 0.776627183, 0.417753726, 0.866025388, 0.518647850, 0.692805171, 0.291845083, 0.917883337 };
+#if AO_KERNEL == AO_KERNEL_VAO
 static const float sampleRadius[NUM_DIRECTIONS] = { 0.917883, 0.564429, 0.734504, 0.359545, 0.820004, 0.470149, 0.650919, 0.205215 };
+#endif
+#if AO_KERNEL == AO_KERNEL_HBAO
+static const float sampleRadius[NUM_DIRECTIONS] = {0.019897607325877215, 0.3239192018939078, 0.15013283288204182, 0.5608856339193332, 0.07874804859295396, 0.4306374970658152, 0.23159241868180838, 0.74770696488701};
+#endif
 
 cbuffer StaticCB
 {
@@ -309,7 +314,7 @@ struct BasicAOData
 
     static float finalize(float avgAO)
     {
-        if(AO_KERNEL == AO_KERNEL_HBAO) avgAO = saturate(1.0 - 3.0 * avgAO);
+        if(AO_KERNEL == AO_KERNEL_HBAO) avgAO = saturate(1.0 - 2.0 * avgAO);
         return pow(avgAO, gData.exponent);
     }
 };
@@ -343,7 +348,10 @@ struct SampleAOData
         float2 dir = radius * float2(sin(alpha), cos(alpha)); // world space direction
 
         const float sphereHeight = sqrt(data.radius * data.radius - radius * radius);
-        pdf = 2.0 * sphereHeight;
+        if(AO_KERNEL == AO_KERNEL_VAO)
+            pdf = 2.0 * sphereHeight;
+        else
+            pdf = 0.9 * pow(1.0 - sampleRadius[i], 1.5);
         
         // determine distance within [-sphereHeight, +sphereHeight]
         sphereStart = sphereHeight; // in object coordinates (bigger is closer to the camera)
@@ -356,7 +364,7 @@ struct SampleAOData
             sphereEnd = zIntersectClamped;
         }
 
-        if ((sphereStart - sphereEnd) / pdf <= 0.1)
+        if ((sphereStart - sphereEnd) / (2.0 * sphereHeight) <= 0.1)
         {
             return false; // skip sample (no visibility)
         }
@@ -457,7 +465,7 @@ struct SampleAOData
         }
         if(AO_KERNEL == AO_KERNEL_HBAO)
         {
-            float v = HBAOKernel(data, samplePosV);
+            float v = saturate(HBAOKernel(data, samplePosV) / pdf);
             if(init) visibility = v;
             else visibility = max(visibility, v);
         }
