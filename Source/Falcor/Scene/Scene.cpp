@@ -3434,8 +3434,12 @@ namespace Falcor
             // We expect all meshes in a group to have identical triangle winding. Verify that assumption here.
             FALCOR_ASSERT(!meshList.empty());
             const bool frontFaceCW = mMeshDesc[meshList[0].get()].isFrontFaceCW();
+            bool doubleSided = getMaterial(MaterialID(mMeshDesc[meshList[0].get()].materialID))->isDoubleSided();
+
             for (size_t j = 1; j < meshList.size(); j++)
             {
+                const auto& mesh = mMeshDesc[meshList[j].get()];
+                doubleSided |= getMaterial(MaterialID(mMeshDesc[meshList[j].get()].materialID))->isDoubleSided();
                 FALCOR_ASSERT(mMeshDesc[meshList[j].get()].isFrontFaceCW() == frontFaceCW);
             }
 
@@ -3445,6 +3449,7 @@ namespace Falcor
             // Note that Falcor uses a right-handed coordinate system, so we have to invert the flag.
             // Since these winding direction rules are defined in object space, they are unaffected by instance transforms.
             if (frontFaceCW) desc.flags = desc.flags | RtGeometryInstanceFlags::TriangleFrontCounterClockwise;
+            if (doubleSided) desc.flags = desc.flags | RtGeometryInstanceFlags::TriangleFacingCullDisable;
 
             // From the scene builder we can expect the following:
             //
@@ -3472,11 +3477,6 @@ namespace Falcor
                 }
 
                 desc.instanceID = instanceID;
-                auto pMaterial = getMaterial(MaterialID(mGeometryInstanceData[desc.instanceID].materialID));
-                if (pMaterial->isDoubleSided())
-                {
-                    desc.flags = desc.flags | RtGeometryInstanceFlags::TriangleFacingCullDisable;
-                }
                 instanceID += (uint32_t)meshList.size();
 
                 float4x4 transform4x4 = float4x4::identity();
