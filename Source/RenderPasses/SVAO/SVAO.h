@@ -103,6 +103,7 @@ private:
 
     int mFrameIndex = 0;
 
+
     //NeuralNetCollection mNeuralNet;
     //NeuralNetCollection mNeuralNet2 = NeuralNetCollection(NeuralNetCollection::Type::Regressor);
 
@@ -118,4 +119,5 @@ private:
     bool mUseRayInterval = true; // stochastic depth ray interval optimization
     AOKernel mKernel = AOKernel::VAO;
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::None; // cull mode for secondary surfaces
+    uint32_t mSampleCount = 8; // supports 8, 16, 32
 };

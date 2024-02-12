@@ -1,9 +1,23 @@
 import math
 
-# van der coprut sequence from 8 to 15
-rngs = [1, 9, 5, 13, 3, 11, 7, 15]
-# divide each by 16
-rngs = [x/16 for x in rngs]
+def van_der_corput(n, base=2):
+    result = 0
+    denom = 1
+    while n > 0:
+        denom *= base
+        n, remainder = divmod(n, base)
+        result += remainder / denom
+    return result
+
+# for n = 8
+rngs = [van_der_corput(i) for i in range(8, 16)]
+# for n = 16
+rngs = [van_der_corput(i) for i in range(16, 32)]
+# for n = 32
+rngs = [van_der_corput(i) for i in range(32, 64)]
+for i in rngs:
+    print(i, end=", ")
+print()
 
 # VAO distribution sqrt(1-rng^(2/3))
 print("VAO distribution: [", end="")

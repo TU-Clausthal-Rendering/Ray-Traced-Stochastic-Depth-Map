@@ -53,7 +53,7 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
     uint2 svPos = id.xy + uint2(guardBand); // pixel position
     float2 texC = (svPos + float2(0.5)) * gData.invResolution; // texture position
     
-    uint mask = aoMask[uint2(svPos.xy)] & 0xFF;
+    uint mask = aoMask[uint2(svPos.xy)];
     if(mask == 0)
         return;
     

@@ -63,7 +63,7 @@ void rayGen()
     uint2 svPos = DispatchRaysIndex().xy + uint2(guardBand);
     float2 texC = (float2(svPos) + 0.5) * gData.invResolution;
 
-    uint mask = aoMask[svPos] & 0xFF;
+    uint mask = aoMask[svPos];
     if (mask == 0u)
         return;
 

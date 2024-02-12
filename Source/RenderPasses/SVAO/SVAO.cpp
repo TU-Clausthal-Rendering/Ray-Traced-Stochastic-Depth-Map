@@ -40,7 +40,6 @@ namespace
     const std::string kNormals = "normals";
     const std::string kColor = "color";
 
-    const std::string kInternalStencil = "internalStencil";
     // ray bounds for the stochastic depth map RT
     const std::string kInternalRayMin = "internalRayMin";
     const std::string kInternalRayMax = "internalRayMax";
@@ -48,7 +47,6 @@ namespace
     const std::string kRasterShader = "RenderPasses/SVAO/SVAORaster.ps.slang";
     const std::string kRasterShader2 = "RenderPasses/SVAO/SVAORaster2.ps.slang";
     const std::string kRayShader = "RenderPasses/SVAO/Ray.rt.slang";
-    const std::string kStencilShader = "RenderPasses/SVAO/CopyStencil.ps.slang";
 
     const uint32_t kMaxPayloadSizePreventDarkHalos = 4 * 4;
 
@@ -136,10 +134,10 @@ RenderPassReflection SVAO::reflect(const CompileData& compileData)
     auto aoFormat = ResourceFormat::R8Unorm;
     if(mDualAo) aoFormat = ResourceFormat::RG8Unorm;
     reflector.addOutput(kAmbientMap, "Ambient Occlusion (bright/dark if dualAO is enabled)").bindFlags(ResourceBindFlags::AllColorViews).format(aoFormat);
-    reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::AllColorViews).format(ResourceFormat::R8Uint);
-    //reflector.addInternal(kAoStencil2, "ping pong for stencil mask").bindFlags(ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource).format(ResourceFormat::R8Uint);
-    //reflector.addInternal(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24);
-    reflector.addOutput(kInternalStencil, "internal stencil mask").format(ResourceFormat::D32FloatS8X24).bindFlags(ResourceBindFlags::DepthStencil);
+    auto stencilFormat = ResourceFormat::R8Uint;
+    if (mSampleCount > 8) stencilFormat = ResourceFormat::R16Uint;
+    if (mSampleCount > 16) stencilFormat = ResourceFormat::R32Uint;
+    reflector.addOutput(kAoStencil, "Stencil Bitmask for primary / secondary ao").bindFlags(ResourceBindFlags::AllColorViews).format(stencilFormat);
 
     reflector.addOutput(kInternalRayMin, "internal ray min").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews).texture2D(internalMapsRes.x, internalMapsRes.y);
     reflector.addOutput(kInternalRayMax, "internal ray max").format(ResourceFormat::R32Int).bindFlags(ResourceBindFlags::AllColorViews).texture2D(internalMapsRes.x, internalMapsRes.y);
@@ -204,8 +202,6 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     auto pColor = renderData[kColor]->asTexture();
 
     auto pAoMask = renderData[kAoStencil]->asTexture();
-    //auto pAoMask2 = renderData[kAoStencil2]->asTexture();
-    auto pInternalStencil = renderData[kInternalStencil]->asTexture();
 
     auto pInternalRayMin = renderData[kInternalRayMin]->asTexture();
     auto pInternalRayMax = renderData[kInternalRayMax]->asTexture();
@@ -238,6 +234,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         auto rayConeSpread = mpScene->getCamera()->computeScreenSpacePixelSpreadAngle(renderData.getDefaultTextureDims().y);
         defines.add("RAY_CONE_SPREAD", std::to_string(rayConeSpread));
         defines.add("CULL_MODE_RAY_FLAG", RasterizerState::CullModeToRayFlag(mCullMode));
+        defines.add("NUM_DIRECTIONS", std::to_string(mSampleCount));
         defines.add(mpScene->getSceneDefines());
 
         {
@@ -463,13 +460,19 @@ void SVAO::renderUI(Gui::Widgets& widget)
         {(uint32_t)StochasticDepthImpl::Ray, "Ray"},
     };
 
-    const Gui::DropdownList kSampleCountList =
+    const Gui::DropdownList kStochSampleCount =
     {
         { (uint32_t)1, "1" },
         { (uint32_t)2, "2" },
         { (uint32_t)4, "4" },
         //{ (uint32_t)8, "8" }, // the ray traced version packs the data into rgba32f (slightly faster than texture array)
         //{ (uint32_t)16, "16" }, // falcor (and directx) only support 8 render targets, which are required for the raster variant
+    };
+
+    const Gui::DropdownList kSampleCount = {
+        { (uint32_t)8, "8" },
+        { (uint32_t)16, "16" },
+        { (uint32_t)32, "32" },
     };
 
     const Gui::DropdownList kCullModes =
@@ -511,7 +514,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
         if (widget.dropdown("Technique", mStochasticDepthImplementation)) reset = true;
 
-        if (widget.dropdown("St. Sample Count", kSampleCountList, mStochSamples))
+        if (widget.dropdown("St. Sample Count", kStochSampleCount, mStochSamples))
             reset = true;
 
         if (widget.checkbox("SD-Map Ray Interval", mUseRayInterval)) reset = true;
@@ -559,6 +562,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
     if (widget.var("Power Exponent", mData.exponent, 1.0f, 16.0f, 0.1f)) mDirty = true;
 
+    if (widget.dropdown("Sample Count", kSampleCount, mSampleCount)) reset = true;
 
     widget.separator();
     //if(mEnableRayFilter) mpRayFilter->renderUI(widget);
@@ -603,7 +607,7 @@ ref<Texture> SVAO::genNoiseTexture()
     // group1: 8, 10, 11, 9
     // group2: 12, 14, 15, 13
     // group3: 4, 6, 7, 5
-
+    
     std::srand(2346); // always use the same seed for the noise texture (linear rand uses std rand)
     for (uint32_t i = 0; i < data.size(); i++)
     {
