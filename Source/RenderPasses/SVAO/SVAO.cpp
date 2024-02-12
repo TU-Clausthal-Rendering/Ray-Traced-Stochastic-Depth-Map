@@ -402,6 +402,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         pCamera->setShaderData(rayVars["PerFrameCB"]["gCamera"]);
         rayVars["PerFrameCB"]["invViewMat"] = inverse(pCamera->getViewMatrix());
         rayVars["PerFrameCB"]["guardBand"] = guardBand;
+        rayVars["PerFrameCB"]["frameIndex"] = mFrameIndex;
 
         // set textures
         rayVars["gDepthTex"] = pDepth;
@@ -432,6 +433,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         computeVars2["aoMask"] = pAoMask;
         computeVars2["aoPrev"] = pAoDst;
         computeVars2["PerFrameCB"]["guardBand"] = guardBand;
+        computeVars2["PerFrameCB"]["frameIndex"] = mFrameIndex;
 
         {
             FALCOR_PROFILE(pRenderContext, "AO 2 (raster)");
