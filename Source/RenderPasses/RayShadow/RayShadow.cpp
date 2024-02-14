@@ -27,6 +27,7 @@
  **************************************************************************/
 #include "RayShadow.h"
 
+#include "Core/API/Sampler.h"
 #include "RenderGraph/RenderPassHelpers.h"
 
 namespace
@@ -46,6 +47,14 @@ extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registr
 RayShadow::RayShadow(ref<Device> pDevice) : RenderPass(std::move(pDevice))
 {
     mpFbo = Fbo::create(mpDevice);
+
+    Sampler::Desc d;
+    //d.setFilterMode(Sampler::Filter::Point, Sampler::Filter::Point, Sampler::Filter::Point);
+    d.setAddressingMode(Sampler::AddressMode::Border, Sampler::AddressMode::Border, Sampler::AddressMode::Border);
+    d.setBorderColor(float4(0.0f));
+    //d.setMaxAnisotropy(16);
+    
+    mpSampler = Sampler::create(mpDevice, d);
 }
 
 ref<RayShadow> RayShadow::create(ref<Device> pDevice, const Properties& dict)
@@ -105,6 +114,8 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
         defines.add("USE_RAYCONES", mRayCones ? "1" : "0");
         defines.add("RAY_CONE_SHADOW", std::to_string(int(mRayConeShadow)));
         mpPass = FullScreenPass::create(mpDevice, desc, defines);
+        auto vars = mpPass->getRootVar();
+        vars["gSoftShadowSampler"] = mpSampler;
     }
 
     auto var = mpPass->getRootVar();
@@ -112,6 +123,7 @@ void RayShadow::execute(RenderContext* pRenderContext, const RenderData& renderD
     var["gNormal"] = pNormal;
     var["PerLightBuffer"]["gPointLightClip"] = mPointLightClip;
     var["PerLightBuffer"]["gLodBias"] = mLodBias;
+    var["PerLightBuffer"]["gDiminishBorder"] = mDiminishBorder;
 
     // raytracing data
     mpScene->setRaytracingShaderData(pRenderContext, var);
@@ -144,6 +156,9 @@ void RayShadow::renderUI(Gui::Widgets& widget)
     }
 
     widget.var("Point Light Clip", mPointLightClip, 0.0f);
+
+    widget.checkbox("Diminish Border", mDiminishBorder);
+    widget.tooltip("Blends out texture fetches near the border to prevent showing the quadratic shape of the texture in higher mip levels");
 }
 
 void RayShadow::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

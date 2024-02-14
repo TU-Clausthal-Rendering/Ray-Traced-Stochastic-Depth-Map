@@ -14,7 +14,10 @@ cbuffer PerLightBuffer
     uint gLightIndex;
     float gPointLightClip;
     float gLodBias;
+    bool gDiminishBorder;
 };
+
+SamplerState gSoftShadowSampler; // modified clamping mode to get softer borders
 
 #ifndef USE_RAYCONES
 #define USE_RAYCONES 1
@@ -27,6 +30,42 @@ cbuffer PerLightBuffer
 #ifndef RAY_CONE_SHADOW
 #define RAY_CONE_SHADOW RAY_CONE_SHADOW_SATURATED
 #endif
+
+struct SoftExplicitRayConesLodTextureSampler : ITextureSampler
+{
+    float rayconesLODWithoutTexDims;    ///< this is \Delta_t, which is texture independent, plus the rest of the terms, except the texture size, which is added below
+
+    __init(float rayconesLODWithoutTexDims)
+    {
+        this.rayconesLODWithoutTexDims = rayconesLODWithoutTexDims;
+    }
+
+    float4 sampleTexture(Texture2D t, SamplerState s, float2 uv)
+    {
+        uint txw, txh;
+        t.GetDimensions(txw, txh);
+        float lambda = 0.5 * log2(txw * txh) + rayconesLODWithoutTexDims;
+
+        float4 color = t.SampleLevel(gSoftShadowSampler, uv, lambda);
+        if(!gDiminishBorder) return color;
+
+        float lambdaBias = 1.0; // simulate higher mipmap to use border clamping earlier
+        float w = float(txw) * pow(0.5, max(lambda + lambdaBias, 0.0));
+        float h = float(txh) * pow(0.5, max(lambda + lambdaBias, 0.0));
+        w = max(4.0, w); // make sure it does not diminish completely when the texture gets too small
+        h = max(4.0, h);
+
+        float2 pixel = uv * float2(w, h) + 0.5;
+        if(all(pixel >= 1.0) && all(pixel <= float2(w, h)))
+            return color;
+
+        // border handling
+        float2 t2D = max(1.0 - pixel, 0.0) + max(pixel - float2(w, h), 0.0);
+        float tSum = saturate(t2D.x + t2D.y);
+        color = max(lerp(color, -0.5, tSum), 0.0);
+        return color;
+    }
+};
 
 float traceShadowRay(
 RayDesc ray
@@ -59,7 +98,7 @@ RayDesc ray
             float lambda = shadowCone.computeLOD(v.coneTexLODValue);
             lambda += gLodBias;
             //lambda += 1.0; // small offset to make shadows a bit more soft
-            let lod = ExplicitRayConesLodTextureSampler(lambda);
+            let lod = SoftExplicitRayConesLodTextureSampler(lambda);
             float opacity = material.evalOpacity(gScene.materials, v, lod);
             
             if (RAY_CONE_SHADOW == RAY_CONE_SHADOW_SATURATED)

@@ -73,6 +73,7 @@ private:
     int mLightCount = 1;
     float mPointLightClip = 0.2f;
     bool mRayCones = true;
+    bool mDiminishBorder = true;
     float mLodBias = 0.0f;
     RayConeShadow mRayConeShadow = RayConeShadow::Saturated; // fastest
 
@@ -82,6 +83,8 @@ private:
     ref<Fbo> mpFbo;
 
     uint2 mInputSize = uint2(0);
+
+    ref<Sampler> mpSampler;
 };
 
 FALCOR_ENUM_REGISTER(RayShadow::RayConeShadow);
