@@ -155,6 +155,8 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
     mpComputePass2.reset();
     mpRayProgram.reset();
 
+
+
     // create stochastic depth graph
     Properties sdDict;
     sdDict["SampleCount"] = mStochSamples;
@@ -456,8 +458,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
     };
 
     const Gui::DropdownList kStochasticDepthDopdown = {
-        {(uint32_t)StochasticDepthImpl::Raster, "Raster"},
-        {(uint32_t)StochasticDepthImpl::Ray, "Ray"},
+        {(uint32_t)StochasticDepthImpl::Raster, "Raster (Vermeer 2021)"},
+        {(uint32_t)StochasticDepthImpl::Ray, "Ray-SD (our)"},
     };
 
     const Gui::DropdownList kStochSampleCount =
@@ -467,6 +469,15 @@ void SVAO::renderUI(Gui::Widgets& widget)
         { (uint32_t)4, "4" },
         //{ (uint32_t)8, "8" }, // the ray traced version packs the data into rgba32f (slightly faster than texture array)
         //{ (uint32_t)16, "16" }, // falcor (and directx) only support 8 render targets, which are required for the raster variant
+    };
+
+    const Gui::DropdownList kStochMapDivisor =
+    {
+        { (uint32_t)1, "Full Resolution" },
+        { (uint32_t)2, "1/2 Resolution" },
+        { (uint32_t)4, "1/4 Resolution" },
+        { (uint32_t)8, "1/8 Resolution" },
+        { (uint32_t)16, "1/16 Resolution" },
     };
 
     const Gui::DropdownList kSampleCount = {
@@ -487,7 +498,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
     widget.checkbox("Enabled", mEnabled);
     if (!mEnabled) return;
 
-    if (widget.checkbox("Alpha Test", mAlphaTest)) reset = true;
+    if (widget.checkbox("Alpha Test for SD-Map/Rays", mAlphaTest)) reset = true;
 
     uint32_t primaryDepthMode = (uint32_t)mPrimaryDepthMode;
     if (widget.dropdown("Primary Depth Mode", kPrimaryDepthModeDropdown, primaryDepthMode)) {
@@ -500,33 +511,39 @@ void SVAO::renderUI(Gui::Widgets& widget)
     uint32_t secondaryDepthMode = (uint32_t)mSecondaryDepthMode;
     if (widget.dropdown("Secondary Depth Mode", kSecondaryDepthModeDropdown, secondaryDepthMode)) {
         mSecondaryDepthMode = (DepthMode)secondaryDepthMode;
+        
+        // overwrite cull mode based on secondary depth
+        mCullMode = RasterizerState::CullMode::Back; // slightly faster for real-time
+        if (mSecondaryDepthMode == DepthMode::Raytraced)
+            mCullMode = RasterizerState::CullMode::None; // standart for reference image
+
         reset = true;
     }
 
     if (mSecondaryDepthMode == DepthMode::StochasticDepth)
     {
         uint32_t stochasticImpl = (uint32_t)mStochasticDepthImpl;
-        if (widget.dropdown("Stochastic Impl.", kStochasticDepthDopdown, stochasticImpl))
+        if (widget.dropdown("SD-Variant", kStochasticDepthDopdown, stochasticImpl))
         {
             mStochasticDepthImpl = (StochasticDepthImpl)stochasticImpl;
             reset = true;
         }
 
-        if (widget.dropdown("Technique", mStochasticDepthImplementation)) reset = true;
+        //if (widget.dropdown("Technique", mStochasticDepthImplementation)) reset = true;
 
-        if (widget.dropdown("St. Sample Count", kStochSampleCount, mStochSamples))
-            reset = true;
+        //if (widget.dropdown("St. Sample Count", kStochSampleCount, mStochSamples))
+        //    reset = true;
 
-        if (widget.checkbox("SD-Map Ray Interval", mUseRayInterval)) reset = true;
+        if (widget.checkbox("Ray Interval Optimization", mUseRayInterval)) reset = true;
 
-        if(widget.var("SD-Map Divisor", mStochMapDivisor, 1u, 16u, 1u))
+        if (widget.dropdown("Resolution", kStochMapDivisor, mStochMapDivisor))
             reset = true;
 
         // not implemented in ray atm
         //if (widget.checkbox("SD-Map Normals", mStochMapNormals))
         //    reset = true;
 
-        if (widget.checkbox("SD-Map Jitter", mStochMapJitter))
+        if (widget.checkbox("SD-Map Jitter Sample Positions", mStochMapJitter))
             reset = true;
 
         //if (mpFbo2->getWidth() % mStochMapDivisor != 0)
@@ -536,16 +553,16 @@ void SVAO::renderUI(Gui::Widgets& widget)
     }
     else if (mSecondaryDepthMode == DepthMode::Raytraced)
     {
-        if (widget.checkbox("Ray Pipeline", mUseRayPipeline)) reset = true;
+        //if (widget.checkbox("Ray Pipeline", mUseRayPipeline)) reset = true;
 
         if (widget.checkbox("Trace Out of Screen", mTraceOutOfScreen)) reset = true;
         widget.tooltip("If a sample point is outside of the screen, a ray is traced. Otherwise the closest sample from the border is used.");
 
     }
-    if(mSecondaryDepthMode != DepthMode::SingleDepth)
+    if (mSecondaryDepthMode != DepthMode::SingleDepth)
     {
         uint32_t cullMode = (uint32_t)mCullMode;
-        if (widget.dropdown("Cull", kCullModes, cullMode)) reset = true;
+        if (widget.dropdown("Culling", kCullModes, cullMode)) reset = true;
         mCullMode = (RasterizerState::CullMode)cullMode;
     }
 
@@ -553,16 +570,16 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
     if (widget.dropdown("AO Kernel", mKernel)) reset = true;
 
-    if (widget.var("Sample Radius", mData.radius, 0.01f, FLT_MAX, 0.01f)) mDirty = true;
+    if (widget.var("Sample Radius (World)", mData.radius, 0.01f, FLT_MAX, 0.01f)) mDirty = true;
 
-    if (widget.var("Thickness", mData.thickness, 0.0f, 1.0f, 0.1f)) {
-        mDirty = true;
+    //if (widget.var("Thickness", mData.thickness, 0.0f, 1.0f, 0.1f)) {
+    //    mDirty = true;
         //mData.exponent = glm::mix(1.6f, 1.0f, mData.thickness);
-    }
+    //}
 
-    if (widget.var("Power Exponent", mData.exponent, 1.0f, 16.0f, 0.1f)) mDirty = true;
+    if (widget.var("AO Power Exponent", mData.exponent, 1.0f, 16.0f, 0.1f)) mDirty = true;
 
-    if (widget.dropdown("Sample Count", kSampleCount, mSampleCount)) reset = true;
+    if (widget.dropdown("AO Sample Count", kSampleCount, mSampleCount)) reset = true;
 
     widget.separator();
     //if(mEnableRayFilter) mpRayFilter->renderUI(widget);
@@ -571,10 +588,10 @@ void SVAO::renderUI(Gui::Widgets& widget)
     if (widget.var("Radius Cutoff (in Pixels)", mData.ssRadiusCutoff, 0.0f, 100.0f, 1.0f)) mDirty = true;
     widget.tooltip("(sample) radius in pixels where no ray tracing is used and only rasterization remains");
 
-    if (widget.var("Max Screen Space Radius", mData.ssMaxRadius)) mDirty = true;
-    widget.tooltip("Max screen space radius to gather samples from (smaller = faster)");
+    //if (widget.var("Max Screen Space Radius", mData.ssMaxRadius)) mDirty = true;
+    //widget.tooltip("Max screen space radius to gather samples from (smaller = faster)");
 
-    if(widget.checkbox("Output dual AO (bright/dark)", mDualAo)) reset = true;
+    //if(widget.checkbox("Output dual AO (bright/dark)", mDualAo)) reset = true;
 
     if (reset) requestRecompile();
 }

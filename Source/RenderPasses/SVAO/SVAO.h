@@ -95,7 +95,7 @@ private:
     bool mDirty = true;
     uint2 mStochLastSize;
     DepthMode mPrimaryDepthMode = DepthMode::SingleDepth;
-    DepthMode mSecondaryDepthMode = DepthMode::Raytraced;
+    DepthMode mSecondaryDepthMode = DepthMode::StochasticDepth;
     bool mUseRayPipeline = true;
 
     // performance knobs
@@ -118,6 +118,6 @@ private:
     StochasticDepthImplementation mStochasticDepthImplementation = StochasticDepthImplementation::Default;
     bool mUseRayInterval = true; // stochastic depth ray interval optimization
     AOKernel mKernel = AOKernel::VAO;
-    RasterizerState::CullMode mCullMode = RasterizerState::CullMode::None; // cull mode for secondary surfaces
+    RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back; // cull mode for secondary surfaces
     uint32_t mSampleCount = 8; // supports 8, 16, 32
 };
