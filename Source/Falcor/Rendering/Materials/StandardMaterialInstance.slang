@@ -159,6 +159,8 @@ struct StandardMaterialInstance : IMaterialInstance
     {
         const bool isTransmissive = (getLobeTypes(sd) & (uint)LobeType::Transmission) != 0;
 
+        weight = 0.0;
+        lobeType = 0u;
         wo = sample_cosine_hemisphere_concentric(sampleNext2D(sg), pdf); // pdf = cos(theta) / pi
 
         if (isTransmissive)
