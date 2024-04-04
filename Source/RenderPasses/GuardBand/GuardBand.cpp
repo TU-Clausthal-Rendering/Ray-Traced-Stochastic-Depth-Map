@@ -85,9 +85,9 @@ void GuardBand::renderUI(Gui::Widgets& widget)
 
 void GuardBand::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
-    if (mFirstStart && mApp)
+    /*if (mFirstStart && mApp)
     {
         mFirstStart = false;
         mApp->resizeFrameBuffer(1920 + 2 * mGuardBand, 1080 + 2 * mGuardBand);
-    }
+    }*/
 }
