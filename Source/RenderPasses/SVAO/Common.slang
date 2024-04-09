@@ -163,7 +163,8 @@ int2 UVToPixel(float2 uv)
 // UV can be negative or greater than one if the guard band for the SD-map is used (gData.sdGuard)
 int2 UVToSDPixel(float2 uv)
 {
-    return int2(floor(uv * gData.lowResolution)) + int2(gData.sdGuard);
+    int2 pixel = int2(floor(uv * gData.lowResolution)) + int2(gData.sdGuard);
+    return clamp(pixel, 0, int2(gData.lowResolution) + gData.sdGuard * 2 - 1);
 }
 
 float makeNonZero(float value, float epsilon)
@@ -495,6 +496,13 @@ struct SampleAOData
         }
     }
 
+    [mutating] void resetSample()
+    {
+        if(AO_KERNEL == AO_KERNEL_VAO) visibility = 1.0;
+        if(AO_KERNEL == AO_KERNEL_HBAO) visibility = 0.0;
+        objectSpaceZ = 3.402823466e+38F;
+    }
+
     [mutating] void evalPrimaryVisibility(BasicAOData data)
     {
         float3 samplePosV = calcSamplePosV(data, rasterSamplePosUV, gDepthTex);
@@ -567,18 +575,21 @@ ao_t calcAO2(uint2 svPos, uint mask)
         
         if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
         {            
-            int2 pixelCoord = UVToSDPixel(s.rasterSamplePosUV);
+            //int2 pixelCoord = UVToSDPixel(s.rasterSamplePosUV);
+            int2 pixelCoord = UVToSDPixel(s.samplePosUV);
+            
             //float2 sdSampleUV = getSnappedUV(s.rasterSamplePosUV, float2(sdwidth, sdheight));
             // calc uv space position based on primary frame buffer size
-            float2 sdSampleUV = (pixelCoord - gData.sdGuard + randomJitter(pixelCoord)) / gData.lowResolution; // TODO
+            float2 sdSampleUV = (pixelCoord - gData.sdGuard + randomJitter(pixelCoord)) / gData.lowResolution;
             const float depthRange = gCamera.data.farZ - gCamera.data.nearZ;
             const float depthOffset = gCamera.data.nearZ;
             bool stochInside = false;
             #if STOCHASTIC_DEPTH_IMPL != STOCHASTIC_DEPTH_RASTER
             float4 sddepths = gsDepthTex[pixelCoord];
             #endif
-            // TODO overwrite previous visibility value if sdSampleUv is outside of screen
-            //if (!s.isInScreen)
+
+            if (!s.isInScreen) s.resetSample();
+
             [unroll]
             for (uint i = 0; i < MSAA_SAMPLES; ++i)
             {
@@ -618,16 +629,15 @@ ao_t calcAO2(uint2 svPos, uint mask)
             ray.TMin = max(rayData.tLastFrontFaceHalo, 0.0);
             ray.TMax = rayData.tFirstFrontFaceInside; // sphereEnd
 
-            if (!s.isInScreen) s.visibility = 1.0;
             #endif
             #if AO_KERNEL == AO_KERNEL_HBAO
             rayData.tFirst = 0.0;
 
             ray.TMin = (data.posVLength - s.sphereStart) * s.initialSamplePosLength / data.posVLength; // sphereStart
             ray.TMax = (data.posVLength - s.sphereEnd) * s.initialSamplePosLength / data.posVLength; // sphereEnd
-
-            if(!s.isInScreen) s.visibility = 0.0;
             #endif
+
+            if (!s.isInScreen) s.resetSample();
 
             const float epsilon = data.radius * 0.01;
             // include the value of the depth buffer when choosing TMin to save some traversal time

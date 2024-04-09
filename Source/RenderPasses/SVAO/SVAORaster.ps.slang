@@ -64,6 +64,10 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
             {
                 forceRay = true; // always shoot rays for screen border   
             }
+            if(!s.isInScreen && SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC && gData.sdGuard > 0)
+            {
+                forceRay = true; // always shoot rays for screen border
+            }
         
             s.evalPrimaryVisibility(data);
             if (PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL)
@@ -77,7 +81,7 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
                 STENCIL(output.stencil |= 1u << i);
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
-                uint2 pixel = UVToSDPixel(s.rasterSamplePosUV);
+                uint2 pixel = UVToSDPixel(s.samplePosUV);
 #if USE_RAY_INTERVAL
                 uint rayMin, rayMax;
                 float objectSpaceMin;
