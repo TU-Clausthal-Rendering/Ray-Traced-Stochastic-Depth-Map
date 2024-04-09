@@ -62,13 +62,18 @@ float ViewDepthToRay(float3 rayDir, float viewDepth)
     return viewDepth / cosTheta;    
 }
 
-RayDesc initRayDesc(uint2 pixel, uint2 dim)
+RayDesc initRayDesc(int2 pixel, int2 dim)
 {
-    RayDesc ray = gScene.camera.computeRayPinhole(pixel, dim).toRayDesc();
-    ray.Direction = normalize(gScene.camera.computeNonNormalizedRayDirPinhole(pixel, dim, randomJitter(pixel)));
+    dim = dim - 2 * GUARD_BAND; // remove guard band
+    int2 signedPixel = pixel - GUARD_BAND; // pixel can be negative or bigger than dim, but thats fine for the ray direction
+    RayDesc ray = gScene.camera.computeRayPinhole(signedPixel, dim).toRayDesc();
+    ray.Direction = normalize(gScene.camera.computeNonNormalizedRayDirPinhole(signedPixel, dim, randomJitter(pixel)));
     
     float epsilon = 0.1 * gScene.camera.data.nearZ; // small ray offset
-    float depth = depthInTex.SampleLevel(S, (pixel + 0.5) / dim, 0);
+    float depth = 0.0;
+    if(all(signedPixel >= 0) && all(signedPixel < dim)) // use frame buffer depth if pixel is inside frame buffer
+        depth = depthInTex.SampleLevel(S, (signedPixel + 0.5) / dim, 0);
+
     //float depth = depthInTex[pixel];
     ray.TMin = ViewDepthToRay(ray.Direction, depth) + epsilon; // start after first known hit
 

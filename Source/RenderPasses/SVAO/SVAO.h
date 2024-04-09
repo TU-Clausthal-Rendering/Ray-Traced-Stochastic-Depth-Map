@@ -68,6 +68,8 @@ private:
     ref<Texture> genNoiseTexture();
 
     Program::Desc getFullscreenShaderDesc(const std::string& filename);
+    int getExtraGuardBand() const;
+    uint2 getStochMapSize(uint2 fullRes, bool includeGuard = true) const;
 
     ref<Sampler> mpNoiseSampler;
     ref<Texture> mpNoiseTexture;
@@ -120,4 +122,5 @@ private:
     AOKernel mKernel = AOKernel::VAO;
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back; // cull mode for secondary surfaces
     uint32_t mSampleCount = 8; // supports 8, 16, 32
+    int mStochMapGuardBand = 0;
 };

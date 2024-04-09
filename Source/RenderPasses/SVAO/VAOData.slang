@@ -33,12 +33,13 @@ BEGIN_NAMESPACE_FALCOR
 struct VAOData
 {
     float2 noiseScale = float2(1, 1);
-    float2 resolution;
-    float2 invResolution;
+    float2 resolution; // resolution of primary depth buffer
+    float2 lowResolution; // low resolution for the SD-map (without guard band). This will be same as resolution, or 1/2, or 1/4 etc.
+    float2 invResolution; // 1 / resolution
     float radius = 0.5f;
     float exponent = 2.0f;
     float thickness = 0.0f;
-    float classifyThreshold = 0.0f; // sigmoid^-1(probability) DEPRECATED
+    int sdGuard = 0; // extra guard band for the SD-map
     float ssRadiusCutoff = 6.0f; // radius in pixels where the ray tracing result is completely faded and only rasterization remains
     float ssMaxRadius = 1024.0f; // max screen space radius to gather samples from (setting this to a smaller number can improve performance due to increased cache hits)
 };

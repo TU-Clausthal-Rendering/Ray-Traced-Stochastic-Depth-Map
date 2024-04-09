@@ -77,6 +77,7 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
                 STENCIL(output.stencil |= 1u << i);
             
 #if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
+                uint2 pixel = UVToSDPixel(s.rasterSamplePosUV);
 #if USE_RAY_INTERVAL
                 uint rayMin, rayMax;
                 float objectSpaceMin;
@@ -84,10 +85,10 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
                 if(AO_KERNEL == AO_KERNEL_HBAO) objectSpaceMin = min(s.objectSpaceZ, s.sphereStart);
                 rayMin = /*rough estimate of depth*/asuint(max(data.posVLength - objectSpaceMin, 0.0));
                 rayMax = /*rough estimate of depth*/asuint(max(data.posVLength - s.sphereEnd, 0.0));
-                InterlockedMin(gRayMinAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], rayMin);
-                InterlockedMax(gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR], rayMax);
+                InterlockedMin(gRayMinAccess[pixel], rayMin);
+                InterlockedMax(gRayMaxAccess[pixel], rayMax);
 #else // no interval (only set flag)
-                gRayMaxAccess[uint2(s.rasterSamplePosUV * gData.resolution) / STOCH_MAP_DIVISOR] = 1u;
+                gRayMaxAccess[pixel] = 1u;
 #endif          
 #endif
             }

@@ -43,7 +43,7 @@ struct Camera
         \param[in] applyJitter true if jitter should be applied else false.
         \return Returns the camera ray.
     */
-    Ray computeRayPinhole(uint2 pixel, uint2 frameDim, bool applyJitter = true)
+    Ray computeRayPinhole(int2 pixel, uint2 frameDim, bool applyJitter = true)
     {
         Ray ray;
 
@@ -65,7 +65,7 @@ struct Camera
         \param[in] applyJitter True if jitter should be applied else false.
         \return Returns the non-normalized ray direction
     */
-    float3 computeNonNormalizedRayDirPinhole(uint2 pixel, uint2 frameDim, bool applyJitter = true)
+    float3 computeNonNormalizedRayDirPinhole(int2 pixel, uint2 frameDim, bool applyJitter = true)
     {
         // Compute sample position in screen space in [0,1] with origin at the top-left corner.
         // The camera jitter offsets the sample by +-0.5 pixels from the pixel center.
@@ -78,7 +78,7 @@ struct Camera
     }
 
     // same as above with explicit jitter in [-0.5, 0.5]
-    float3 computeNonNormalizedRayDirPinhole(uint2 pixel, uint2 frameDim, float2 jitter)
+    float3 computeNonNormalizedRayDirPinhole(int2 pixel, uint2 frameDim, float2 jitter)
     {
         // Compute sample position in screen space in [0,1] with origin at the top-left corner.
         // The camera jitter offsets the sample by +-0.5 pixels from the pixel center.

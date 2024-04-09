@@ -107,6 +107,12 @@ float2 getScreenClampedUV(float2 uvstart, float2 uvend)
     return saturate(uvend); // this actually does not make much of a difference but costs a little bit more...
 }
 
+float2 getSDClampedUV(float2 uvstart, float2 uvend)
+{
+    float2 offset = float(gData.sdGuard) / gData.lowResolution;
+    return clamp(uvend, -offset, 1.0 + offset);
+}
+
 float2 getSnappedUV(float2 uv, float2 resolution)
 {
     float2 pixelCoord = floor(uv * resolution);
@@ -151,6 +157,13 @@ int2 UVToPixel(float2 uv)
     float width, height;
     gDepthTex.GetDimensions(width, height);
     return int2(floor(uv * float2(width, height)));
+}
+
+// converts from screen uv coordinates to pixel coordinates of stochastic depth map.
+// UV can be negative or greater than one if the guard band for the SD-map is used (gData.sdGuard)
+int2 UVToSDPixel(float2 uv)
+{
+    return int2(floor(uv * gData.lowResolution)) + int2(gData.sdGuard);
 }
 
 float makeNonZero(float value, float epsilon)
@@ -553,23 +566,19 @@ ao_t calcAO2(uint2 svPos, uint mask)
         visibility.x -= s.visibility; // subtract old visibility from raster for bright channel
         
         if (SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC)
-        {
-            float sdwidth, sdheight, elements;
-            #if STOCHASTIC_DEPTH_IMPL == STOCHASTIC_DEPTH_RASTER
-            gsDepthTex.GetDimensions(sdwidth, sdheight, elements);
-            #else // ray
-            gsDepthTex.GetDimensions(sdwidth, sdheight);
-            #endif
-            
-            int2 pixelCoord = int2(floor(s.rasterSamplePosUV * float2(sdwidth, sdheight)));
+        {            
+            int2 pixelCoord = UVToSDPixel(s.rasterSamplePosUV);
             //float2 sdSampleUV = getSnappedUV(s.rasterSamplePosUV, float2(sdwidth, sdheight));
-            float2 sdSampleUV = (pixelCoord + randomJitter(pixelCoord)) / float2(sdwidth, sdheight);
+            // calc uv space position based on primary frame buffer size
+            float2 sdSampleUV = (pixelCoord - gData.sdGuard + randomJitter(pixelCoord)) / gData.lowResolution; // TODO
             const float depthRange = gCamera.data.farZ - gCamera.data.nearZ;
             const float depthOffset = gCamera.data.nearZ;
             bool stochInside = false;
             #if STOCHASTIC_DEPTH_IMPL != STOCHASTIC_DEPTH_RASTER
             float4 sddepths = gsDepthTex[pixelCoord];
             #endif
+            // TODO overwrite previous visibility value if sdSampleUv is outside of screen
+            //if (!s.isInScreen)
             [unroll]
             for (uint i = 0; i < MSAA_SAMPLES; ++i)
             {

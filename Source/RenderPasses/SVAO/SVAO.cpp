@@ -116,12 +116,7 @@ Properties SVAO::getProperties() const
 
 RenderPassReflection SVAO::reflect(const CompileData& compileData)
 {
-    auto internalMapsRes = compileData.defaultTexDims;
-    if(mStochMapDivisor > 1)
-    {
-        internalMapsRes.x = (internalMapsRes.x + mStochMapDivisor - 1) / mStochMapDivisor;
-        internalMapsRes.y = (internalMapsRes.y + mStochMapDivisor - 1) / mStochMapDivisor;
-    }
+    auto internalMapsRes = getStochMapSize(compileData.defaultTexDims);
 
     RenderPassReflection reflector;
     //reflector.addInput(kAoStencil, "(Depth-) Stencil Buffer for the ao mask").format(ResourceFormat::D32FloatS8X24);
@@ -149,6 +144,8 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
 {
     mData.resolution = float2(compileData.defaultTexDims.x, compileData.defaultTexDims.y);
     mData.invResolution = float2(1.0f) / mData.resolution;
+    mData.sdGuard = getExtraGuardBand(); // adjusted with divisor
+    mData.lowResolution = getStochMapSize(compileData.defaultTexDims, false); // false = dont include guard band here
     mData.noiseScale = mData.resolution / 4.0f; // noise texture is 4x4 resolution
 
     mpComputePass.reset();
@@ -182,7 +179,8 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
         sdDict["useRayPipeline"] = true; // performs better than raster //mUseRayPipeline;
         sdDict["StoreNormals"] = mStochMapNormals;
         sdDict["Jitter"] = mStochMapJitter;
-        pStochasticDepthPass = RenderPass::create("StochasticDepthMapRT", mpDevice, sdDict);    
+        sdDict["GuardBand"] = getExtraGuardBand();
+        pStochasticDepthPass = RenderPass::create("StochasticDepthMapRT", mpDevice, sdDict);
         break;
     }
     mpStochasticDepthGraph->addPass(pStochasticDepthPass, "StochasticDepthMap");
@@ -374,11 +372,7 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
         mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMin", pInternalRayMin);
         mpStochasticDepthGraph->setInput("StochasticDepthMap.rayMax", pInternalRayMax);
         //mpStochasticDepthGraph->setInput("StochasticDepthMap.stencilMask", pAccessStencil);
-        auto stochSize = uint2(pAoDst->getWidth(), pAoDst->getHeight());
-        if(mStochMapDivisor > 1u)
-        {
-            stochSize = (stochSize + uint2(mStochMapDivisor - 1)) / uint2(mStochMapDivisor); 
-        }
+        auto stochSize = getStochMapSize(uint2(pAoDst->getWidth(), pAoDst->getHeight()));
 
         if(any(mStochLastSize != stochSize))
         {
@@ -546,6 +540,10 @@ void SVAO::renderUI(Gui::Widgets& widget)
         if (widget.checkbox("SD-Map Jitter Sample Positions", mStochMapJitter))
             reset = true;
 
+        if (widget.var("SD-Map Extra Guard Band", mStochMapGuardBand, 0, 1024))
+            reset = true;
+        widget.tooltip("Independent extra guard band for the stochastic depth map that allows pixels to be ray traced that are outside of the screen. The guard band size is in relation to the full screen frame buffer resolution and will be scaled down automatically in lower resolution presets.");
+
         //if (mpFbo2->getWidth() % mStochMapDivisor != 0)
         //    widget.text("Warning: SD-Map Divisor does not divide width of screen");
         //if (mpFbo2->getHeight() % mStochMapDivisor != 0)
@@ -588,8 +586,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
     if (widget.var("Radius Cutoff (in Pixels)", mData.ssRadiusCutoff, 0.0f, 100.0f, 1.0f)) mDirty = true;
     widget.tooltip("(sample) radius in pixels where no ray tracing is used and only rasterization remains");
 
-    //if (widget.var("Max Screen Space Radius", mData.ssMaxRadius)) mDirty = true;
-    //widget.tooltip("Max screen space radius to gather samples from (smaller = faster)");
+    if (widget.var("Max Screen Space Radius", mData.ssMaxRadius)) mDirty = true;
+    widget.tooltip("Max screen space radius to gather samples from (smaller = faster)");
 
     //if(widget.checkbox("Output dual AO (bright/dark)", mDualAo)) reset = true;
 
@@ -642,4 +640,28 @@ Program::Desc SVAO::getFullscreenShaderDesc(const std::string& filename)
     desc.addTypeConformances(mpScene->getTypeConformances());
     desc.setShaderModel("6_5");
     return desc;
+}
+
+uint2 SVAO::getStochMapSize(uint2 fullRes, bool includeGuard) const
+{
+    auto internalMapsRes = fullRes;
+    if (mStochMapDivisor > 1)
+    {
+        internalMapsRes.x = (internalMapsRes.x + mStochMapDivisor - 1) / mStochMapDivisor;
+        internalMapsRes.y = (internalMapsRes.y + mStochMapDivisor - 1) / mStochMapDivisor;
+    }
+
+    if (includeGuard)
+    {
+        internalMapsRes.x += 2 * getExtraGuardBand(); // expand internal size with the extra guard band from the SD-map
+        internalMapsRes.y += 2 * getExtraGuardBand();
+    }
+
+    return internalMapsRes;
+}
+
+int SVAO::getExtraGuardBand() const
+{
+    if (mSecondaryDepthMode != DepthMode::StochasticDepth) return 0u;
+    return mStochMapGuardBand / mStochMapDivisor; // make this independent from divisor
 }
