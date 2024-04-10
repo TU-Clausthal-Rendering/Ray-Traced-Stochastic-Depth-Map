@@ -551,6 +551,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
                     mStochMapGuardBand = 0;
                 reset = true;
             }
+            
                 
             //if (widget.var("SD-Map Extra Guard Band", mStochMapGuardBand, 0, 1024))
             //    reset = true;

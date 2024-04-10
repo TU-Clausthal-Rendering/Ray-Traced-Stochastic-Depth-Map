@@ -28,6 +28,7 @@
 #include "GuardBand.h"
 
 #include "RenderGraph/RenderPassStandardFlags.h"
+#include <Utils/Math/FalcorMath.h>
 
 extern "C" FALCOR_API_EXPORT void registerPlugin(Falcor::PluginRegistry& registry)
 {
@@ -80,11 +81,32 @@ void GuardBand::renderUI(Gui::Widgets& widget)
         mApp->resizeFrameBuffer(800 + 2 * mGuardBand, 600 + 2 * mGuardBand);
     }
 
+    if (mpScene && mpScene->getCamera())
+    {
+        //fovYToFocalLength(mpScene->getCamera()->getFocalLength());
+        auto curFov = focalLengthToFovY(mpScene->getCamera()->getFocalLength(), mpScene->getCamera()->getFrameHeight());
+        // radians to degrees
+        curFov = curFov * 180.0f / 3.14159265358979323846f;
+        widget.text("Current Fov: " + std::to_string(curFov));
+        widget.var("Target Fov", mTargetFov, 1.0f, 179.0f);
+        
 
+        if (widget.button("Fix Camera Fov") && mApp)
+        {
+            auto targetRadian = mTargetFov * 3.14159265358979323846f / 180.0f;
+            auto h = (float)mApp->getTargetFbo()->getHeight();
+
+            auto newFov = 2.0 * atan(h * 0.5 * tan(targetRadian * 0.5) / (h * 0.5 - (float)mGuardBand));
+            auto newFocalLength = fovYToFocalLength(newFov, mpScene->getCamera()->getFrameHeight());
+            mpScene->getCamera()->setFocalLength(newFocalLength);
+        }
+    }
+    
 }
 
 void GuardBand::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
 {
+    mpScene = pScene;
     /*if (mFirstStart && mApp)
     {
         mFirstStart = false;

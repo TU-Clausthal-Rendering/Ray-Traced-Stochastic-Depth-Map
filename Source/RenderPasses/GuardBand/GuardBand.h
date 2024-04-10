@@ -54,4 +54,6 @@ private:
     int mGuardBand = 64;
     SampleApp* mApp = nullptr;
     bool mFirstStart = true;
+    ref<Scene> mpScene;
+    float mTargetFov = 60.0f;
 };
