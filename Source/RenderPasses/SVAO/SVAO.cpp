@@ -542,9 +542,19 @@ void SVAO::renderUI(Gui::Widgets& widget)
             if (widget.checkbox("SD-Map Jitter Sample Positions", mStochMapJitter))
                 reset = true;
 
-            if (widget.var("SD-Map Extra Guard Band", mStochMapGuardBand, 0, 1024))
+            bool extraGuard = mStochMapGuardBand > 0;
+            if (widget.checkbox("SD Guard Band", extraGuard))
+            {
+                if(extraGuard)
+                    mStochMapGuardBand = mData.ssMaxRadius;
+                else
+                    mStochMapGuardBand = 0;
                 reset = true;
-            widget.tooltip("Independent extra guard band for the stochastic depth map that allows pixels to be ray traced that are outside of the screen. The guard band size is in relation to the full screen frame buffer resolution and will be scaled down automatically in lower resolution presets.");
+            }
+                
+            //if (widget.var("SD-Map Extra Guard Band", mStochMapGuardBand, 0, 1024))
+            //    reset = true;
+            widget.tooltip("Independent extra guard band for the stochastic depth map that allows pixels to be ray traced that are outside of the screen.");
         }
         
         //if (mpFbo2->getWidth() % mStochMapDivisor != 0)
@@ -589,8 +599,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
     if (widget.var("Radius Cutoff (in Pixels)", mData.ssRadiusCutoff, 0.0f, 100.0f, 1.0f)) mDirty = true;
     widget.tooltip("(sample) radius in pixels where no ray tracing is used and only rasterization remains");
 
-    if (widget.var("Max Screen Space Radius", mData.ssMaxRadius)) mDirty = true;
-    widget.tooltip("Max screen space radius to gather samples from (smaller = faster)");
+    //if (widget.var("Max Screen Space Radius", mData.ssMaxRadius)) mDirty = true;
+    //widget.tooltip("Max screen space radius to gather samples from (smaller = faster)");
 
     //if(widget.checkbox("Output dual AO (bright/dark)", mDualAo)) reset = true;
 

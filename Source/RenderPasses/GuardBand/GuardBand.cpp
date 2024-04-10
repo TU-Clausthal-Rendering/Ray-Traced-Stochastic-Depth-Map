@@ -66,7 +66,7 @@ void GuardBand::execute(RenderContext* pRenderContext, const RenderData& renderD
 
 void GuardBand::renderUI(Gui::Widgets& widget)
 {
-    widget.var("Guard  Band", mGuardBand, 0, 256);
+    widget.var("Guard  Band", mGuardBand, 0, 512);
     if (widget.button("Recompile"))
     {
         requestRecompile();

@@ -263,8 +263,9 @@ float GetAORadiusInPixels(float ViewDepth)
 float GetMaxAORadius(float2 texC)
 {
     return gData.ssMaxRadius;
-    float2 pixel = texC * gData.resolution;
-    return max(min(min(pixel.x, pixel.y), min(gData.resolution.x - pixel.x, gData.resolution.y - pixel.y)), float(guardBand));
+    //float2 pixel = texC * gData.resolution;
+    //float sdBorder = gData.sdGuard * STOCH_MAP_DIVISOR; // border size in pixels in relation to the primary depth map size
+    //return max(min(min(pixel.x, pixel.y), min(gData.resolution.x - pixel.x, gData.resolution.y - pixel.y)) + sdBorder, float(guardBand) + sdBorder);
 }
 
 struct BasicAOData
