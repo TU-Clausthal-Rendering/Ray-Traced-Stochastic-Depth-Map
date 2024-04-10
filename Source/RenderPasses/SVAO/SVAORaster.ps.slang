@@ -64,10 +64,6 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
             {
                 forceRay = true; // always shoot rays for screen border   
             }
-            if(!s.isInScreen && SECONDARY_DEPTH_MODE == DEPTH_MODE_STOCHASTIC && gData.sdGuard > 0)
-            {
-                forceRay = true; // always shoot rays for screen border
-            }
         
             s.evalPrimaryVisibility(data);
             if (PRIMARY_DEPTH_MODE == DEPTH_MODE_DUAL)
@@ -75,7 +71,13 @@ void main(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint3 localI
 
             // always add computed visibility from raster
             output.ao1.x += s.visibility; // only on bright
-        
+
+            if (!s.isInScreen && gData.sdGuard > 0)
+            {
+                forceRay = true; // always shoot rays for screen border
+                s.objectSpaceZ = 3.402823466e+38F; // reset object space for new ray interval calculation
+            }
+            
             if (s.requireRay(data) || forceRay)
             {
                 STENCIL(output.stencil |= 1u << i);

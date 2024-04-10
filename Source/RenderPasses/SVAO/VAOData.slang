@@ -39,9 +39,9 @@ struct VAOData
     float radius = 0.5f;
     float exponent = 2.0f;
     float thickness = 0.0f;
-    int sdGuard = 0; // extra guard band for the SD-map
+    int sdGuard = 0; // extra guard band for the SD-map (only nonzero if active and stochastic depth map is used)
     float ssRadiusCutoff = 6.0f; // radius in pixels where the ray tracing result is completely faded and only rasterization remains
-    float ssMaxRadius = 1024.0f; // max screen space radius to gather samples from (setting this to a smaller number can improve performance due to increased cache hits)
+    float ssMaxRadius = 512.0f; // max screen space radius to gather samples from (setting this to a smaller number can improve performance due to increased cache hits)
 };
 
 END_NAMESPACE_FALCOR

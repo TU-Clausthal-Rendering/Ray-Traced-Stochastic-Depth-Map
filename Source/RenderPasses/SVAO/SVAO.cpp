@@ -452,7 +452,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
     };
 
     const Gui::DropdownList kStochasticDepthDopdown = {
-        {(uint32_t)StochasticDepthImpl::Raster, "Raster (Vermeer 2021)"},
+        {(uint32_t)StochasticDepthImpl::Raster, "Raster-SVAO (Vermeer+Brull)"},
         {(uint32_t)StochasticDepthImpl::Ray, "Ray-SD (our)"},
     };
 
@@ -537,13 +537,16 @@ void SVAO::renderUI(Gui::Widgets& widget)
         //if (widget.checkbox("SD-Map Normals", mStochMapNormals))
         //    reset = true;
 
-        if (widget.checkbox("SD-Map Jitter Sample Positions", mStochMapJitter))
-            reset = true;
+        if (mStochasticDepthImpl == StochasticDepthImpl::Ray)
+        {
+            if (widget.checkbox("SD-Map Jitter Sample Positions", mStochMapJitter))
+                reset = true;
 
-        if (widget.var("SD-Map Extra Guard Band", mStochMapGuardBand, 0, 1024))
-            reset = true;
-        widget.tooltip("Independent extra guard band for the stochastic depth map that allows pixels to be ray traced that are outside of the screen. The guard band size is in relation to the full screen frame buffer resolution and will be scaled down automatically in lower resolution presets.");
-
+            if (widget.var("SD-Map Extra Guard Band", mStochMapGuardBand, 0, 1024))
+                reset = true;
+            widget.tooltip("Independent extra guard band for the stochastic depth map that allows pixels to be ray traced that are outside of the screen. The guard band size is in relation to the full screen frame buffer resolution and will be scaled down automatically in lower resolution presets.");
+        }
+        
         //if (mpFbo2->getWidth() % mStochMapDivisor != 0)
         //    widget.text("Warning: SD-Map Divisor does not divide width of screen");
         //if (mpFbo2->getHeight() % mStochMapDivisor != 0)
@@ -663,5 +666,6 @@ uint2 SVAO::getStochMapSize(uint2 fullRes, bool includeGuard) const
 int SVAO::getExtraGuardBand() const
 {
     if (mSecondaryDepthMode != DepthMode::StochasticDepth) return 0u;
+    if (mStochasticDepthImpl != StochasticDepthImpl::Ray) return 0u; // only for raytraced SD
     return mStochMapGuardBand / mStochMapDivisor; // make this independent from divisor
 }
