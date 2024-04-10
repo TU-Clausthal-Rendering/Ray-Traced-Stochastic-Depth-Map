@@ -260,29 +260,12 @@ float GetAORadiusInPixels(float ViewDepth)
     return lerp(radiusUV.x * gData.resolution.x, radiusUV.y * gData.resolution.y, 0.5); // take mean between width and height radii TODO  test
 }
 
-float calcSampleImportance(
-    float sampleRadius, float sampleLinearZ,
-    //float3 sampleNormal, float3 centerNormal,
-    float sphereStart, float sphereEnd, float objectSpaceZ,
-    float3 sampleColor)
+float GetMaxAORadius(float2 texC)
 {
-    float screen_radius = dot(ViewSpaceRadiusToUVRadius(sampleLinearZ, sampleRadius), float2(0.5));
-    // clamp screen radius
-    screen_radius = saturate(screen_radius / 20.0);
-    
-    //float normal_diff = abs(dot(sampleNormal, centerNormal));
-    float dist = max(objectSpaceZ - sphereEnd, 0.0) / gData.radius;
-    // clamp dist
-    dist = saturate(dist / 5.0);
-    
-    float contrib = saturate((sphereStart - sphereEnd) / (2.0 * sphereStart));
-    float luminance = saturate(dot(sampleColor, float3(0.2126, 0.7152, 0.0722)));
-    luminance = pow(luminance, 1.0 / 2.4);
-    
-    return contrib * luminance * 0.999 * screen_radius * dist;
-    //return 0.999 * screen_radius * dist;
+    return gData.ssMaxRadius;
+    float2 pixel = texC * gData.resolution;
+    return max(min(min(pixel.x, pixel.y), min(gData.resolution.x - pixel.x, gData.resolution.y - pixel.y)), float(guardBand));
 }
-
 
 struct BasicAOData
 {
@@ -303,11 +286,13 @@ struct BasicAOData
         float linearDepth = gDepthTex.SampleLevel(gTextureSampler, texC, 0);
         radiusInPixels = GetAORadiusInPixels(linearDepth);
         radius = gData.radius;
+        
         // limit the pixel radius to maxPixelRadius to prevent samples from being distributed over the entire screen (bad for cache)
-        if (radiusInPixels > gData.ssMaxRadius)
+        float maxRadius = GetMaxAORadius(texC);
+        if (radiusInPixels > maxRadius)
         {
-            radius = radius / radiusInPixels * gData.ssMaxRadius;
-            radiusInPixels = gData.ssMaxRadius;
+            radius = radius / radiusInPixels * maxRadius;
+            radiusInPixels = maxRadius;
         }
         
         if (radiusInPixels < 0.5)
