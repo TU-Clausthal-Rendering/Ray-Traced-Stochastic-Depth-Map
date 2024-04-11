@@ -122,5 +122,5 @@ private:
     AOKernel mKernel = AOKernel::VAO;
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back; // cull mode for secondary surfaces
     uint32_t mSampleCount = 8; // supports 8, 16, 32
-    int mStochMapGuardBand = 0;
+    int mStochMapGuardBand = 512;
 };
