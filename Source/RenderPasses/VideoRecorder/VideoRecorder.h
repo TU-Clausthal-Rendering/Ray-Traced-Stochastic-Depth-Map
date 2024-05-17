@@ -115,4 +115,5 @@ private:
 
     int guardBand = 0;
     ref<Texture> mpBlitTexture;
+    bool mCutGuardBand = true;
 };
