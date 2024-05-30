@@ -29,7 +29,7 @@ import Utils.Math.PackedFormats;
 #define STOCHASTIC_DEPTH_MAP Texture2DMS<sd_map_t>
 #define LOAD_STOCHASTIC_SAMPLE(tex, xy, i) tex.Load(xy, i)
 #else
-#define STOCHASTIC_DEPTH_MAP Texture2D<float4>
+#define STOCHASTIC_DEPTH_MAP Texture2DArray<float4>
 //#define LOAD_STOCHASTIC_SAMPLE(tex, xy, i) tex.Load(int4(xy, i, /*mipmap*/0))
 #endif
 
@@ -571,7 +571,11 @@ ao_t calcAO2(uint2 svPos, uint mask)
             const float depthOffset = gCamera.data.nearZ;
             bool stochInside = false;
             #if STOCHASTIC_DEPTH_IMPL != STOCHASTIC_DEPTH_RASTER
-            float4 sddepths = gsDepthTex[pixelCoord];
+            float4 sddepths[2];
+            sddepths[0] = gsDepthTex[uint3(pixelCoord, 0)];
+            #if MSAA_SAMPLES > 4
+            sddepths[1] = gsDepthTex[uint3(pixelCoord, 1)];
+            #endif
             #endif
 
             if (!s.isInScreen) s.resetSample();
@@ -583,7 +587,7 @@ ao_t calcAO2(uint2 svPos, uint mask)
                 float2 sd_data = LOAD_STOCHASTIC_SAMPLE(gsDepthTex, pixelCoord, i);
                 float linearSampleDepth = sd_data.x;
                 #else
-                float linearSampleDepth = sddepths[i];
+                float linearSampleDepth = sddepths[i/4][i%4];
                 #endif
                 // linearSampleDepth is in [0, 1] => scale accordingly
                 linearSampleDepth = linearSampleDepth * depthRange + depthOffset;

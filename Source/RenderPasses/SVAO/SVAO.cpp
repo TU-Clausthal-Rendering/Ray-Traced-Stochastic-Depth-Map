@@ -460,7 +460,7 @@ void SVAO::renderUI(Gui::Widgets& widget)
         { (uint32_t)1, "1" },
         { (uint32_t)2, "2" },
         { (uint32_t)4, "4" },
-        //{ (uint32_t)8, "8" }, // the ray traced version packs the data into rgba32f (slightly faster than texture array)
+        { (uint32_t)8, "8" },
         //{ (uint32_t)16, "16" }, // falcor (and directx) only support 8 render targets, which are required for the raster variant
     };
 
@@ -524,8 +524,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
         //if (widget.dropdown("Technique", mStochasticDepthImplementation)) reset = true;
 
-        //if (widget.dropdown("St. Sample Count", kStochSampleCount, mStochSamples))
-        //    reset = true;
+        if (widget.dropdown("N", kStochSampleCount, mStochSamples))
+            reset = true;
 
         if (widget.checkbox("Ray Interval Optimization", mUseRayInterval)) reset = true;
 

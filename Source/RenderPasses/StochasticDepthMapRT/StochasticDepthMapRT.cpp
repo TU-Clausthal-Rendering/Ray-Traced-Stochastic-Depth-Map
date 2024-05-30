@@ -173,11 +173,17 @@ Properties StochasticDepthMapRT::getProperties() const
 
 RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileData)
 {
+    uint layerCount = 1;
     auto depthFormat = ResourceFormat::R32Float;
     if(mSampleCount == 2)
         depthFormat = ResourceFormat::RG32Float;
     else if(mSampleCount == 4)
         depthFormat = ResourceFormat::RGBA32Float;
+    else if(mSampleCount == 8)
+    {
+        depthFormat = ResourceFormat::RGBA32Float;
+        layerCount = 2;
+    }
     else if(mSampleCount != 1) throw std::runtime_error("StochasticDepthMapRT: Only 1, 2 and 4 samples are supported");
 
     if (mUse16Bit)
@@ -201,7 +207,7 @@ RenderPassReflection StochasticDepthMapRT::reflect(const CompileData& compileDat
     reflector.addInput(kStencil, "(optional) stencil-mask").format(ResourceFormat::R8Uint).flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addInput(kRayMin, "min ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
     reflector.addInput(kRayMax, "max ray T distance for depth values").flags(RenderPassReflection::Field::Flags::Optional);
-    reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(depthFormat).texture2D(0, 0, 1, 1, 1);
+    reflector.addOutput(ksDepth, "stochastic depths in [0,1]").bindFlags(ResourceBindFlags::AllColorViews).format(depthFormat).texture2D(0, 0, 1, 1, layerCount);
     reflector.addInternal(kInternalStencil, "stencil-mask").bindFlags(ResourceBindFlags::DepthStencil).format(ResourceFormat::D32FloatS8X24);
     return reflector;
 }

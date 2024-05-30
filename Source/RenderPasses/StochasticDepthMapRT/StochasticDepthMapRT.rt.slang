@@ -6,10 +6,10 @@ import Rendering.Materials.TexLODTypes;
 #define out_t float
 #elif NUM_SAMPLES == 2
 #define out_t float2
-#elif NUM_SAMPLES == 4
+#elif NUM_SAMPLES >= 4
 #define out_t float4
 #endif
-RWTexture2D<out_t> depthOutTex;
+RWTexture2DArray<out_t> depthOutTex;
 Texture2D<uint> maskTex;
 
 // Note: using lods (ray cones) is about 20% faster than sampling lod 0 (no lod)
@@ -80,7 +80,6 @@ void rayGen()
     }
         
     
-    // TODO custom culling?
     TraceRay(
         gScene.rtAccel,
         CULL_MODE_RAY_FLAG | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER,
@@ -91,12 +90,16 @@ void rayGen()
     out_t data;
     #if NUM_SAMPLES == 1
     data = rayData.depths[0];
+    depthOutTex[uint3(svPos, 0)] = data;
+    #elif NUM_SAMPLES == 8
+    depthOutTex[uint3(svPos, 0)] = float4(rayData.depths[0], rayData.depths[1], rayData.depths[2], rayData.depths[3]);
+    depthOutTex[uint3(svPos, 1)] = float4(rayData.depths[4], rayData.depths[5], rayData.depths[6], rayData.depths[7]);
     #else
     [unroll(NUM_SAMPLES)] for (uint i = 0; i < NUM_SAMPLES; ++i)
     {
         data[i] = rayData.depths[i];
         //SD_NORMALS(data.y = asfloat(rayData.normals[i]));
     }
+    depthOutTex[uint3(svPos, 0)] = data;
     #endif
-    depthOutTex[svPos] = data;
 }
