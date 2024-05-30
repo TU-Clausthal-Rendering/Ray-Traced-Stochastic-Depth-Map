@@ -59,12 +59,6 @@ private:
     ref<RtProgram> mpRayProgram;
     ref<RtProgramVars> mRayVars;
 
-    ref<FullScreenPass> mpRasterProgram;
-    ref<Fbo> mpFbo;
-
-    ref<FullScreenPass> mpStencilPass;
-    ref<DepthStencilState> mpStencilState;
-
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back;
     uint32_t mSampleCount = 4;
     bool mNormalize = true; // normalize to range [0, 1] (based on [near, far])
@@ -76,7 +70,6 @@ private:
     ref<Buffer> mpMaterialAlphaTest;
 
     bool mClear = false;
-    bool mUseRayPipeline = true; // faster
     bool mAlphaTest = true;
 
     bool mUse16Bit = false; // compresses depth to 16 bit, otherwise 32 bit
