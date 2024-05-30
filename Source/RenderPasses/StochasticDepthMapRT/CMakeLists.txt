@@ -4,7 +4,6 @@ target_sources(StochasticDepthMapRT PRIVATE
     StochasticDepthMapRT.cpp
     StochasticDepthMapRT.h
     StochasticDepthMapRT.rt.slang
-    StochasticDepthMapRT.ps.slang
     Common.slangh
     Stencil.ps.slang
     Jitter.slangh
