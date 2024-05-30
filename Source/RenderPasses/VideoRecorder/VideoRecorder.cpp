@@ -199,6 +199,7 @@ void VideoRecorder::renderUI(RenderContext* pRenderContext, Gui::Widgets& widget
             startWarmup();
         }
         if (mOutputs.empty()) widget.tooltip("No outputs selected. Nothing will be saved to file!");
+        widget.checkbox("Cut Guard Band", mCutGuardBand, true);
     }
 
     widget.checkbox("Cleanup", mCleanupFiles, true);
@@ -372,14 +373,26 @@ void VideoRecorder::saveFrame(RenderContext* pRenderContext)
         filename << filenameBase << std::setfill('0') << std::setw(4) << mRenderIndex << ".bmp";
 
         // blit texture
-        uint4 srcRect = uint4(guardBand, guardBand, tex->getWidth() - guardBand, tex->getHeight() - guardBand);
-        if(!mpBlitTexture ||
-            mpBlitTexture->getWidth() != tex->getWidth() - 2 * guardBand ||
-            mpBlitTexture->getHeight() != tex->getHeight() - 2 * guardBand)
+        uint4 srcRect = uint4(0, 0, tex->getWidth(), tex->getHeight());
+        if (mCutGuardBand)
         {
-            mpBlitTexture = Texture::create2D(
-                mpDevice, tex->getWidth() - 2 * guardBand, tex->getHeight() - 2 * guardBand, ResourceFormat::BGRA8UnormSrgb, 1, 1, nullptr, ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource);
+            srcRect = uint4(guardBand, guardBand, tex->getWidth() - guardBand, tex->getHeight() - guardBand);
+            if (!mpBlitTexture ||
+                mpBlitTexture->getWidth() != tex->getWidth() - 2 * guardBand ||
+                mpBlitTexture->getHeight() != tex->getHeight() - 2 * guardBand)
+            {
+                mpBlitTexture = Texture::create2D(
+                    mpDevice, tex->getWidth() - 2 * guardBand, tex->getHeight() - 2 * guardBand, ResourceFormat::BGRA8UnormSrgb, 1, 1, nullptr, ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource);
+            }
         }
+        else // do not cut guard band
+            if (!mpBlitTexture ||
+                mpBlitTexture->getWidth() != tex->getWidth() ||
+                mpBlitTexture->getHeight() != tex->getHeight())
+            {
+                mpBlitTexture = Texture::create2D(
+                    mpDevice, tex->getWidth(), tex->getHeight(), ResourceFormat::BGRA8UnormSrgb, 1, 1, nullptr, ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource);
+            }
 
         pRenderContext->blit(tex->getSRV(), mpBlitTexture->getRTV(), srcRect);
 
