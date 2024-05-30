@@ -53,6 +53,7 @@ namespace
     const std::string kAlpha = "Alpha";
     const std::string kRayInterval = "RayInterval";
     const std::string kGuardBand = "GuardBand";
+    const std::string kMaxCount = "MaxCount";
 
     const Gui::DropdownList kCullModeList =
     {
@@ -149,6 +150,7 @@ ref<StochasticDepthMapRT> StochasticDepthMapRT::create(ref<Device> pDevice, cons
         else if (key == kAlpha) pPass->mAlpha = value;
         else if (key == kRayInterval) pPass->mUseRayInterval = value;
         else if (key == kGuardBand) pPass->mGuardBand = value;
+        else if (key == kMaxCount) pPass->mMaxCount = value;
         else logWarning("Unknown field '" + key + "' in a StochasticDepthMapRT dictionary");
     }
     return pPass;
@@ -168,6 +170,7 @@ Properties StochasticDepthMapRT::getProperties() const
     d[kImplementation] = mImplementation;
     d[kAlpha] = mAlpha;
     d[kGuardBand] = mGuardBand;
+    d[kMaxCount] = mMaxCount;
     return d;
 }
 
@@ -267,6 +270,7 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
         defines.add("USE_RAY_INTERVAL", mUseRayInterval ? "1" : "0");
         defines.add("CULL_MODE_RAY_FLAG", RasterizerState::CullModeToRayFlag(mCullMode));
         defines.add("GUARD_BAND", std::to_string(mGuardBand));
+        defines.add("MAX_COUNT", std::to_string(mMaxCount));
 
         // raster pass
         /* {

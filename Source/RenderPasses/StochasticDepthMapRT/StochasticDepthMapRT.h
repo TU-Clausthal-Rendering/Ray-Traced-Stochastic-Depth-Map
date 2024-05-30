@@ -79,4 +79,5 @@ private:
     float mAlpha = 0.2f; // for coverage mask implementation
     bool mUseRayInterval = true; // ray interval optimization
     int mGuardBand = 0; // extra guard band that is outside of the frame buffer (required to compute proper rays)
+    int mMaxCount = 8; // max count for sd map collection
 };

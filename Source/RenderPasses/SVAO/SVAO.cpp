@@ -179,6 +179,7 @@ void SVAO::compile(RenderContext* pRenderContext, const CompileData& compileData
         sdDict["StoreNormals"] = mStochMapNormals;
         sdDict["Jitter"] = mStochMapJitter;
         sdDict["GuardBand"] = getExtraGuardBand();
+        sdDict["MaxCount"] = mStochMaxCount;
         pStochasticDepthPass = RenderPass::create("StochasticDepthMapRT", mpDevice, sdDict);
         break;
     }
@@ -525,6 +526,9 @@ void SVAO::renderUI(Gui::Widgets& widget)
         //if (widget.dropdown("Technique", mStochasticDepthImplementation)) reset = true;
 
         if (widget.dropdown("N", kStochSampleCount, mStochSamples))
+            reset = true;
+
+        if (widget.var("MAX_COUNT", mStochMaxCount, 1, 512))
             reset = true;
 
         if (widget.checkbox("Ray Interval Optimization", mUseRayInterval)) reset = true;

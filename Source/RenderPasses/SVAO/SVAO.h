@@ -123,4 +123,5 @@ private:
     RasterizerState::CullMode mCullMode = RasterizerState::CullMode::Back; // cull mode for secondary surfaces
     uint32_t mSampleCount = 8; // supports 8, 16, 32
     int mStochMapGuardBand = 512;
+    int mStochMaxCount = 8;
 };
