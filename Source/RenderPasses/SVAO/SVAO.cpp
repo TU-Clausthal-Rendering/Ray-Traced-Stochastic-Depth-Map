@@ -526,9 +526,13 @@ void SVAO::renderUI(Gui::Widgets& widget)
         //if (widget.dropdown("Technique", mStochasticDepthImplementation)) reset = true;
 
         if (widget.dropdown("N", kStochSampleCount, mStochSamples))
+        {
+            mStochMaxCount = std::max(mStochMaxCount, (int)mStochSamples);
             reset = true;
+        }
+            
 
-        if (widget.var("MAX_COUNT", mStochMaxCount, 1, 512))
+        if (widget.var("MAX_COUNT", mStochMaxCount, (int)mStochSamples))
             reset = true;
 
         if (widget.checkbox("Ray Interval Optimization", mUseRayInterval)) reset = true;
