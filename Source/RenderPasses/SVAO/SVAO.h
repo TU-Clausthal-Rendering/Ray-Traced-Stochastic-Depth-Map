@@ -124,4 +124,7 @@ private:
     uint32_t mSampleCount = 8; // supports 8, 16, 32
     int mStochMapGuardBand = 512;
     int mStochMaxCount = 8;
+
+    // sd map cache
+    bool mCacheSDMap = false; // indicates if the SD map from next frame should be cached
 };

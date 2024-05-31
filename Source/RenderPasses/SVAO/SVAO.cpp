@@ -322,6 +322,8 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
     auto& dict = renderData.getDictionary();
     auto guardBand = dict.getValue("guardBand", 0);
 
+
+
     {
         FALCOR_PROFILE(pRenderContext, "AO 1");
 
@@ -381,9 +383,26 @@ void SVAO::execute(RenderContext* pRenderContext, const RenderData& renderData)
             mpStochasticDepthGraph->onResize(stochFbo.get());
             mStochLastSize = stochSize;
         }
-        
+
+        // force clear if we want to cache (otherwise old results will be inside since the texture is never cleared)
+        mpStochasticDepthGraph->getPassesDictionary()["SD_CLEAR"] = mCacheSDMap;
+
         mpStochasticDepthGraph->execute(pRenderContext);
         pStochasticDepthMap = mpStochasticDepthGraph->getOutput("StochasticDepthMap.stochasticDepth")->asTexture();
+
+
+        // caching of sd map for display
+        if (mCacheSDMap)
+        {
+            auto sdCopy = Texture::create2D(mpDevice, pStochasticDepthMap->getWidth(), pStochasticDepthMap->getHeight(), pStochasticDepthMap->getFormat(), pStochasticDepthMap->getArraySize(), 1, nullptr, ResourceBindFlags::AllColorViews);
+            pRenderContext->copyResource(sdCopy.get(), pStochasticDepthMap.get());
+            dict["SD_MAP"] = sdCopy;
+            auto copyCam = pCamera->getData();
+            dict["SD_CAMERA"] = copyCam;
+            dict["SD_JITTER"] = mStochMapJitter;
+            dict["SD_GUARD"] = getExtraGuardBand();
+        }
+        mCacheSDMap = false;
     }
 
     if (mUseRayPipeline && mSecondaryDepthMode != DepthMode::StochasticDepth) // RAY PIPELINE
@@ -569,6 +588,9 @@ void SVAO::renderUI(Gui::Widgets& widget)
         //    widget.text("Warning: SD-Map Divisor does not divide width of screen");
         //if (mpFbo2->getHeight() % mStochMapDivisor != 0)
         //    widget.text("Warning: SD-Map Divisor does not divide height of screen");
+
+        if (widget.button("Cache SD-Map for Debug View"))
+            mCacheSDMap = true;
     }
     else if (mSecondaryDepthMode == DepthMode::Raytraced)
     {
@@ -611,6 +633,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
     //widget.tooltip("Max screen space radius to gather samples from (smaller = faster)");
 
     //if(widget.checkbox("Output dual AO (bright/dark)", mDualAo)) reset = true;
+
+
 
     if (reset) requestRecompile();
 }

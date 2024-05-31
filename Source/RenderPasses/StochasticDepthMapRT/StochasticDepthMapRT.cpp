@@ -243,9 +243,12 @@ void StochasticDepthMapRT::execute(RenderContext* pRenderContext, const RenderDa
     ref<Texture> pRayMax;
     if (renderData[kRayMax]) pRayMax = renderData[kRayMax]->asTexture();
 
+    mClear = mClear || renderData.getDictionary().getValue("SD_CLEAR", mClear);
+
     if(mClear)
     {
         pRenderContext->clearTexture(psDepths.get());
+        logInfo("SD Map clear");
         mClear = false;
     }
     

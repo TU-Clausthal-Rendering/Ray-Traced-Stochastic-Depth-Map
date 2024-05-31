@@ -19,6 +19,7 @@ def render_graph_SVAO():
     g.create_pass('EnvMapPass', 'EnvMapPass', {})
     g.create_pass('CompressNormals', 'CompressNormals', {'viewSpace': True, 'use16Bit': True})
     g.create_pass('LinearizeDepth0', 'LinearizeDepth', {'depthFormat': 'R32Float'})
+    g.create_pass('DebugStochasticDepth', 'DebugStochasticDepth', {})
     g.add_edge('GBufferRaster.posW', 'RayShadow.posW')
     g.add_edge('GBufferRaster.normW', 'RayShadow.normalW')
     g.add_edge('GBufferRaster.depth', 'LinearizeDepth.depth')
@@ -45,10 +46,12 @@ def render_graph_SVAO():
     g.add_edge('LinearizeDepth.linearDepth', 'SVAO.depth')
     g.add_edge('CrossBilateralBlur0.colorOut', 'Shaded.I0')
     g.add_edge('CrossBilateralBlur0.colorOut', 'AmbientOcclusion.I0')
+    g.add_edge('AmbientOcclusion.out', 'DebugStochasticDepth.out')
     g.mark_output('ShadedTAA.colorOut')
     g.mark_output('AmbientOcclusionTAA.colorOut')
     g.mark_output('Shaded.out')
     g.mark_output('AmbientOcclusion.out')
+    g.mark_output('DebugStochasticDepth.out')
     return g
 
 SVAO = render_graph_SVAO()
