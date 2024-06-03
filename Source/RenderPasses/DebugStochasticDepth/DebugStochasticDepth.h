@@ -57,4 +57,5 @@ private:
     ref<GraphicsState> mpState;
 
     float mPointSize = 0.02f;
+    float mHeatmapMax = 8.0f;
 };

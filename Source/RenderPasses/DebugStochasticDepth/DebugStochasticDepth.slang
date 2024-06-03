@@ -12,6 +12,7 @@ cbuffer PerFrameCB
     uint sdGuard; // guard band size
     uint sdJitter; // 1 if jitter enabled
     float pointSize;
+    float heatmapMax;
 }
 
 struct VSOut
@@ -105,10 +106,35 @@ void gsMain(point VSOut input[1], inout TriangleStream<VSOut> triStream)
     triStream.RestartStrip();
 }
 
+// heatmap functions for depth
+float3 getColorFromHeatmap(float v) {
+    v = saturate(v);
+    static float4 table[] = // inferno
+    {
+        float4(0, 0, 0, 0.0),
+        float4(40, 11, 84, 0.14),
+        float4(101, 21, 110, 0.29),
+        float4(159, 42, 99, 0.43),
+        float4(212, 72, 66, 0.57),
+        float4(245, 125, 21, 0.71),
+        float4(250, 193, 39, 0.86),
+        float4(250, 220, 164, 1.0),
+    };
+    
+	float4 c1 = table[0]; float4 c2 = table[1];
+	[unroll] for(int i = 1; i < 8; i++) {
+        c2 = table[i];
+		if(v < c2.w) break;
+		c1 = c2;
+    }
+    return lerp(c1.rgb / 255.0, c2.rgb / 255.0, (v - c1.w) / max(c2.w - c1.w, 0.0001));
+}
+
 float4 psMain(bool valid : VALID, float depth : DEPTH, float2 uv : UV) : SV_TARGET
 {
     if (!valid || length(uv) > 1.0)
         discard;
     
-    return float4(depth, depth / 10.0, depth / 100.0, 1.0);
+    return float4(getColorFromHeatmap(depth / heatmapMax), 1.0);
+
 }

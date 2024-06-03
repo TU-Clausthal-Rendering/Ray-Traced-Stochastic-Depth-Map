@@ -135,6 +135,7 @@ void DebugStochasticDepth::execute(RenderContext* pRenderContext, const RenderDa
     auto prevToCurView = math::mul(pCurCamera->getViewMatrix(), math::inverse(pSDCamera.viewMat));
     vars["PerFrameCB"]["prevViewToCurView"] = prevToCurView;
     vars["PerFrameCB"]["pointSize"] = mPointSize;
+    vars["PerFrameCB"]["heatmapMax"] = mHeatmapMax;
 
     pRenderContext->draw(mpState.get(), mpVars.get(), res.x * res.y * k, 0);
 }
@@ -142,6 +143,7 @@ void DebugStochasticDepth::execute(RenderContext* pRenderContext, const RenderDa
 void DebugStochasticDepth::renderUI(Gui::Widgets& widget)
 {
     widget.var("Point Size", mPointSize, std::numeric_limits<float>::min());
+    widget.var("Heatmap Max", mHeatmapMax, 1.0f, std::numeric_limits<float>::max(), 1.0f);
 }
 
 void DebugStochasticDepth::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)
