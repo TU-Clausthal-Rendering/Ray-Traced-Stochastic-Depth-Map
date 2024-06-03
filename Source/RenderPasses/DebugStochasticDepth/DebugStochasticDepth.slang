@@ -20,6 +20,7 @@ struct VSOut
     bool valid : VALID;
     float depth : DEPTH;
     float2 uv : UV;
+    uint index : INDEX;
     float4 pos : SV_Position;
 };
 
@@ -50,7 +51,7 @@ float3 UVToViewSpace(float2 uv, float viewDepth)
 
 VSOut vsMain(uint id : SV_VertexID)
 {
-    uint k = id / (resolution.x * resolution.y); // stocastic depth k
+    uint k = numSamples - 1 - id / (resolution.x * resolution.y); // stocastic depth k
     uint2 pixel = uint2(id % resolution.x, (id / resolution.x) % resolution.y);
 
     float2 sdSampleUV = (pixel - sdGuard + randomJitter(pixel)) / float2(resolution - 2u * sdGuard);
@@ -70,6 +71,7 @@ VSOut vsMain(uint id : SV_VertexID)
     
     VSOut o;
     o.pos = mul(newProjection, float4(samplePosW, 1.0));
+    o.index = k;
     //o.pos = float4(sdSampleUV * 2.0 - 1.0, 0.0, 1.0);
     //o.pos = float4(0.0, 0.0, 0.0, 1.0);
     o.valid = rawDepth < 1.0 && rawDepth > 0.0;
@@ -100,6 +102,7 @@ void gsMain(point VSOut input[1], inout TriangleStream<VSOut> triStream)
         output.valid = input[0].valid;
         output.depth = input[0].depth;
         output.uv = offsets[i];
+        output.index = input[0].index;
         triStream.Append(output);
     }
     
@@ -130,11 +133,41 @@ float3 getColorFromHeatmap(float v) {
     return lerp(c1.rgb / 255.0, c2.rgb / 255.0, (v - c1.w) / max(c2.w - c1.w, 0.0001));
 }
 
-float4 psMain(bool valid : VALID, float depth : DEPTH, float2 uv : UV) : SV_TARGET
+float4 IntToColor(uint index)
+{
+    index = index % 8u;
+    switch (index)
+    {
+        case 0:
+            return float4(0.121, 0.466, 0.705, 1.0); // Blue
+        case 1:
+            return float4(1.000, 0.498, 0.054, 1.0); // Orange
+        case 2:
+            return float4(0.172, 0.627, 0.172, 1.0); // Green
+        case 3:
+            return float4(0.839, 0.153, 0.157, 1.0); // Red
+
+        case 4:
+            return float4(0.061, 0.233, 0.353, 1.0); // Darker Blue
+        case 5:
+            return float4(0.500, 0.249, 0.027, 1.0); // Darker Orange
+        case 6:
+            return float4(0.086, 0.314, 0.086, 1.0); // Darker Green
+        case 7:
+            return float4(0.420, 0.076, 0.078, 1.0); // Darker Red
+
+        default:
+            return float4(0.0, 0.0, 0.0, 1.0); // Black for out of range values
+    }
+}
+
+
+float4 psMain(bool valid : VALID, float depth : DEPTH, float2 uv : UV, uint index : INDEX) : SV_TARGET
 {
     if (!valid || length(uv) > 1.0)
         discard;
     
-    return float4(getColorFromHeatmap(depth / heatmapMax), 1.0);
+    //return float4(getColorFromHeatmap(depth / heatmapMax), 1.0);
+    return float4(IntToColor(index));
 
 }
