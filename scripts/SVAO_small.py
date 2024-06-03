@@ -46,7 +46,7 @@ def render_graph_SVAO():
     g.add_edge('LinearizeDepth.linearDepth', 'SVAO.depth')
     g.add_edge('CrossBilateralBlur0.colorOut', 'Shaded.I0')
     g.add_edge('CrossBilateralBlur0.colorOut', 'AmbientOcclusion.I0')
-    g.add_edge('AmbientOcclusion.out', 'DebugStochasticDepth.out')
+    g.add_edge('AmbientOcclusion.out', 'DebugStochasticDepth.in')
     g.add_edge('GBufferRaster.depth', 'DebugStochasticDepth.depth')
     g.mark_output('ShadedTAA.colorOut')
     g.mark_output('AmbientOcclusionTAA.colorOut')

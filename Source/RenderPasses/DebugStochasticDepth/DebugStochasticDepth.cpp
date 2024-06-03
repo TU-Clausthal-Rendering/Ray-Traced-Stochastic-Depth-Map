@@ -29,6 +29,7 @@
 
 namespace
 {
+    const std::string kIn = "in";
     const std::string kOut = "out";
     const std::string kDepth = "depth";
     const std::string kShaderFile = "RenderPasses/DebugStochasticDepth/DebugStochasticDepth.slang";
@@ -80,12 +81,20 @@ RenderPassReflection DebugStochasticDepth::reflect(const CompileData& compileDat
     // Define the required resources here
     RenderPassReflection reflector;
     reflector.addInput("depth", kDepth);
-    reflector.addInputOutput(kOut, "Output texture");
+    reflector.addInput(kIn, "Input Texture");
+    reflector.addOutput(kOut, "Output texture");
     return reflector;
 }
 
 void DebugStochasticDepth::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
+    auto pIn = renderData[kIn]->asTexture();
+    auto pOut = renderData[kOut]->asTexture();
+    auto pDepth = renderData[kDepth]->asTexture();
+
+    // blit in to out
+    pRenderContext->blit(pIn->getSRV(), pOut->getRTV());
+
     auto& dict = renderData.getDictionary();
 
     if (!dict.keyExists("SD_MAP") || !mpScene) return;
@@ -96,10 +105,6 @@ void DebugStochasticDepth::execute(RenderContext* pRenderContext, const RenderDa
     auto jitter = dict.getValue("JITTER", true);
     auto sdGuard = dict.getValue("SD_GUARD", 0);
 
-    auto pOut = renderData[kOut]->asTexture();
-    auto pDepth = renderData[kDepth]->asTexture();
-
-    //pRenderContext->clearTexture(pOut.get());
     mpFbo->attachDepthStencilTarget(pDepth);
     mpFbo->attachColorTarget(pOut, 0);
     mpState->setFbo(mpFbo, true);
