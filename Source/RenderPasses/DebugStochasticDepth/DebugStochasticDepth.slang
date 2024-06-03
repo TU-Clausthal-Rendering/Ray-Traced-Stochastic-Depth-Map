@@ -11,12 +11,14 @@ cbuffer PerFrameCB
     uint numSamples;
     uint sdGuard; // guard band size
     uint sdJitter; // 1 if jitter enabled
+    float pointSize;
 }
 
 struct VSOut
 {
     bool valid : VALID;
     float depth : DEPTH;
+    float2 uv : UV;
     float4 pos : SV_Position;
 };
 
@@ -74,9 +76,38 @@ VSOut vsMain(uint id : SV_VertexID)
     return o;
 }
 
-float4 psMain(bool valid : VALID, float depth : DEPTH) : SV_TARGET
+[maxvertexcount(6)]
+void gsMain(point VSOut input[1], inout TriangleStream<VSOut> triStream)
 {
-    if(!valid)
+    float aspect = float(gCamera.data.frameHeight) / float(gCamera.data.frameWidth);
+    VSOut output;
+    
+    // Define the four corners of the quad
+    float2 offsets[4] =
+    {
+        float2(-1, -1),
+        float2(1, -1),
+        float2(-1, 1),
+        float2(1, 1),
+    };
+    
+    // Emit the vertices for the quad
+    for (int i = 0; i < 4; ++i)
+    {
+        output.pos = input[0].pos;
+        output.pos.xy += offsets[i] * pointSize * float2(aspect, 1.0);
+        output.valid = input[0].valid;
+        output.depth = input[0].depth;
+        output.uv = offsets[i];
+        triStream.Append(output);
+    }
+    
+    triStream.RestartStrip();
+}
+
+float4 psMain(bool valid : VALID, float depth : DEPTH, float2 uv : UV) : SV_TARGET
+{
+    if (!valid || length(uv) > 1.0)
         discard;
     
     return float4(depth, depth / 10.0, depth / 100.0, 1.0);

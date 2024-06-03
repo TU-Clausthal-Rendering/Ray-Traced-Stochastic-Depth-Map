@@ -30,6 +30,7 @@
 namespace
 {
     const std::string kOut = "out";
+    const std::string kDepth = "depth";
     const std::string kShaderFile = "RenderPasses/DebugStochasticDepth/DebugStochasticDepth.slang";
     
 }
@@ -43,7 +44,7 @@ DebugStochasticDepth::DebugStochasticDepth(ref<Device> pDevice, const Properties
     : RenderPass(pDevice)
 {
     Program::Desc desc;
-    desc.addShaderLibrary(kShaderFile).vsEntry("vsMain").psEntry("psMain");
+    desc.addShaderLibrary(kShaderFile).vsEntry("vsMain").psEntry("psMain").gsEntry("gsMain");
     desc.setShaderModel("6_2");
     mpProgram = GraphicsProgram::create(mpDevice, desc);
 
@@ -57,8 +58,14 @@ DebugStochasticDepth::DebugStochasticDepth(ref<Device> pDevice, const Properties
 
     // disable depth testing
     DepthStencilState::Desc dsDesc;
-    dsDesc.setDepthEnabled(false);
+    //dsDesc.setDepthEnabled(false);
+    dsDesc.setDepthEnabled(true);
+    dsDesc.setDepthFunc(DepthStencilState::Func::LessEqual);
     mpState->setDepthStencilState(DepthStencilState::create(dsDesc));
+
+    RasterizerState::Desc rsDesc;
+    rsDesc.setDepthBias(32, 1.0f);
+    mpState->setRasterizerState(RasterizerState::create(rsDesc));
 
     mpState->setVao(Vao::create(Vao::Topology::PointList, nullptr, Vao::BufferVec()));
 }
@@ -72,6 +79,7 @@ RenderPassReflection DebugStochasticDepth::reflect(const CompileData& compileDat
 {
     // Define the required resources here
     RenderPassReflection reflector;
+    reflector.addInput("depth", kDepth);
     reflector.addInputOutput(kOut, "Output texture");
     return reflector;
 }
@@ -89,7 +97,10 @@ void DebugStochasticDepth::execute(RenderContext* pRenderContext, const RenderDa
     auto sdGuard = dict.getValue("SD_GUARD", 0);
 
     auto pOut = renderData[kOut]->asTexture();
+    auto pDepth = renderData[kDepth]->asTexture();
+
     //pRenderContext->clearTexture(pOut.get());
+    mpFbo->attachDepthStencilTarget(pDepth);
     mpFbo->attachColorTarget(pOut, 0);
     mpState->setFbo(mpFbo, true);
     uint2 res = uint2(pSDMap->getWidth(), pSDMap->getHeight());
@@ -123,12 +134,14 @@ void DebugStochasticDepth::execute(RenderContext* pRenderContext, const RenderDa
     vars["PerFrameCB"]["newProjection"] = pCurCamera->getProjMatrix();
     auto prevToCurView = math::mul(pCurCamera->getViewMatrix(), math::inverse(pSDCamera.viewMat));
     vars["PerFrameCB"]["prevViewToCurView"] = prevToCurView;
+    vars["PerFrameCB"]["pointSize"] = mPointSize;
 
     pRenderContext->draw(mpState.get(), mpVars.get(), res.x * res.y * k, 0);
 }
 
 void DebugStochasticDepth::renderUI(Gui::Widgets& widget)
 {
+    widget.var("Point Size", mPointSize, std::numeric_limits<float>::min());
 }
 
 void DebugStochasticDepth::setScene(RenderContext* pRenderContext, const ref<Scene>& pScene)

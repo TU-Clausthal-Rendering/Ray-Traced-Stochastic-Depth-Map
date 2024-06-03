@@ -55,4 +55,6 @@ private:
     ref<GraphicsProgram> mpProgram;
     ref<GraphicsVars> mpVars;
     ref<GraphicsState> mpState;
+
+    float mPointSize = 0.02f;
 };
