@@ -32,19 +32,28 @@ You can navigate the camera with WASD and dragging the mouse for rotation.
 ## Additional Videos
 
 ### Sun Temple
-1/4 Ray-SD:
 
 [![YouTube](http://i.ytimg.com/vi/sWEYIxme968/hqdefault.jpg)](https://www.youtube.com/watch?v=sWEYIxme968)
 
+VAO (Halo): https://www.youtube.com/watch?v=fqmz91wBeiA
+
+1/4 Ray-SD: https://www.youtube.com/watch?v=sWEYIxme968
+
 ### Bistro
-1/4 Ray-SD:
 
 [![YouTube](http://i.ytimg.com/vi/vHRyg8kd2Yg/hqdefault.jpg)](https://www.youtube.com/watch?v=vHRyg8kd2Yg)
 
+VAO (Halo): https://www.youtube.com/watch?v=Cw6GU3lJns8
+
+1/4 Ray-SD: https://www.youtube.com/watch?v=vHRyg8kd2Yg
+
 ### Emerald Square
-1/4 Ray-SD:
 
 [![YouTube](http://i.ytimg.com/vi/PIQo2_nakQA/hqdefault.jpg)](https://www.youtube.com/watch?v=PIQo2_nakQA)
+
+VAO (Halo): https://www.youtube.com/watch?v=fqmz91wBeiA
+
+1/4 Ray-SD: https://www.youtube.com/watch?v=PIQo2_nakQA
 
 ## Falcor Prerequisites
 - Windows 10 version 20H2 (October 2020 Update) or newer, OS build revision .789 or newer
