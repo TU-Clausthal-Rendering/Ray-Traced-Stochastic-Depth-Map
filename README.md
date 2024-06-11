@@ -3,7 +3,7 @@
 # Ray Traced Stochastic Depth Map for Ambient Occlusion
 
 Teaser:
-[https://www.youtube.com/watch?v=sWEYIxme968](https://www.youtube.com/watch?v=sWEYIxme968)
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/sWEYIxme968/0.jpg)](https://www.youtube.com/watch?v=sWEYIxme968)
 
 ## Contents:
 
@@ -30,15 +30,15 @@ To change settings of our algorithms, navigate to the SVAO group below and expan
 
 ### Sun Temple
 1/4 Ray-SD:
-[https://www.youtube.com/embed/sWEYIxme968](https://www.youtube.com/embed/sWEYIxme968)
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/sWEYIxme968/0.jpg)](https://www.youtube.com/watch?v=sWEYIxme968)
 
 ### Bistro
 1/4 Ray-SD:
-[https://www.youtube.com/embed/vHRyg8kd2Yg](https://www.youtube.com/embed/vHRyg8kd2Yg)
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/vHRyg8kd2Yg/0.jpg)](https://www.youtube.com/watch?v=vHRyg8kd2Yg)
 
 ### Emerald Square
 1/4 Ray-SD:
-[https://www.youtube.com/embed/PIQo2_nakQA](https://www.youtube.com/embed/PIQo2_nakQA)
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/PIQo2_nakQA/0.jpg)](https://www.youtube.com/watch?v=PIQo2_nakQA)
 
 ## Falcor Prerequisites
 - Windows 10 version 20H2 (October 2020 Update) or newer, OS build revision .789 or newer
