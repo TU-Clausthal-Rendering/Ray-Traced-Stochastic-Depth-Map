@@ -3,7 +3,8 @@
 # Ray Traced Stochastic Depth Map for Ambient Occlusion
 
 Teaser:
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/sWEYIxme968/0.jpg)](https://www.youtube.com/watch?v=sWEYIxme968)
+
+[![YouTube](http://i.ytimg.com/vi/sWEYIxme968/hqdefault.jpg)](https://www.youtube.com/watch?v=sWEYIxme968)
 
 ## Contents:
 
