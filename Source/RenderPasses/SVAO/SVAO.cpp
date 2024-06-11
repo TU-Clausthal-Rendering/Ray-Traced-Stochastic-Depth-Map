@@ -550,9 +550,12 @@ void SVAO::renderUI(Gui::Widgets& widget)
             reset = true;
         }
             
-
-        if (widget.var("MAX_COUNT", mStochMaxCount, (int)mStochSamples))
+        auto oldStochMaxCount = mStochMaxCount; // do this or it will stutter when typing in text (since the widget always returns true during modifications)
+        if (mStochasticDepthImpl == Ray && widget.var("MAX_COUNT", mStochMaxCount, (int)mStochSamples) && oldStochMaxCount != mStochMaxCount)
+        {
             reset = true;
+        }
+            
 
         if (widget.checkbox("Ray Interval Optimization", mUseRayInterval)) reset = true;
 
@@ -589,8 +592,8 @@ void SVAO::renderUI(Gui::Widgets& widget)
         //if (mpFbo2->getHeight() % mStochMapDivisor != 0)
         //    widget.text("Warning: SD-Map Divisor does not divide height of screen");
 
-        if (widget.button("Cache SD-Map for Debug View"))
-            mCacheSDMap = true;
+        //if (widget.button("Cache SD-Map for Debug View"))
+        //    mCacheSDMap = true;
     }
     else if (mSecondaryDepthMode == DepthMode::Raytraced)
     {
@@ -609,7 +612,14 @@ void SVAO::renderUI(Gui::Widgets& widget)
 
     widget.separator();
 
-    if (widget.dropdown("AO Kernel", mKernel)) reset = true;
+    if (widget.dropdown("AO Kernel", mKernel))
+    {
+        if (mKernel == AOKernel::HBAO)
+            mData.radius *= 1.5f;
+        else
+            mData.radius /= 1.5f;
+        reset = true;
+    }
 
     if (widget.var("Sample Radius (World)", mData.radius, 0.01f, FLT_MAX, 0.01f)) mDirty = true;
 
