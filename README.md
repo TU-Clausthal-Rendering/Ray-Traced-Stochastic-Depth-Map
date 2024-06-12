@@ -4,7 +4,7 @@
 
 Teaser:
 
-[![YouTube](http://i.ytimg.com/vi/sWEYIxme968/hqdefault.jpg)](https://www.youtube.com/watch?v=sWEYIxme968)
+[![YouTube](http://i.ytimg.com/vi/3bnV-c5PvMo/hqdefault.jpg)](https://www.youtube.com/watch?v=3bnV-c5PvMo)
 
 ## Contents:
 
@@ -35,25 +35,31 @@ You can navigate the camera with WASD and dragging the mouse for rotation.
 
 [![YouTube](http://i.ytimg.com/vi/sWEYIxme968/hqdefault.jpg)](https://www.youtube.com/watch?v=sWEYIxme968)
 
-VAO (Halo): https://www.youtube.com/watch?v=fqmz91wBeiA
+VAO (Halo): https://www.youtube.com/watch?v=tM9FI8GIJqU
 
 1/4 Ray-SD: https://www.youtube.com/watch?v=sWEYIxme968
 
+1/4 Ray-SD AO: https://www.youtube.com/watch?v=SExqcEixvLo
+
 ### Bistro
-
-[![YouTube](http://i.ytimg.com/vi/vHRyg8kd2Yg/hqdefault.jpg)](https://www.youtube.com/watch?v=vHRyg8kd2Yg)
-
-VAO (Halo): https://www.youtube.com/watch?v=Cw6GU3lJns8
-
-1/4 Ray-SD: https://www.youtube.com/watch?v=vHRyg8kd2Yg
-
-### Emerald Square
 
 [![YouTube](http://i.ytimg.com/vi/PIQo2_nakQA/hqdefault.jpg)](https://www.youtube.com/watch?v=PIQo2_nakQA)
 
-VAO (Halo): https://www.youtube.com/watch?v=fqmz91wBeiA
+VAO (Halo): https://www.youtube.com/watch?v=Cw6GU3lJns8
 
 1/4 Ray-SD: https://www.youtube.com/watch?v=PIQo2_nakQA
+
+1/4 Ray-SD AO: https://www.youtube.com/watch?v=wcSHOUG8qdQ
+
+### Emerald Square
+
+[![YouTube](http://i.ytimg.com/vi/vHRyg8kd2Yg/hqdefault.jpg)](https://www.youtube.com/watch?v=vHRyg8kd2Yg)
+
+VAO (Halo): https://www.youtube.com/watch?v=fqmz91wBeiA
+
+1/4 Ray-SD: https://www.youtube.com/watch?v=vHRyg8kd2Yg
+
+1/4 Ray-SD AO: https://www.youtube.com/watch?v=PHAlVU92CHU
 
 ## Falcor Prerequisites
 - Windows 10 version 20H2 (October 2020 Update) or newer, OS build revision .789 or newer
