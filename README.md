@@ -2,6 +2,10 @@
 
 # Ray Traced Stochastic Depth Map for Ambient Occlusion
 
+Paper: https://doi.org/10.2312/sr.20241160
+
+Presentation: https://www.youtube.com/watch?v=j3bW_EvCS4k
+
 Teaser:
 
 [![YouTube](http://i.ytimg.com/vi/3bnV-c5PvMo/hqdefault.jpg)](https://www.youtube.com/watch?v=3bnV-c5PvMo)
